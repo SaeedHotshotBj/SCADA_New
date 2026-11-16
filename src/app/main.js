@@ -53,11 +53,16 @@ document.addEventListener("submit", async event => {
     if (submit) submit.disabled = true;
     try {
       await api.login(credentials);
-      await store.loadAfterLogin();
+      const snapshot = await store.loadAfterLogin();
       sessionStorage.setItem("scada-demo-auth", "1");
       location.hash = "/bi/dashboard";
       syncLiveConnection();
-      showToast("ورود به سامانه با موفقیت انجام شد.");
+      if (snapshot.user?.must_change_password) {
+        await handleAction("change-password", null);
+        showToast("برای ادامه، رمز موقت خود را تغییر دهید.", "warning");
+      } else {
+        showToast("ورود به سامانه با موفقیت انجام شد.");
+      }
     } catch (error) {
       showToast(error.message || "ورود ناموفق بود.", "error");
     } finally {
@@ -113,6 +118,9 @@ async function initialize() {
   if (sessionStorage.getItem("scada-demo-auth") === "1") {
     try {
       await store.initialize();
+      if (store.currentUser()?.must_change_password) {
+        await handleAction("change-password", null);
+      }
     } catch {
       sessionStorage.removeItem("scada-demo-auth");
       try { await api.logout(); } catch { /* The API may be offline. */ }
