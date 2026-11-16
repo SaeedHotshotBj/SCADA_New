@@ -1,0 +1,109 @@
+import { uid } from "../core/format.js";
+
+const STORAGE_KEY = "scada-new-demo-state-v1";
+
+const seed = {
+  users: [
+    { id: "u1", email: "admin@scada.local", name: "Super Admin", role: "Organization Admin", status: "فعال", access: "همه منوها" },
+    { id: "u2", email: "engineer@scada.local", name: "مهندس نمونه", role: "Engineer", status: "فعال", access: "همه منوها" },
+    { id: "u3", email: "operator@scada.local", name: "اپراتور نمونه", role: "Operator", status: "فعال", access: "نمایش زنده" },
+    { id: "u4", email: "planner@demo.local", name: "planner b208", role: "Production Planner", status: "فعال", access: "برنامه‌ریزی" },
+    { id: "u5", email: "qc@demo.local", name: "qc1 b208", role: "Quality Control", status: "فعال", access: "کنترل کیفیت" }
+  ],
+  factories: [
+    { id: "f1", name: "کارخانه کابل - دمو", code: "DEMO-CABLE", status: "فعال", edge: "EDGE-LOCAL-001", plcs: 1 },
+    { id: "f2", name: "تست ارسال به PLC", code: "PLC-TEST", status: "فعال", edge: "EDGE-LOCAL-001", plcs: 1 },
+    { id: "f3", name: "کارخانه نمونه", code: "FACTORY-03", status: "غیرفعال", edge: "—", plcs: 0 }
+  ],
+  plcs: [
+    { id: "p1", name: "PLC شبیه‌ساز کارخانه کابل", protocol: "simulator", address: "127.0.0.1:1502", unit: "60", poll: "500 ms", active: "بله", status: "CONNECTED" }
+  ],
+  tags: [
+    { id: "t1", name: "BN.Cmd.Start", plc: "PLC شبیه‌ساز کارخانه کابل", type: "bool", address: "00014", access: "read_write", unit: "", value: "false" },
+    { id: "t2", name: "BN.Cmd.Stop", plc: "PLC شبیه‌ساز کارخانه کابل", type: "bool", address: "00015", access: "read_write", unit: "", value: "false" },
+    { id: "t3", name: "BN.Current", plc: "PLC شبیه‌ساز کارخانه کابل", type: "float32", address: "40045", access: "read", unit: "A", value: "180.3366" },
+    { id: "t4", name: "BN.Enable", plc: "PLC شبیه‌ساز کارخانه کابل", type: "bool", address: "00013", access: "read_write", unit: "", value: "true" },
+    { id: "t5", name: "BN.Energy", plc: "PLC شبیه‌ساز کارخانه کابل", type: "float32", address: "40043", access: "read", unit: "kWh", value: "21879.416" },
+    { id: "t6", name: "BN.Speed", plc: "PLC شبیه‌ساز کارخانه کابل", type: "float32", address: "40035", access: "read", unit: "m/min", value: "119.2585" },
+    { id: "t7", name: "BN.SpeedSet", plc: "PLC شبیه‌ساز کارخانه کابل", type: "float32", address: "40037", access: "read_write", unit: "m/min", value: "120" },
+    { id: "t8", name: "BN.Tension", plc: "PLC شبیه‌ساز کارخانه کابل", type: "float32", address: "40049", access: "read", unit: "N", value: "125.4806" }
+  ],
+  alarms: [],
+  trends: [
+    { id: "tr1", name: "سرعت ماشین‌های خط", tags: "BN.Speed, CP.Speed, IX.Speed", period: "۵ دقیقه", status: "فعال" },
+    { id: "tr2", name: "دمای زون‌های اکسترودر", tags: "IX.Z1, IX.Z2, IX.Z3, IX.Z4", period: "۱ دقیقه", status: "فعال" },
+    { id: "tr3", name: "قطر خارجی و فشار مذاب", tags: "IX.OD, IX.Melt", period: "۵ دقیقه", status: "فعال" }
+  ],
+  reports: [
+    { id: "rp1", name: "پایش دمای اکسترودرها (ساعتی)", type: "ساعتی", tags: 10, status: "فعال" },
+    { id: "rp2", name: "سرعت و توان ماشین‌ها (ساعتی)", type: "ساعتی", tags: 7, status: "فعال" },
+    { id: "rp3", name: "گزارش روزانه انرژی و تأسیسات", type: "روزانه", tags: 4, status: "فعال" }
+  ],
+  processes: [
+    { id: "pr1", name: "ثبت قرقره تکمیل‌شده", code: "REEL_COMPLETED", status: "فعال", fields: 5 },
+    { id: "pr2", name: "کنترل کیفیت اکستروژن", code: "EXTRUSION_QC", status: "فعال", fields: 6 }
+  ],
+  templates: [
+    { id: "wf1", name: "تأیید نهایی و بستن سفارش", steps: ["تأیید مدیر تولید", "تأیید کنترل کیفیت"], status: "پیش‌فرض" },
+    { id: "wf2", name: "تأیید و آزادسازی سفارش تولید", steps: ["برنامه‌ریزی تولید", "بررسی کنترل کیفیت", "تخصیص ماشین و اپراتور"], status: "پیش‌فرض" }
+  ],
+  orders: [
+    { id: "o1", code: "PO-1405-000012", product: "کابل قدرت NYY 4×16mm²", quantity: "1000000", unit: "m", status: "در حال تولید", progress: 46 },
+    { id: "o2", code: "PO-1405-000011", product: "سیم افشان H07V-K 4mm²", quantity: "1000000", unit: "m", status: "آزادشده", progress: 0 },
+    { id: "o3", code: "PO-1405-000010", product: "سیم 1×10 افشان", quantity: "1000000", unit: "m", status: "آزادشده", progress: 0 },
+    { id: "o4", code: "PO-1405-000009", product: "سیم 1×10 افشان", quantity: "1000000", unit: "m", status: "آزادشده", progress: 0 }
+  ],
+  units: [
+    { id: "un1", code: "RL-1405-000013", quantity: "72.0000", unit: "m", status: "بسته" },
+    { id: "un2", code: "RL-1405-000012", quantity: "500.0000", unit: "m", status: "بسته" },
+    { id: "un3", code: "RL-1405-000011", quantity: "500.0000", unit: "m", status: "بسته" },
+    { id: "un4", code: "RL-1405-000010", quantity: "500.0000", unit: "m", status: "بسته" }
+  ],
+  qc: [
+    { id: "qc1", code: "QC-CB-001148", product: "سیم 1×10 افشان", machine: "اکسترودر عایق", decision: "قبول", status: "بررسی‌شده" }
+  ],
+  batches: [],
+  productionRuns: []
+};
+
+function clone(value) { return JSON.parse(JSON.stringify(value)); }
+
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    return saved ? { ...clone(seed), ...saved } : clone(seed);
+  } catch {
+    return clone(seed);
+  }
+}
+
+let state = load();
+function persist() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* Private browsing may disable storage. */ }
+  window.dispatchEvent(new CustomEvent("scada:state-changed"));
+}
+
+export const store = {
+  snapshot: () => state,
+  list: name => Array.isArray(state[name]) ? [...state[name]] : [],
+  add(name, record) {
+    if (!Array.isArray(state[name])) throw new Error(`Unknown collection: ${name}`);
+    const saved = { id: uid(), ...record };
+    state[name].unshift(saved); persist(); return saved;
+  },
+  update(name, id, changes) {
+    if (!Array.isArray(state[name])) return null;
+    const index = state[name].findIndex(row => row.id === id);
+    if (index < 0) return null;
+    state[name][index] = { ...state[name][index], ...changes };
+    persist(); return state[name][index];
+  },
+  remove(name, id) {
+    if (!Array.isArray(state[name])) return false;
+    const previous = state[name].length;
+    state[name] = state[name].filter(row => row.id !== id);
+    if (state[name].length !== previous) persist();
+    return state[name].length !== previous;
+  },
+  reset() { state = clone(seed); persist(); }
+};
