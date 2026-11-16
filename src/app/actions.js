@@ -92,13 +92,24 @@ export async function handleAction(action, element) {
     case "toggle-sidebar": document.body.classList.toggle("sidebar-collapsed"); break;
     case "start-run": case "stop-run": {
       const card = element.closest("[data-run-card]");
-      const runId = element.dataset.id || element.dataset.runId || card?.dataset.runId;
-      if (!runId) { toast("برای اجرای این فرمان ابتدا یک اجرای تولید ثبت کنید.", "warning"); break; }
+      let runId = element.dataset.id || element.dataset.runId || card?.dataset.runId;
+      if (!runId && action === "start-run" && card?.dataset.orderId) {
+        const order = store.list("orders").find(item => item.id === card.dataset.orderId);
+        if (!order) throw new Error("سفارش انتخاب‌شده پیدا نشد.");
+        const created = await store.add("productionRuns", {
+          order: order.code, order_id: order.id, machine: card.dataset.machine || "نامشخص",
+          product: order.product, target: Number(order.quantity), unit: order.unit,
+          status: "آماده"
+        });
+        runId = created.id;
+      }
+      if (!runId) { toast("برای این ماشین اجرای تولیدی وجود ندارد؛ ابتدا از ایستگاه اپراتور شروع کنید.", "warning"); break; }
       const result = action === "start-run" ? await api.startRun(runId) : await api.stopRun(runId);
+      if (card) card.dataset.runId = runId;
       await store.refresh();
       const status = card?.querySelector("[data-run-status]");
       if (status) status.textContent = result.status || (action === "start-run" ? "در حال تولید" : "متوقف");
-      toast(action === "start-run" ? "وضعیت اجرای تولید در سرور فعال شد." : "اجرای تولید در سرور متوقف شد.");
+      toast(action === "start-run" ? "اجرای سفارش در سرور شروع شد (ثبت وضعیت نرم‌افزاری)." : "اجرای سفارش در سرور متوقف شد (ثبت وضعیت نرم‌افزاری).");
       break;
     }
     case "select-range": {
