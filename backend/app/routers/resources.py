@@ -66,6 +66,7 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
         "batches": ("code", "formula", "target"),
         "productionRuns": ("order", "machine", "product", "target"),
         "products": ("code", "name", "unit"),
+        "machines": ("name", "code"),
         "prices": ("kind", "code", "name", "price", "currency", "unit"),
         "hmiPages": ("name", "machine", "description"),
         "machineCalendars": ("machine", "year", "month", "days"),
