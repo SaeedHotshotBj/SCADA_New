@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/resources", tags=["Resources"])
 COLLECTIONS = {
     "factories", "plcs", "tags", "alarms", "trends", "reports", "processes",
     "templates", "orders", "units", "qc", "batches", "productionRuns",
-    "workflowTasks", "products", "machines", "prices",
+    "workflowTasks", "products", "machines", "prices", "hmiPages", "machineCalendars", "batchConfigs", "controlPlans",
 }
 ROLES = {"Organization Admin", "Factory Admin", "Engineer", "Operator",
          "Production Planner", "Quality Control", "Production Manager"}
