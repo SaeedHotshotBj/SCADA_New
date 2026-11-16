@@ -96,6 +96,25 @@ def _public_user(row) -> dict:
     return {k: row[k] for k in ("id", "email", "name", "role", "status", "created_at", "updated_at")}
 
 
+
+def validate_references(collection: str, payload: dict[str, Any], db) -> None:
+    if collection == "tags" and payload.get("plc"):
+        plc = db.execute(
+            "SELECT 1 FROM resources WHERE collection='plcs' AND id=?",
+            (payload["plc"],),
+        ).fetchone()
+        if plc is None:
+            raise HTTPException(status_code=422, detail="PLC انتخاب‌شده در سامانه ثبت نشده است.")
+    factory_id = payload.get("factory_id")
+    if factory_id:
+        factory = db.execute(
+            "SELECT 1 FROM resources WHERE collection='factories' AND id=?",
+            (factory_id,),
+        ).fetchone()
+        if factory is None:
+            raise HTTPException(status_code=422, detail="کارخانه انتخاب‌شده در سامانه ثبت نشده است.")
+
+
 def list_records(collection: str, db, limit: int, offset: int, factory_id: str | None) -> list[dict]:
     if collection == "users":
         rows = db.execute(
@@ -148,6 +167,7 @@ def create_record(collection: str, body: ResourceInput, user: dict = Depends(get
             row = db.execute("SELECT id,email,name,role,status,created_at,updated_at FROM users WHERE id=?", (record_id,)).fetchone()
             result = _public_user(row)
         else:
+            validate_references(collection, payload, db)
             factory_id = payload.pop("factory_id", None)
             db.execute(
                 "INSERT INTO resources(collection,id,factory_id,payload,created_at,updated_at) VALUES(?,?,?,?,?,?)",
@@ -199,6 +219,7 @@ def update_record(collection: str, record_id: str, body: ResourceInput, user: di
             if not row:
                 raise HTTPException(status_code=404, detail="رکورد پیدا نشد.")
             merged = {**json_load(row["payload"],{}), **changes}
+            validate_references(collection, merged, db)
             factory_id = merged.pop("factory_id", row["factory_id"])
             db.execute("UPDATE resources SET factory_id=?,payload=?,updated_at=? WHERE collection=? AND id=?",
                        (factory_id,json_dump(merged),now,collection,record_id))
