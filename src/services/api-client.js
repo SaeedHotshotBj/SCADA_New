@@ -54,4 +54,5 @@ export const api = {
   registerEdge: body => request("/api/edge/register", { method: "POST", body }),
   listEdges: () => request("/api/edge"),
   telemetryLatest: () => request("/api/telemetry/latest"),
+  telemetryHistory: (tagId, hours = 24) => request(`/api/telemetry/history?tag_id=${encodeURIComponent(tagId)}&hours=${encodeURIComponent(hours)}`),
 };
