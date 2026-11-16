@@ -13,8 +13,10 @@ function liveDataPage() {
 }
 
 function hmiPagesPage() {
-  const designs = ["نمای کلی خط", "کشش مفتول راد", "مولتی‌وایر", "بانچر", "قرقره‌پیچ", "اکسترودر عایق", "استرندر", "اکسترودر روشن", "انرژی و تأسیسات", "آلارم‌ها"];
-  return `<div>${pageHeader("صفحات HMI", "صفحات عملیاتی خود را با قطعات دلخواه بسازید — گیج، مخزن، پمپ، نمودار و صفحه سفارشی", button("صفحه جدید", "open-modal-info", { icon: "+" }))}<div class="hmi-gallery">${designs.map((name, index) => `<article class="hmi-card"><div class="hmi-preview"><div class="preview-top"></div><div class="preview-layout"><div class="preview-gauge"></div><div class="preview-info"></div><div class="preview-chart"></div><div class="preview-tiles"><i></i><i></i><i></i><i></i><i></i></div></div></div><div class="hmi-card-footer"><span><b>${index + 1}.</b> ${name}</span><small>کلاسیک · ${index % 2 ? 54 : 72} قطعه</small><div><button class="btn btn-light btn-sm" data-action="open-modal-info">ویرایش</button><a class="btn btn-link btn-sm" href="#/live/classic">اجرا ›</a></div></div></article>`).join("")}</div></div>`;
+  const designs = store.list("hmiPages");
+  return `<div class="hmi-page-collection" data-collection-name="hmiPages" data-edit-action="new-hmi-page">${pageHeader("صفحات HMI", "مدیریت صفحات عملیاتی و چیدمان‌های HMI", button("صفحه جدید", "new-hmi-page", { icon: "+" }))}
+    ${designs.length ? `<div class="hmi-gallery">${designs.map((page, index) => `<article class="hmi-card"><div class="hmi-preview"><div class="preview-top"></div><div class="preview-layout"><div class="preview-gauge"></div><div class="preview-info"></div><div class="preview-chart"></div><div class="preview-tiles"><i></i><i></i><i></i><i></i><i></i></div></div></div><div class="hmi-card-footer"><span><b>${index + 1}.</b> ${page.name}</span><small>${page.machine || "بدون ماشین"} · ${page.components || 0} قطعه · ${page.status || "پیش‌نویس"}</small><div><button class="btn btn-light btn-sm" data-action="edit-record" data-id="${page.id}">ویرایش</button><button class="btn btn-light btn-sm" data-action="delete-record" data-collection="hmiPages" data-id="${page.id}">حذف</button><a class="btn btn-link btn-sm" href="#/live/classic">اجرا ›</a></div></div></article>`).join("")}</div>` : emptyState("هنوز صفحه HMI تعریف نشده است.")}
+  </div>`;
 }
 
 const machineTabs = ["نمای کلی", "کشش مفتول راد", "مولتی‌وایر", "بانچر", "اکسترودر عایق", "کابل‌کشی", "اکسترودر روشن", "قرقره‌پیچ", "انرژی", "آلارم‌ها"];
