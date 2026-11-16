@@ -113,3 +113,57 @@ def test_edge_token_and_heartbeat():
         assert beat.status_code == 200
         assert beat.json()["status"] == "ONLINE"
         assert client.post("/api/edge/heartbeat", headers={"X-Edge-Token":"wrong"}, json={}).status_code == 401
+
+
+
+def test_hmi_and_operational_configuration_resources():
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"email":"admin@demo-cable.local","password":"demo1234"})
+
+        product = client.post("/api/resources/products", json={
+            "code":"PROD-CI","name":"محصول تست","unit":"m","status":"فعال"
+        })
+        assert product.status_code == 201
+
+        price = client.post("/api/resources/prices", json={
+            "kind":"مواد اولیه","code":"MAT-CI","name":"ماده تست",
+            "price":"1250.5","currency":"ریال","unit":"kg","valid_from":"1405-08-01"
+        })
+        assert price.status_code == 201
+        assert price.json()["price"] == 1250.5
+
+        hmi = client.post("/api/resources/hmiPages", json={
+            "name":"صفحه تست","machine":"بانچر","description":"CI test",
+            "components":"12","status":"فعال"
+        })
+        assert hmi.status_code == 201
+        assert hmi.json()["components"] == 12
+
+        calendar = client.post("/api/resources/machineCalendars", json={
+            "machine":"بانچر","year":"1405","month":"آبان",
+            "days":[{"day":"شنبه","enabled":True,"start":"08:00","end":"17:00","break":"01:00"}]
+        })
+        assert calendar.status_code == 201
+
+        batch_config = client.post("/api/resources/batchConfigs", json={
+            "code":"BATCH-CI","name":"تست خط","loadcell":"Loadcell-01",
+            "samples":"5","tolerance_percent":"0.5","stabilization_seconds":"3",
+            "formula":"فرمول تست","hoppers":[
+                {"bin":"H1","material":"PVC","ratio":60,"target":60},
+                {"bin":"H2","material":"افزودنی","ratio":40,"target":40}
+            ]
+        })
+        assert batch_config.status_code == 201
+        assert batch_config.json()["samples"] == 5
+
+        control_plan = client.post("/api/resources/controlPlans", json={
+            "product":"محصول تست","process":"اکستروژن","version":"1",
+            "sampling_interval":"هر ۳۰ دقیقه","sample_count":"3",
+            "parameters":[{"parameter":"قطر","nominal":"2.4","min":"2.3","max":"2.5","unit":"mm","method":"اندازه‌گیری"}]
+        })
+        assert control_plan.status_code == 201
+        snapshot = client.get("/api/bootstrap").json()["data"]
+        assert any(row["id"] == hmi.json()["id"] for row in snapshot["hmiPages"])
+        assert any(row["id"] == calendar.json()["id"] for row in snapshot["machineCalendars"])
+        assert any(row["id"] == batch_config.json()["id"] for row in snapshot["batchConfigs"])
+        assert any(row["id"] == control_plan.json()["id"] for row in snapshot["controlPlans"])
