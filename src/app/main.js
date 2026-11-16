@@ -56,7 +56,8 @@ document.addEventListener("submit", async event => {
       await store.loadAfterLogin();
       sessionStorage.setItem("scada-demo-auth", "1");
       location.hash = "/bi/dashboard";
-      syncLiveConnection();\n      showToast("ورود به سامانه با موفقیت انجام شد.");
+      syncLiveConnection();
+      showToast("ورود به سامانه با موفقیت انجام شد.");
     } catch (error) {
       showToast(error.message || "ورود ناموفق بود.", "error");
     } finally {
