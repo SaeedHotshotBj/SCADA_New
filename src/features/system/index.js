@@ -22,9 +22,23 @@ function factoriesPage() {
 }
 
 function edgeStatusPage() {
-  return `<div class="edge-page">${gradientBanner("وضعیت Edge", "CENTRAL · central   |   آخرین پیام و وضعیت ارتباط Edge ها", button("به‌روزرسانی", "refresh-demo", { variant: "light" }), "▣")}<div class="stats-grid stats-grid-4">${statCard("MQTT", "غیرفعال", "", "red", "", "اتصال مرکزی")}${statCard("دیسک", "36.2", "%", "green", "", "مصرف ذخیره‌سازی")}${statCard("حافظه", "34.5", "%", "green", "", "RAM مصرفی")}${statCard("CPU", "7.9", "%", "blue", "", "مصرف پردازنده")}</div>${panel("لینک Edge", dataTable([{ key: "factory", label: "کارخانه" }, { key: "edge", label: "Edge" }, { key: "delay", label: "تأخیر" }, { key: "last", label: "آخرین پیام" }, { key: "account", label: "حساب MQTT" }], [{ factory: "تست ارسال به PLC", edge: "EDGE-LOCAL-001", delay: pill("طبیعی", "success"), last: "۱۱:۰۷ · امروز", account: "edge-local-demo" }, { factory: "سیما کابل — دمو", edge: "EDGE-LOCAL-001", delay: "—", last: "—", account: "edge-demo-secondary" }]))}<div class="two-col-grid">${panel("PLC ها", `<div class="panel-metric">${pill("۱ متصل", "success")}</div>${dataTable([{ key: "name", label: "نام" }, { key: "status", label: "وضعیت" }, { key: "address", label: "آدرس" }, { key: "last", label: "آخرین داده" }], [{ name: "PLC شبیه‌ساز کارخانه کابل", status: pill("متصل", "success"), address: "127.0.0.1:1502", last: "۱۱:۰۷" }])}`)}${panel("ذخیره‌سازی", `<div class="storage-list"><div><span>منبع</span><b>POSTGRES</b></div><div><span>Batch نوشته</span><b>۲۹۹٬۹۶۰</b></div><div><span>نمونه نوشته</span><b>۴٬۲۳۱٬۱۸۵</b></div><div><span>DuckDB فایل زنده</span><b>۱</b></div><div><span>Parquet پارتیشن</span><b>۶</b></div></div>`)}</div></div>`;
+  const edges = store.list("edgeDevices");
+  const factories = store.list("factories");
+  const online = edges.filter(edge => edge.status === "ONLINE").length;
+  const columns = [
+    { key: "name", label: "نام Edge" },
+    { key: "factory_id", label: "کارخانه", render: row => factories.find(factory => factory.id === row.factory_id)?.name || "—" },
+    { key: "status", label: "وضعیت", render: row => pill(row.status, row.status === "ONLINE" ? "success" : row.status === "REVOKED" ? "danger" : "warning") },
+    { key: "last_seen", label: "آخرین Heartbeat", render: row => row.last_seen ? new Date(row.last_seen).toLocaleString("fa-IR") : "دریافت نشده" },
+    { key: "version", label: "نسخه", render: row => row.metadata?.version || "—" },
+    { key: "hostname", label: "Host", render: row => row.metadata?.hostname || "—" }
+  ];
+  return `<div class="edge-page">${gradientBanner("وضعیت Edge", "وضعیت واقعی Heartbeat های ثبت‌شده در Backend", button("به‌روزرسانی", "refresh-demo", { variant: "light" }), "▣")}
+    <div class="stats-grid stats-grid-4">${statCard("Edge ثبت‌شده", edges.length, "دستگاه", "blue")}${statCard("آنلاین", online, "دستگاه", "green")}${statCard("در انتظار اتصال", edges.filter(edge => edge.status === "PENDING" || edge.status === "DEMO").length, "دستگاه", "orange")}${statCard("قطع / لغوشده", edges.filter(edge => edge.status === "REVOKED" || edge.status === "OFFLINE").length, "دستگاه", "red")}</div>
+    ${panel("وضعیت ارتباط Edge", edges.length ? dataTable(columns, edges) : emptyState("هنوز Edge ثبت نشده است. از بخش ثبت Edge یک دستگاه تعریف کنید."))}
+    ${panel("وضعیت ارتباط PLC", `<p class="muted-note">وضعیت PLC فقط زمانی واقعی خواهد بود که یک آداپتور پروتکل مشخص و تأییدشده به Backend متصل شود. در این نسخه هیچ اتصال سخت‌افزاری ادعا نمی‌شود.</p>`)}
+  </div>`;
 }
-
 function edgeRegisterPage() {
   return `${pageHeader("ثبت Edge", "برای هر کارخانه یک توکن یکتا بسازید و آن را در نرم‌افزار Edge نصب کنید.")}${panel("ایجاد توکن ثبت", `<form class="inline-form" data-local-form="edge-token"><label class="field field-grow"><span>یادداشت</span><input placeholder="مثلاً Edge خط تولید شماره ۱" required /></label><button class="btn btn-primary" type="submit">ساخت توکن</button></form><p class="muted-note">پس از ساخت، توکن فقط یک‌بار نمایش داده می‌شود. در این نسخه مقدار واقعی صادر نمی‌شود.</p>`)}`;
 }
