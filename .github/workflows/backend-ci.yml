@@ -28,7 +28,7 @@ jobs:
       - name: Compile Python modules
         run: python -m compileall -q app
       - name: Run backend API tests
-        run: pytest -q tests
+        run: PYTHONPATH=. pytest -q tests
       - name: Check frontend JavaScript syntax
         working-directory: .
         run: node scripts/check.mjs
