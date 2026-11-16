@@ -199,6 +199,16 @@ export async function handleSubmit(event) {
     } else if (localForm === "control-plan") {
       values.sample_count = Number(values.sample_count);
       values.approval_required = values.approval_required === "true";
+      const parameters = new Map();
+      for (const [key, value] of Object.entries(values)) {
+        const match = key.match(/^parameter_(\\d+)_(parameter|nominal|min|max|unit|method)$/);
+        if (!match) continue;
+        const index = Number(match[1]);
+        if (!parameters.has(index)) parameters.set(index, {});
+        parameters.get(index)[match[2]] = value;
+        delete values[key];
+      }
+      values.parameters = [...parameters.entries()].sort((a,b) => a[0]-b[0]).map(([,item]) => item);
       const existing = form.dataset.id;
       if (existing) await store.update("controlPlans", existing, values);
       else await store.add("controlPlans", values);
