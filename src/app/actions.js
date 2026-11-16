@@ -60,7 +60,7 @@ export async function handleAction(action, element) {
     }
     case "delete-record": {
       const collection = element.dataset.collection || document.querySelector("[data-collection-name]")?.dataset.collectionName;
-      if (collection && confirm("این مورد حذف شود؟")) { store.remove(collection, element.dataset.id); toast("رکورد حذف شد."); }
+      if (collection && confirm("این مورد حذف شود؟")) { await store.remove(collection, element.dataset.id); toast("رکورد از سرور حذف شد."); }
       break;
     }
     case "close-modal":
