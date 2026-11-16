@@ -2,23 +2,20 @@ import { store } from "../../services/demo-store.js";
 import { button, dataTable, pageHeader, panel, pill, tabs, statCard, emptyState } from "../../shared/ui.js";
 
 function inboxPage() {
-  const tasks = [
-    { id: "task-1", title: "تأیید نهایی سفارش PO-1405-000012", flow: "تأیید نهایی و بستن سفارش", from: "برنامه‌ریزی تولید", date: "امروز · ۱۰:۵۵", priority: "عادی", status: "در انتظار" },
-    { id: "task-2", title: "بررسی نتایج کنترل کیفیت اکستروژن", flow: "تأیید و آزادسازی سفارش تولید", from: "کنترل کیفیت", date: "امروز · ۰۹:۳۰", priority: "بالا", status: "در انتظار" },
-    { id: "task-3", title: "آزادسازی برنامه تولید شیفت عصر", flow: "تأیید برنامه تولید", from: "مدیر تولید", date: "دیروز · ۱۵:۲۰", priority: "عادی", status: "تکمیل‌شده" }
-  ];
+  const tasks = store.list("workflowTasks");
+  const pendingCount = tasks.filter(task => task.status === "در انتظار").length;
+  const completeCount = tasks.filter(task => task.status === "تکمیل‌شده").length;
   return `<div class="workflow-page">${pageHeader("کارتابل من", "وظایف و درخواست‌هایی که برای بررسی و تأیید به شما ارجاع شده‌اند.")}
-    <div class="stats-grid stats-grid-3">${statCard("در انتظار اقدام", "۲", "وظیفه", "orange")}${statCard("تکمیل‌شده", "۱", "وظیفه", "green")}${statCard("میانگین زمان پاسخ", "۲٫۴", "ساعت", "blue")}</div>
+    <div class="stats-grid stats-grid-3">${statCard("در انتظار اقدام", pendingCount, "وظیفه", "orange")}${statCard("تکمیل‌شده", completeCount, "وظیفه", "green")}${statCard("کل وظایف", tasks.length, "وظیفه", "blue")}</div>
     ${tabs(["در انتظار من", "تاریخچه", "مدیریت وظایف"])}
     ${panel("وظایف جاری", dataTable([
       { key: "title", label: "عنوان وظیفه" }, { key: "flow", label: "گردش کار" }, { key: "from", label: "ارجاع از" },
-      { key: "date", label: "زمان ارجاع" }, { key: "priority", label: "اولویت", render: row => pill(row.priority, row.priority === "بالا" ? "warning" : "muted") },
+      { key: "date", label: "زمان ارجاع" }, { key: "priority", label: "اولویت", render: row => pill(row.priority || "عادی", row.priority === "بالا" ? "warning" : "muted") },
       { key: "status", label: "وضعیت", render: row => pill(row.status, row.status === "در انتظار" ? "warning" : "success") },
-      { key: "action", label: "اقدام", render: row => row.status === "در انتظار" ? `<button class="btn btn-light btn-sm" data-action="approve-task" data-id="${row.id}">بررسی</button>` : "—" }
+      { key: "action", label: "اقدام", render: row => row.status === "در انتظار" ? `<button class="btn btn-light btn-sm" data-action="approve-task" data-id="${row.id}">تأیید</button>` : "—" }
     ], tasks))}
   </div>`;
 }
-
 function templatesPage() {
   const rows = store.list("templates");
   return `<div class="collection-page" data-collection-name="templates" data-edit-action="new-template">
