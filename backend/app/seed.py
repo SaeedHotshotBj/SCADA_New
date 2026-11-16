@@ -98,7 +98,32 @@ def seed_database() -> None:
                 {"id":"m5","name":"کابل‌کشی","code":"LAY-01","status":"متصل"},
                 {"id":"m6","name":"قرقره‌پیچ","code":"CPK-01","status":"متصل"},
             ],
-            "prices": [],
+            "prices": [
+                {"id":"price-cu","kind":"مواد اولیه","code":"CU-01","name":"مفتول مس","price":980000,"currency":"ریال","unit":"kg","valid_from":"1405-08-01","status":"فعال"},
+                {"id":"price-pvc","kind":"مواد اولیه","code":"PVC-01","name":"گرانول PVC","price":280000,"currency":"ریال","unit":"kg","valid_from":"1405-08-01","status":"فعال"},
+                {"id":"energy-off","kind":"تعرفه انرژی","code":"ELEC-OFF","name":"برق کم‌باری","price":1200,"currency":"ریال","unit":"kWh","valid_from":"1405-08-01","status":"فعال"},
+                {"id":"energy-mid","kind":"تعرفه انرژی","code":"ELEC-MID","name":"برق میان‌باری","price":2400,"currency":"ریال","unit":"kWh","valid_from":"1405-08-01","status":"فعال"},
+                {"id":"energy-peak","kind":"تعرفه انرژی","code":"ELEC-PEAK","name":"برق اوج بار","price":4800,"currency":"ریال","unit":"kWh","valid_from":"1405-08-01","status":"فعال"},
+            ],
+            "hmiPages": [
+                {"id":"hmi-overview","name":"نمای کلی خط","machine":"همه ماشین‌ها","description":"نمای کلی وضعیت خط تولید","components":72,"status":"فعال"},
+                {"id":"hmi-rbd","name":"کشش مفتول راد","machine":"کشش مفتول راد","description":"نمایش وضعیت کشش راد","components":54,"status":"فعال"},
+                {"id":"hmi-mwd","name":"مولتی‌وایر","machine":"مولتی‌وایر","description":"نمایش وضعیت مولتی‌وایر","components":54,"status":"فعال"},
+                {"id":"hmi-buncher","name":"بانچر","machine":"بانچر","description":"نمایش وضعیت بانچر","components":54,"status":"فعال"},
+                {"id":"hmi-reel","name":"قرقره‌پیچ","machine":"قرقره‌پیچ","description":"نمایش وضعیت قرقره‌پیچ","components":54,"status":"فعال"},
+                {"id":"hmi-extruder","name":"اکسترودر عایق","machine":"اکسترودر عایق","description":"نمایش وضعیت اکسترودر","components":72,"status":"فعال"},
+                {"id":"hmi-strander","name":"استرندر","machine":"استرندر","description":"نمایش وضعیت استرندر","components":54,"status":"فعال"},
+                {"id":"hmi-energy","name":"انرژی و تأسیسات","machine":"تأسیسات","description":"نمایش انرژی و تأسیسات","components":72,"status":"فعال"},
+            ],
+            "machineCalendars": [
+                {"id":"cal-rbd","machine":"کشش مفتول راد","year":"1405","month":"آبان","days":[{"day":"شنبه","enabled":True,"start":"08:00","end":"17:00","break":"01:00"},{"day":"یکشنبه","enabled":True,"start":"08:00","end":"17:00","break":"01:00"},{"day":"دوشنبه","enabled":True,"start":"08:00","end":"17:00","break":"01:00"},{"day":"سه‌شنبه","enabled":True,"start":"08:00","end":"17:00","break":"01:00"},{"day":"چهارشنبه","enabled":True,"start":"08:00","end":"17:00","break":"01:00"},{"day":"پنجشنبه","enabled":True,"start":"08:00","end":"13:00","break":"00:30"},{"day":"جمعه","enabled":False,"start":"08:00","end":"17:00","break":"01:00"}]},
+            ],
+            "batchConfigs": [
+                {"id":"batch-config-1","code":"BATCH-01","name":"خط ترکیب مواد ۱","loadcell":"Loadcell-01","samples":5,"tolerance_percent":0.5,"stabilization_seconds":3,"formula":"کابل NYY 4×16","description":"فرمول پایه ترکیب مواد عایق","hoppers":[{"bin":"Hopper 01","material":"گرانول PVC","ratio":50,"target":250},{"bin":"Hopper 02","material":"کربنات کلسیم","ratio":30,"target":150},{"bin":"Hopper 03","material":"افزودنی","ratio":20,"target":100}]},
+            ],
+            "controlPlans": [
+                {"id":"cp-cable-1","product":"سیم 1×10 افشان","process":"اکستروژن عایق","version":"نسخه ۱","sampling_interval":"هر ۳۰ دقیقه","sample_count":3,"responsible":"کارشناس کیفیت","approval_required":True,"parameters":[{"parameter":"قطر عایق","nominal":"۲٫۴۰","min":"۲٫۳۵","max":"۲٫۴۵","unit":"mm","method":"اندازه‌گیری"},{"parameter":"مقاومت هادی","nominal":"۱٫۸۳","min":"—","max":"۱٫۹۰","unit":"Ω/km","method":"آزمون الکتریکی"},{"parameter":"ضخامت عایق","nominal":"۰٫۸","min":"۰٫۷۵","max":"۰٫۸۵","unit":"mm","method":"اندازه‌گیری"},{"parameter":"ظاهر محصول","nominal":"بدون عیب","min":"—","max":"—","unit":"—","method":"بازرسی چشمی"}],"status":"فعال"},
+            ],
         }
         for collection, records in seed.items():
             for record in records:
