@@ -47,6 +47,11 @@ function openModal(action, record = null) {
   document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
 }
 
+function openChangePasswordModal() {
+  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="تغییر رمز عبور"><header class="modal-header"><h2>تغییر رمز عبور</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="password-change-form"><div class="modal-fields"><label class="field"><span>رمز فعلی</span><input name="old_password" type="password" autocomplete="current-password" required></label><label class="field"><span>رمز جدید (حداقل ۸ نویسه)</span><input name="new_password" type="password" autocomplete="new-password" minlength="8" required></label><label class="field"><span>تکرار رمز جدید</span><input name="confirm_password" type="password" autocomplete="new-password" minlength="8" required></label></div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ثبت رمز جدید</button></footer></form></section></div>`;
+  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
+}
+
 function downloadCsv() {
   const rows = store.list("tags");
   const headers = ["name", "plc", "type", "address", "access", "unit", "value"];
@@ -74,6 +79,14 @@ export async function handleAction(action, element) {
     }
     case "close-modal":
       document.getElementById("modal-root").innerHTML = ""; break;
+    case "change-password": openChangePasswordModal(); break;
+    case "logout":
+      await api.logout();
+      store.clearSession();
+      sessionStorage.removeItem("scada-demo-auth");
+      location.hash = "/login";
+      toast("از سامانه خارج شدید.");
+      break;
     case "refresh-demo": await store.refresh(); toast("اطلاعات از سرور دریافت شد."); break;
     case "export-csv": downloadCsv(); break;
     case "reset-demo": toast("بازنشانی دیتابیس سرور از این پنل غیرفعال است.", "info"); break;
@@ -215,6 +228,16 @@ export async function handleSubmit(event) {
       toast("تنظیمات طرح کنترل کیفیت ذخیره شد.");
     }
     form.reset();
+    return true;
+  }
+  if (event.target.id === "password-change-form") {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(event.target).entries());
+    if (values.new_password !== values.confirm_password) throw new Error("رمز جدید و تکرار آن یکسان نیستند.");
+    await api.changePassword({ old_password: values.old_password, new_password: values.new_password });
+    await store.refresh();
+    document.getElementById("modal-root").innerHTML = "";
+    toast("رمز عبور با موفقیت تغییر کرد.");
     return true;
   }
   if (event.target.id !== "record-form") return false;
