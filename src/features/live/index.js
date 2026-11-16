@@ -7,7 +7,7 @@ function liveDataPage() {
     { key: "name", label: "تگ" }, { key: "value", label: "مقدار" },
     { key: "unit", label: "واحد" }, { key: "quality", label: "کیفیت", render: () => pill("GOOD", "success") },
     { key: "time", label: "زمان", render: () => "۱۱:۰۹:۲۷" },
-    { key: "write", label: "نوشتن", render: row => row.access === "read_write" ? `<button class="btn btn-light btn-sm" data-action="open-modal-info">Write</button>` : "—" }
+    { key: "write", label: "نوشتن", render: row => row.access === "read_write" ? `<button class="btn btn-light btn-sm" data-action="write-tag" data-id="${row.id}">Write</button>` : "—" }
   ];
   return `<div>${pageHeader("مقادیر زنده تگ", "داده‌های زنده از PLC از طریق WebSocket؛ مقادیر این صفحه نمونه هستند.", pill("متصل · WEBSOCKET", "success"))}${panel("مقادیر لحظه‌ای", dataTable(columns, rows))}</div>`;
 }
