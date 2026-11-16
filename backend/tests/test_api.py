@@ -34,6 +34,11 @@ def test_validated_resources_and_tag_write():
             "name":"bad plc","protocol":"made-up","address":"127.0.0.1"
         })
         assert invalid.status_code == 422
+        invalid_tag = client.post("/api/resources/tags", json={
+            "name":"TEST.Bad","plc":"missing-plc","type":"float32","address":"40100",
+            "access":"read_write","unit":"Hz","value":10.0
+        })
+        assert invalid_tag.status_code == 422
         created = client.post("/api/resources/tags", json={
             "name":"TEST.Setpoint","plc":"p1","type":"float32","address":"40099",
             "access":"read_write","unit":"Hz","value":10.0
@@ -83,7 +88,14 @@ def test_production_workflow_qc_batch_and_report_transitions():
         }).json()
         execution = client.post(f"/api/operations/reports/{report['id']}/run", json={"parameters":{}})
         assert execution.status_code == 202
-        assert client.get(f"/api/operations/reports/{report['id']}/executions").json()
+        result = execution.json()["result"]
+        assert result["mode"] == "APPLICATION_DATA"
+        assert result["summary"]["tag_count"] >= 1
+        assert "telemetry_samples" in result["tables"]
+        history = client.get(f"/api/operations/reports/{report['id']}/executions")
+        assert history.status_code == 200 and history.json()
+        details = client.get(f"/api/operations/reports/{report['id']}/executions/{execution.json()['id']}")
+        assert details.status_code == 200
 
 
 def test_edge_token_and_heartbeat():
