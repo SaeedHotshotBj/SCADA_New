@@ -65,6 +65,12 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
         "qc": ("code", "product", "machine", "decision"),
         "batches": ("code", "formula", "target"),
         "productionRuns": ("order", "machine", "product", "target"),
+        "products": ("code", "name", "unit"),
+        "prices": ("kind", "code", "name", "price", "currency", "unit"),
+        "hmiPages": ("name", "machine", "description"),
+        "machineCalendars": ("machine", "year", "month", "days"),
+        "batchConfigs": ("code", "name", "loadcell", "formula", "hoppers"),
+        "controlPlans": ("product", "process", "sampling_interval", "sample_count", "parameters"),
     }
     if creating:
         for field in required.get(collection, ()):
@@ -79,8 +85,14 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
         if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
             raise HTTPException(status_code=422, detail="ایمیل معتبر نیست.")
         payload["email"] = email
-    if collection in {"orders", "units", "batches", "productionRuns"}:
-        for field in ("quantity", "target", "progress"):
+    numeric_fields = {
+        "orders": ("quantity", "progress"), "units": ("quantity",),
+        "batches": ("target",), "productionRuns": ("target",),
+        "prices": ("price",), "batchConfigs": ("samples", "tolerance_percent", "stabilization_seconds"),
+        "controlPlans": ("sample_count",), "hmiPages": ("components",),
+    }
+    if collection in numeric_fields:
+        for field in numeric_fields[collection]:
             if field in payload:
                 try:
                     number = float(payload[field])
