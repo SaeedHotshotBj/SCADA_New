@@ -40,9 +40,9 @@ function edgeStatusPage() {
   </div>`;
 }
 function edgeRegisterPage() {
-  return `${pageHeader("ثبت Edge", "برای هر کارخانه یک توکن یکتا بسازید و آن را در نرم‌افزار Edge نصب کنید.")}${panel("ایجاد توکن ثبت", `<form class="inline-form" data-local-form="edge-token"><label class="field field-grow"><span>یادداشت</span><input placeholder="مثلاً Edge خط تولید شماره ۱" required /></label><button class="btn btn-primary" type="submit">ساخت توکن</button></form><p class="muted-note">پس از ساخت، توکن فقط یک‌بار نمایش داده می‌شود. در این نسخه مقدار واقعی صادر نمی‌شود.</p>`)}`;
+  const factories = store.list("factories");
+  return `${pageHeader("ثبت Edge", "برای هر کارخانه یک توکن یکتا بسازید و آن را در نرم‌افزار Edge نصب کنید.")}${panel("ایجاد توکن ثبت", `<form class="inline-form" data-local-form="edge-token"><label class="field"><span>نام Edge</span><input name="name" placeholder="مثلاً EDGE-LINE-01" required /></label><label class="field"><span>کارخانه</span><select name="factory_id"><option value="">بدون تخصیص</option>${factories.map(factory => `<option value="${factory.id}">${factory.name}</option>`).join("")}</select></label><label class="field field-grow"><span>یادداشت</span><input name="note" placeholder="مثلاً Edge خط تولید شماره ۱" /></label><button class="btn btn-primary" type="submit">ساخت توکن</button></form><p class="muted-note">توکن محرمانه فقط یک‌بار نمایش داده می‌شود. آن را در فایل تنظیمات Edge ذخیره کنید.</p>`)}`;
 }
-
 function storagePage() {
   const groups = ["سرعت ماشین‌های خط", "دمای زون‌های اکسترودر روشن", "دمای زون‌های اکسترودر عایق", "قطر خارجی و فشار مذاب", "انرژی و تأسیسات", "قرقره‌پیچ و باسکول"];
   const groupRows = groups.map((name, i) => ({
