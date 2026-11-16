@@ -37,6 +37,7 @@ export const api = {
   delete: path => request(path, { method: "DELETE" }),
   login: credentials => request("/api/auth/login", { method: "POST", body: credentials }),
   logout: () => request("/api/auth/logout", { method: "POST" }),
+  changePassword: body => request("/api/auth/change-password", { method: "POST", body }),
   me: () => request("/api/auth/me"),
   bootstrap: () => request("/api/bootstrap"),
   list: collection => request(`/api/resources/${encodeURIComponent(collection)}`),
