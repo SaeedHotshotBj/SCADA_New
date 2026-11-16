@@ -62,7 +62,7 @@ def history(tag_id: str, hours: int = Query(24, ge=1, le=744),
             "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples WHERE tag_id=? AND sampled_at>=? ORDER BY sampled_at DESC LIMIT ?",
             (tag_id,since,limit),
         ).fetchall()
-    return {"items":[{"tag_id:r["tag_id"],"value":json_load(r["value_json"]),
+    return {"items":[{"tag_id":r["tag_id"],"value":json_load(r["value_json"]),
                       "quality":r["quality"],"source":r["source"],"sampled_at":r["sampled_at"]} for r in reversed(rows)]}
 
 
