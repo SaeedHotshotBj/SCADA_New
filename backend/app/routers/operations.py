@@ -137,16 +137,81 @@ def run_report(report_id: str, body: RunRequest, user: dict = Depends(get_curren
             raise HTTPException(404,"قالب گزارش پیدا نشد.")
         execution_id = "rep-" + uuid.uuid4().hex[:14]
         created = utc_now()
+
+        def collection_snapshot(collection: str, limit: int = 200) -> list[dict]:
+            rows = db.execute(
+                "SELECT id,factory_id,payload,updated_at FROM resources WHERE collection=? ORDER BY updated_at DESC LIMIT ?",
+                (collection, limit),
+            ).fetchall()
+            return [
+                {"id": row["id"], **(json_load(row["payload"], {}) or {}),
+                 **({"factory_id": row["factory_id"]} if row["factory_id"] else {}),
+                 "updated_at": row["updated_at"]}
+                for row in rows
+            ]
+
+        tags = collection_snapshot("tags", 1000)
+        orders = collection_snapshot("orders")
+        runs = collection_snapshot("productionRuns")
+        qc_records = collection_snapshot("qc")
+        alarms = collection_snapshot("alarms")
+        batches = collection_snapshot("batches")
+        recent_samples = db.execute(
+            "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples ORDER BY sampled_at DESC LIMIT 500"
+        ).fetchall()
+        report_result = {
+            "mode": "APPLICATION_DATA",
+            "generated_at": created,
+            "report": {"id": report_id, **report},
+            "filters": body.parameters,
+            "summary": {
+                "plc_count": db.execute("SELECT COUNT(*) FROM resources WHERE collection='plcs'").fetchone()[0],
+                "tag_count": len(tags),
+                "alarm_count": len(alarms),
+                "active_alarm_count": sum(1 for item in alarms if item.get("status") not in {"تأییدشده", "غیرفعال"}),
+                "order_count": len(orders),
+                "production_run_count": len(runs),
+                "running_count": sum(1 for item in runs if item.get("status") == "در حال تولید"),
+                "qc_record_count": len(qc_records),
+                "batch_count": len(batches),
+            },
+            "tables": {
+                "tags": tags,
+                "orders": orders,
+                "production_runs": runs,
+                "quality_records": qc_records,
+                "alarms": alarms,
+                "batches": batches,
+                "telemetry_samples": [
+                    {"tag_id": row["tag_id"], "value": json_load(row["value_json"]),
+                     "quality": row["quality"], "source": row["source"], "sampled_at": row["sampled_at"]}
+                    for row in recent_samples
+                ],
+            },
+        }
         db.execute(
             """INSERT INTO report_executions(id,report_id,status,parameters,result,requested_by,created_at,completed_at)
                VALUES(?,?,?,?,?,?,?,?)""",
             (execution_id,report_id,"COMPLETED",json_dump(body.parameters),
-             json_dump({"message":"گزارش بر اساس داده‌های ذخیره‌شده‌ی سامانه ساخته شد.","mode":"APPLICATION_DATA"}),
-             user["id"],created,created),
+             json_dump(report_result),user["id"],created,created),
         )
         audit(db,user["id"],"report.run","reports",report_id,{"execution_id":execution_id})
     return {"id":execution_id,"report_id":report_id,"status":"COMPLETED","created_at":created,
-            "result":{"message":"گزارش اجرا شد. داده‌ها از اطلاعات ذخیره‌شده‌ی سامانه خوانده شدند."}}
+            "result":report_result}
+
+
+@router.get("/reports/{report_id}/executions/{execution_id}")
+def get_report_execution(report_id: str, execution_id: str, user: dict = Depends(get_current_user)):
+    with connect() as db:
+        row = db.execute(
+            "SELECT id,report_id,status,parameters,result,requested_by,created_at,completed_at FROM report_executions WHERE report_id=? AND id=?",
+            (report_id, execution_id),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(404, "اجرای گزارش پیدا نشد.")
+    return {"id":row["id"],"report_id":row["report_id"],"status":row["status"],
+            "parameters":json_load(row["parameters"],{}),"result":json_load(row["result"],{}),
+            "requested_by":row["requested_by"],"created_at":row["created_at"],"completed_at":row["completed_at"]}
 
 
 @router.get("/reports/{report_id}/executions")
