@@ -20,7 +20,7 @@ def seed_database() -> None:
             """INSERT INTO users(id,email,name,role,status,password_hash,must_change_password,created_at,updated_at)
                VALUES(?,?,?,?,?,?,?,?,?)""",
             ("u-admin", "admin@demo-cable.local", "مدیر سامانه", "Organization Admin", "فعال",
-             hash_password("demo"), 0, now, now),
+             hash_password("demo1234"), 0, now, now),
         )
 
         seed = {
