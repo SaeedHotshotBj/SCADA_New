@@ -14,13 +14,21 @@ function boardPage() {
 }
 
 function calendarPage() {
-  return `<div>${pageHeader("تقویم ماشین‌ها", "تنظیم روزهای کاری، ساعات شیفت و استثناهای تقویم برای هر ماشین")}
-    <div class="filter-bar"><label class="field"><span>ماشین</span><select>${machines.map(x => `<option>${x}</option>`).join("")}</select></label><label class="field"><span>سال</span><select><option>۱۴۰۵</option><option>۱۴۰۶</option></select></label><label class="field"><span>ماه</span><select><option>آبان</option><option>آذر</option><option>مهر</option></select></label>${button("افزودن استثنا", "open-modal-info", { variant: "light" })}${button("ذخیره تقویم", "open-modal-info")}</div>
-    ${panel("برنامه هفتگی ماشین", `<div class="schedule-table"><div class="schedule-head"><b>روز هفته</b><b>وضعیت کاری</b><b>شروع شیفت</b><b>پایان شیفت</b><b>استراحت</b></div>${["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"].map((day, i) => `<div class="schedule-row"><b>${day}</b><label class="switch"><input type="checkbox" ${i < 6 ? "checked" : ""}><span></span></label><input value="08:00" type="time"><input value="17:00" type="time"><input value="01:00" type="text"></div>`).join("")}</div>`)}
-    ${panel("استثناها و تعطیلات", emptyState("برای این ماشین استثنایی ثبت نشده است."))}
+  const calendar = store.list("machineCalendars")[0] || {
+    machine: machines[0], year: "1405", month: "آبان",
+    days: ["شنبه","یکشنبه","دوشنبه","سه‌شنبه","چهارشنبه","پنجشنبه","جمعه"].map((day,index) => ({
+      day, enabled:index<6, start:"08:00", end:index===5 ? "13:00" : "17:00", break:index===5 ? "00:30" : "01:00"
+    }))
+  };
+  const days = ["شنبه","یکشنبه","دوشنبه","سه‌شنبه","چهارشنبه","پنجشنبه","جمعه"];
+  return `<div>${pageHeader("تقویم ماشین‌ها", "تنظیم روزهای کاری، ساعات شیفت و استثناهای تقویم برای هر ماشین", `<button class="btn btn-primary" type="submit" form="machine-calendar-form">ذخیره تقویم</button>`)}
+    <form id="machine-calendar-form" data-local-form="machine-calendar" data-id="${calendar.id || ""}">
+      <div class="filter-bar"><label class="field"><span>ماشین</span><select name="machine">${machines.map(name => `<option ${name === calendar.machine ? "selected" : ""}>${name}</option>`).join("")}</select></label><label class="field"><span>سال</span><select name="year"><option ${calendar.year === "1405" ? "selected" : ""}>1405</option><option ${calendar.year === "1406" ? "selected" : ""}>1406</option></select></label><label class="field"><span>ماه</span><select name="month">${["مهر","آبان","آذر","دی","بهمن","اسفند"].map(month => `<option ${month === calendar.month ? "selected" : ""}>${month}</option>`).join("")}</select></label></div>
+      ${panel("برنامه هفتگی ماشین", `<div class="schedule-table"><div class="schedule-head"><b>روز هفته</b><b>وضعیت کاری</b><b>شروع شیفت</b><b>پایان شیفت</b><b>استراحت</b></div>${days.map((day,index) => { const saved = calendar.days?.find(item => item.day === day) || {}; return `<div class="schedule-row"><b>${day}</b><label class="switch"><input type="hidden" name="day_${index}_enabled" value="false"><input type="checkbox" name="day_${index}_enabled" value="true" ${saved.enabled ? "checked" : ""}><span></span></label><input name="day_${index}_start" value="${saved.start || "08:00"}" type="time" required><input name="day_${index}_end" value="${saved.end || "17:00"}" type="time" required><input name="day_${index}_break" value="${saved.break || "01:00"}" type="time" required></div>`; }).join("")}</div>`)}
+    </form>
+    ${panel("استثناها و تعطیلات", emptyState("ثبت استثناهای تقویم در مرحله بعدی توسعه انجام می‌شود."))}
   </div>`;
 }
-
 function operatorPage() {
   const orders = store.list("orders");
   const runs = store.list("productionRuns");
