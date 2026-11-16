@@ -32,7 +32,7 @@ function pricesPage() {
   const rows = store.list("prices");
   return `<div class="price-page" data-collection-name="prices" data-edit-action="new-price">${pageHeader("قیمت‌ها و تعرفه‌ها", "مدیریت قیمت مواد اولیه و تعرفه انرژی", button("ثبت قیمت / تعرفه", "new-price", { icon: "+" }))}
     ${tabs(["مواد اولیه", "قیمت مواد", "تعرفه انرژی"])}
-    ${panel("فهرست قیمت‌ها و تعرفه‌های ثبت‌شده", rows.length ? dataTable([{ key: "kind", label: "گروه" }, { key: "code", label: "کد" }, { key: "name", label: "عنوان" }, { key: "price", label: "مبلغ واحد", render: row => Number(row.price || 0).toLocaleString("fa-IR") }, { key: "currency", label: "واحد پول" }, { key: "unit", label: "واحد اندازه‌گیری" }, { key: "valid_from", label: "تاریخ اعتبار" }, { key: "status", label: "وضعیت", render: row => pill(row.status || "فعال", row.status === "غیرفعال" ? "muted" : "success") }], rows, { actions: true }) : emptyState("قیمت یا تعرفه‌ای ثبت نشده است.")}
+    ${panel("فهرست قیمت‌ها و تعرفه‌های ثبت‌شده", rows.length ? dataTable([{ key: "kind", label: "گروه" }, { key: "code", label: "کد" }, { key: "name", label: "عنوان" }, { key: "price", label: "مبلغ واحد", render: row => Number(row.price || 0).toLocaleString("fa-IR") }, { key: "currency", label: "واحد پول" }, { key: "unit", label: "واحد اندازه‌گیری" }, { key: "valid_from", label: "تاریخ اعتبار" }, { key: "status", label: "وضعیت", render: row => pill(row.status || "فعال", row.status === "غیرفعال" ? "muted" : "success") }], rows, { actions: true }) : emptyState("قیمت یا تعرفه‌ای ثبت نشده است."))}
   </div>`;
 }
 
