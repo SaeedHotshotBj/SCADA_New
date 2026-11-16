@@ -22,6 +22,7 @@ COLLECTIONS = {
 }
 ROLES = {"Organization Admin", "Factory Admin", "Engineer", "Operator",
          "Production Planner", "Quality Control", "Production Manager"}
+ADMIN_ROLES = {"Organization Admin", "Factory Admin"}
 TAG_TYPES = {"bool", "int16", "uint16", "int32", "uint32", "float32", "string"}
 ENUMS = {
     "plcs.protocol": {"modbus-tcp", "modbus-rtu", "s7", "simulator"},
@@ -155,6 +156,12 @@ def list_collection(collection: str, limit: int = Query(500, ge=1, le=1000),
     if collection not in COLLECTIONS and collection != "users":
         raise HTTPException(status_code=404, detail="مجموعه‌ی درخواستی تعریف نشده است.")
     with connect() as db:
+        if collection == "users" and user["role"] not in ADMIN_ROLES:
+            rows = db.execute(
+                "SELECT id,email,name,role,status,created_at,updated_at FROM users WHERE id=?",
+                (user["id"],),
+            ).fetchall()
+            return {"items": [_public_user(row) for row in rows], "limit": limit, "offset": 0}
         return {"items": list_records(collection, db, limit, offset, factory_id), "limit": limit, "offset": offset}
 
 
@@ -162,9 +169,14 @@ def list_collection(collection: str, limit: int = Query(500, ge=1, le=1000),
 def create_record(collection: str, body: ResourceInput, user: dict = Depends(get_current_user)):
     if collection not in COLLECTIONS and collection != "users":
         raise HTTPException(status_code=404, detail="مجموعه‌ی درخواستی تعریف نشده است.")
-    if user["role"] not in ROLES - {"Operator"}:
-        raise HTTPException(status_code=403, detail="نقش کاربری اجازه‌ی ایجاد رکورد ندارد.")
     payload = clean_payload(collection, body.model_dump(), creating=True)
+    if collection == "users":
+        if user["role"] not in ADMIN_ROLES:
+            raise HTTPException(status_code=403, detail="مدیریت کاربران فقط برای مدیر سامانه یا کارخانه مجاز است.")
+        if payload.get("role") == "Organization Admin" and user["role"] != "Organization Admin":
+            raise HTTPException(status_code=403, detail="ایجاد مدیر سازمان فقط برای مدیر سازمان مجاز است.")
+    elif user["role"] not in ROLES - {"Operator"}:
+        raise HTTPException(status_code=403, detail="نقش کاربری اجازه‌ی ایجاد رکورد ندارد.")
     record_id = "r-" + uuid.uuid4().hex[:16]
     now = utc_now()
     temporary_password = None
@@ -197,6 +209,8 @@ def create_record(collection: str, body: ResourceInput, user: dict = Depends(get
 def get_record(collection: str, record_id: str, user: dict = Depends(get_current_user)):
     if collection not in COLLECTIONS and collection != "users":
         raise HTTPException(status_code=404, detail="مجموعه‌ی درخواستی تعریف نشده است.")
+    if collection == "users" and user["role"] not in ADMIN_ROLES and record_id != user["id"]:
+        raise HTTPException(status_code=404, detail="کاربر پیدا نشد.")
     with connect() as db:
         if collection == "users":
             row = db.execute("SELECT id,email,name,role,status,created_at,updated_at FROM users WHERE id=?", (record_id,)).fetchone()
@@ -213,9 +227,14 @@ def get_record(collection: str, record_id: str, user: dict = Depends(get_current
 def update_record(collection: str, record_id: str, body: ResourceInput, user: dict = Depends(get_current_user)):
     if collection not in COLLECTIONS and collection != "users":
         raise HTTPException(status_code=404, detail="مجموعه‌ی درخواستی تعریف نشده است.")
-    if user["role"] not in ROLES - {"Operator"}:
-        raise HTTPException(status_code=403, detail="نقش کاربری اجازه‌ی ویرایش رکورد ندارد.")
     changes = clean_payload(collection, body.model_dump(), creating=False)
+    if collection == "users":
+        if user["role"] not in ADMIN_ROLES:
+            raise HTTPException(status_code=403, detail="مدیریت کاربران فقط برای مدیر سامانه یا کارخانه مجاز است.")
+        if changes.get("role") == "Organization Admin" and user["role"] != "Organization Admin":
+            raise HTTPException(status_code=403, detail="تعیین نقش مدیر سازمان فقط برای مدیر سازمان مجاز است.")
+    elif user["role"] not in ROLES - {"Operator"}:
+        raise HTTPException(status_code=403, detail="نقش کاربری اجازه‌ی ویرایش رکورد ندارد.")
     now = utc_now()
     with connect() as db:
         if collection == "users":

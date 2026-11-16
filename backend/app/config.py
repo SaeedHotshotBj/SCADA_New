@@ -3,7 +3,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 BASE_DIR = Path(__file__).resolve().parents[1]
+# Load backend-local .env before reading values; process environment takes precedence.
+load_dotenv(BASE_DIR / ".env", override=False)
+
 DB_PATH = Path(os.getenv("SCADA_DB_PATH", str(BASE_DIR / "data" / "scada_new.sqlite3"))).expanduser()
 SECRET_KEY = os.getenv("SCADA_SECRET_KEY", "development-only-change-me-before-deployment")
 SESSION_TTL_HOURS = max(1, int(os.getenv("SCADA_SESSION_TTL_HOURS", "12")))

@@ -167,3 +167,43 @@ def test_hmi_and_operational_configuration_resources():
         assert any(row["id"] == calendar.json()["id"] for row in snapshot["machineCalendars"])
         assert any(row["id"] == batch_config.json()["id"] for row in snapshot["batchConfigs"])
         assert any(row["id"] == control_plan.json()["id"] for row in snapshot["controlPlans"])
+
+
+
+def test_user_management_is_admin_only_and_bootstrap_hides_other_users():
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local", "password": "demo1234"
+        })
+        created = client.post("/api/resources/users", json={
+            "name": "مهندس تست", "email": "engineer-ci@example.local",
+            "role": "Engineer", "status": "فعال"
+        })
+        assert created.status_code == 201
+        temporary_password = created.json()["temporary_password"]
+        user_id = created.json()["id"]
+
+        assert client.post("/api/auth/logout").status_code == 200
+        login = client.post("/api/auth/login", json={
+            "email": "engineer-ci@example.local", "password": temporary_password
+        })
+        assert login.status_code == 200
+
+        snapshot = client.get("/api/bootstrap")
+        assert snapshot.status_code == 200
+        visible_users = snapshot.json()["data"]["users"]
+        assert [item["id"] for item in visible_users] == [user_id]
+
+        denied_create = client.post("/api/resources/users", json={
+            "name": "ادمین غیرمجاز", "email": "bad-admin@example.local",
+            "role": "Organization Admin", "status": "فعال"
+        })
+        assert denied_create.status_code == 403
+
+        denied_escalation = client.patch(f"/api/resources/users/{user_id}", json={
+            "role": "Organization Admin"
+        })
+        assert denied_escalation.status_code == 403
+
+        denied_other_user_read = client.get("/api/resources/users/u-admin")
+        assert denied_other_user_read.status_code == 404

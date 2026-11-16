@@ -38,6 +38,8 @@ def _save_resource(db, collection: str, record_id: str, payload: dict):
 
 @router.post("/production-runs/{run_id}/start")
 def start_production_run(run_id: str, user: dict = Depends(get_current_user)):
+    if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
+        raise HTTPException(403, "نقش کاربری اجازه‌ی شروع تولید ندارد.")
     with connect() as db:
         row = _get_resource(db, "productionRuns", run_id)
         if row is None:
@@ -54,6 +56,8 @@ def start_production_run(run_id: str, user: dict = Depends(get_current_user)):
 
 @router.post("/production-runs/{run_id}/stop")
 def stop_production_run(run_id: str, user: dict = Depends(get_current_user)):
+    if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
+        raise HTTPException(403, "نقش کاربری اجازه‌ی توقف تولید را ندارد.")
     with connect() as db:
         row = _get_resource(db,"productionRuns",run_id)
         if row is None:
@@ -68,6 +72,8 @@ def stop_production_run(run_id: str, user: dict = Depends(get_current_user)):
 
 @router.post("/batches/{batch_id}/start")
 def start_batch(batch_id: str, user: dict = Depends(get_current_user)):
+    if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
+        raise HTTPException(403, "نقش کاربری اجازه‌ی شروع بچ را ندارد.")
     with connect() as db:
         row = _get_resource(db,"batches",batch_id)
         if row is None:
@@ -84,6 +90,8 @@ def start_batch(batch_id: str, user: dict = Depends(get_current_user)):
 
 @router.post("/batches/{batch_id}/stop")
 def stop_batch(batch_id: str, user: dict = Depends(get_current_user)):
+    if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
+        raise HTTPException(403, "نقش کاربری اجازه‌ی توقف بچ را ندارد.")
     with connect() as db:
         row = _get_resource(db,"batches",batch_id)
         if row is None:
@@ -101,6 +109,8 @@ def stop_batch(batch_id: str, user: dict = Depends(get_current_user)):
 @router.post("/workflow-tasks/{task_id}/approve")
 def approve_workflow_task(task_id: str, body: DecisionRequest | None = None,
                           user: dict = Depends(get_current_user)):
+    if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Production Planner", "Quality Control"}:
+        raise HTTPException(403, "نقش کاربری اجازه‌ی تأیید این وظیفه را ندارد.")
     with connect() as db:
         row = _get_resource(db,"workflowTasks",task_id)
         if row is None:
@@ -116,6 +126,8 @@ def approve_workflow_task(task_id: str, body: DecisionRequest | None = None,
 
 @router.post("/qc/{qc_id}/decision")
 def decide_qc(qc_id: str, body: DecisionRequest, user: dict = Depends(get_current_user)):
+    if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Quality Control"}:
+        raise HTTPException(403, "ثبت تصمیم کنترل کیفیت فقط برای نقش‌های مجاز امکان‌پذیر است.")
     if body.decision not in {"قبول","مشروط","رد"}:
         raise HTTPException(422,"تصمیم کنترل کیفیت باید قبول، مشروط یا رد باشد.")
     with connect() as db:
@@ -131,6 +143,8 @@ def decide_qc(qc_id: str, body: DecisionRequest, user: dict = Depends(get_curren
 
 @router.post("/reports/{report_id}/run", status_code=202)
 def run_report(report_id: str, body: RunRequest, user: dict = Depends(get_current_user)):
+    if user["role"] not in {"Organization Admin", "Factory Admin", "Engineer", "Production Manager", "Production Planner"}:
+        raise HTTPException(403, "نقش کاربری اجازه‌ی اجرای گزارش را ندارد.")
     with connect() as db:
         report = _get_resource(db,"reports",report_id)
         if report is None:

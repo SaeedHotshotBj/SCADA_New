@@ -80,8 +80,14 @@ def bootstrap(user: dict = Depends(get_current_user)):
                  "created_at":row["created_at"],"updated_at":row["updated_at"]}
                 for row in rows
             ]
-        users=db.execute("SELECT id,email,name,role,status,created_at,updated_at FROM users ORDER BY created_at").fetchall()
-        data["users"]=[dict(row) for row in users]
+        if user["role"] in {"Organization Admin", "Factory Admin"}:
+            users = db.execute("SELECT id,email,name,role,status,created_at,updated_at FROM users ORDER BY created_at").fetchall()
+            data["users"] = [dict(row) for row in users]
+        else:
+            data["users"] = [{
+                "id": user["id"], "email": user["email"], "name": user["name"],
+                "role": user["role"], "status": user["status"],
+            }]
         edge_rows=db.execute(
             "SELECT id,factory_id,name,status,metadata,last_seen,created_at,updated_at FROM edge_devices ORDER BY created_at DESC"
         ).fetchall()

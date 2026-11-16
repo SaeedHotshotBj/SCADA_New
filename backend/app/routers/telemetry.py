@@ -68,6 +68,8 @@ def history(tag_id: str, hours: int = Query(24, ge=1, le=744),
 
 @router.post("/tags/{tag_id}/write")
 def write_tag(tag_id: str, body: TagWrite, user: dict = Depends(get_current_user)):
+    if user["role"] not in {"Organization Admin", "Factory Admin", "Engineer", "Production Manager", "Operator"}:
+        raise HTTPException(403, "نقش کاربری اجازه‌ی نوشتن مقدار تگ را ندارد.")
     with connect() as db:
         row=db.execute("SELECT payload,factory_id FROM resources WHERE collection='tags' AND id=?",(tag_id,)).fetchone()
         if not row:
