@@ -1,13 +1,14 @@
 import { currentPath, renderRoute } from "./router.js";
 import { handleAction, handleSubmit, showToast } from "./actions.js";
 import { bindShellEvents } from "../layouts/shell.js";
+import { api } from "../services/api-client.js";
+import { store } from "../services/demo-store.js";
 
 const root = document.getElementById("app");
 let renderQueued = false;
 
 function render() {
-  const path = currentPath();
-  root.innerHTML = renderRoute(path);
+  root.innerHTML = renderRoute(currentPath());
   bindShellEvents();
 }
 
@@ -36,17 +37,50 @@ document.addEventListener("click", event => {
     return;
   }
   if (action === "toggle-nav-group") return;
-  handleAction(action, actionElement);
+  Promise.resolve(handleAction(action, actionElement)).catch(error => {
+    console.error(error);
+    showToast(error.message || "عملیات انجام نشد.", "error");
+  });
 });
 
-document.addEventListener("submit", event => {
-  if (handleSubmit(event)) return;
+document.addEventListener("submit", async event => {
   if (event.target.id === "login-form") {
     event.preventDefault();
-    sessionStorage.setItem("scada-demo-auth", "1");
-    location.hash = "/bi/dashboard";
-    showToast("ورود نمایشی با موفقیت انجام شد.");
+    const form = event.target;
+    const credentials = Object.fromEntries(new FormData(form).entries());
+    const submit = form.querySelector('[type="submit"]');
+    if (submit) submit.disabled = true;
+    try {
+      await api.login(credentials);
+      await store.loadAfterLogin();
+      sessionStorage.setItem("scada-demo-auth", "1");
+      location.hash = "/bi/dashboard";
+      showToast("ورود به سامانه با موفقیت انجام شد.");
+    } catch (error) {
+      showToast(error.message || "ورود ناموفق بود.", "error");
+    } finally {
+      if (submit) submit.disabled = false;
+    }
+    return;
+  }
+  try {
+    await handleSubmit(event);
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "ذخیره اطلاعات انجام نشد.", "error");
   }
 });
 
-render();
+async function initialize() {
+  if (sessionStorage.getItem("scada-demo-auth") === "1") {
+    try {
+      await store.initialize();
+    } catch {
+      sessionStorage.removeItem("scada-demo-auth");
+      try { await api.logout(); } catch { /* The API may be offline. */ }
+    }
+  }
+  render();
+}
+
+initialize();
