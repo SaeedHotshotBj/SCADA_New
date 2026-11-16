@@ -19,6 +19,11 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=8, max_length=256)
+
+
 def public_user(row) -> dict:
     return {
         "id": row["id"], "email": row["email"], "name": row["name"],
@@ -68,6 +73,29 @@ def logout(response: Response, scada_session: str | None = Cookie(default=None))
             db.execute("DELETE FROM sessions WHERE token_hash=?", (token_hash(scada_session),))
     response.delete_cookie("scada_session", path="/", httponly=True, samesite="lax")
     return {"ok": True}
+
+
+@router.post("/change-password")
+def change_password(body: ChangePasswordRequest, scada_session: str | None = Cookie(default=None),
+                    user: dict = Depends(get_current_user)):
+    if not scada_session:
+        raise HTTPException(status_code=401, detail="نشست معتبر نیست.")
+    with connect() as db:
+        row = db.execute("SELECT password_hash FROM users WHERE id=?", (user["id"],)).fetchone()
+        if row is None or not verify_password(body.old_password, row["password_hash"]):
+            raise HTTPException(status_code=400, detail="رمز عبور فعلی صحیح نیست.")
+        if verify_password(body.new_password, row["password_hash"]):
+            raise HTTPException(status_code=422, detail="رمز جدید باید با رمز فعلی متفاوت باشد.")
+        db.execute(
+            "UPDATE users SET password_hash=?,must_change_password=0,updated_at=? WHERE id=?",
+            (hash_password(body.new_password), utc_now(), user["id"]),
+        )
+        db.execute(
+            "DELETE FROM sessions WHERE user_id=? AND token_hash<>?",
+            (user["id"], token_hash(scada_session)),
+        )
+        audit(db, user["id"], "auth.password_changed")
+    return {"ok": True, "message": "رمز عبور با موفقیت تغییر کرد."}
 
 
 @router.get("/me")
