@@ -76,6 +76,16 @@ document.addEventListener("submit", async event => {
 function syncLiveConnection() {
   const path = currentPath();
   const needsLive = path === "/live/data" || path === "/live/trends";
+  if (path === "/live/trends" && store.isConnected()) {
+    const sourceTag = store.list("tags").find(tag => tag.access === "read" && ["float32","int16","uint16","int32","uint32"].includes(tag.type));
+    if (sourceTag) {
+      api.telemetryHistory(sourceTag.id, 24)
+        .then(result => store.replaceCollection("trendHistory", result.items || []))
+        .catch(error => console.error("Trend history load failed", error));
+    }
+  } else if (path !== "/live/trends") {
+    store.replaceCollection("trendHistory", []);
+  }
   if (!needsLive) {
     if (liveSocket) { liveSocket.close(); liveSocket = null; }
     return;
