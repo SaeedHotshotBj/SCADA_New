@@ -28,19 +28,24 @@ function pendingPage() {
   return `<div>${pageHeader("در انتظار بررسی", "نمونه‌ها و بازرسی‌هایی که منتظر تصمیم کارشناس کیفیت هستند.")}${statCard("موارد در انتظار", pending.length, "مورد", "orange")}${panel("صف بررسی کیفیت", pending.length ? dataTable([{ key: "code", label: "شماره کنترل" }, { key: "product", label: "محصول" }, { key: "machine", label: "ماشین" }, { key: "inspector", label: "بازرس" }, { key: "action", label: "اقدام", render: row => `<button class="btn btn-primary btn-sm" data-action="review-qc" data-id="${row.id}">بررسی نتیجه</button>` }], pending) : emptyState("موردی در انتظار بررسی نیست."))}</div>`;
 }
 function planPage() {
-  const specs = [
-    { parameter: "قطر عایق", nominal: "۲٫۴۰ mm", min: "۲٫۳۵", max: "۲٫۴۵", unit: "mm", method: "اندازه‌گیری" },
-    { parameter: "مقاومت هادی", nominal: "۱٫۸۳ Ω/km", min: "—", max: "۱٫۹۰", unit: "Ω/km", method: "آزمون الکتریکی" },
-    { parameter: "ضخامت عایق", nominal: "۰٫۸ mm", min: "۰٫۷۵", max: "۰٫۸۵", unit: "mm", method: "اندازه‌گیری" },
-    { parameter: "ظاهر محصول", nominal: "بدون عیب", min: "—", max: "—", unit: "—", method: "بازرسی چشمی" }
-  ];
-  return `<div>${pageHeader("طرح کنترل کیفیت", "تعریف پارامترهای کنترل، حدود مجاز و روش بازرسی برای محصول و مرحله تولید", button("ذخیره تغییرات", "open-modal-info"))}
-    <div class="filter-bar"><label class="field"><span>محصول</span><select><option>سیم 1×10 افشان</option><option>کابل قدرت NYY 4×16</option></select></label><label class="field"><span>مرحله فرآیند</span><select><option>اکستروژن عایق</option><option>کابل‌کشی</option><option>بسته‌بندی</option></select></label><label class="field"><span>نسخه طرح</span><select><option>نسخه ۱ · فعال</option><option>پیش‌نویس</option></select></label></div>
-    ${panel("پارامترهای قابل کنترل", dataTable([{ key: "parameter", label: "پارامتر" }, { key: "nominal", label: "مقدار اسمی" }, { key: "min", label: "حداقل مجاز" }, { key: "max", label: "حداکثر مجاز" }, { key: "unit", label: "واحد" }, { key: "method", label: "روش کنترل" }, { key: "edit", label: "تنظیم", render: () => `<button class="btn btn-light btn-sm" data-action="open-modal-info">ویرایش حدود</button>` }], specs))}
-    <div class="two-col-grid">${panel("تناوب نمونه‌برداری", `<div class="form-grid"><label class="field"><span>فاصله نمونه‌برداری</span><input value="هر ۳۰ دقیقه"></label><label class="field"><span>تعداد نمونه</span><input type="number" value="3"></label><label class="field"><span>مسئول کنترل</span><select><option>کارشناس کیفیت</option><option>اپراتور خط</option></select></label><label class="field"><span>الزام تأیید</span><select><option>بله</option><option>خیر</option></select></label></div>`)}${panel("قواعد تصمیم‌گیری", `<div class="rule-list"><p>${pill("قبول", "success")} تمام پارامترها داخل محدوده مجاز باشند.</p><p>${pill("مشروط", "warning")} انحراف جزئی با تأیید مسئول کیفیت قابل قبول باشد.</p><p>${pill("رد", "danger")} خروج از حدود بحرانی یا عدم انطباق ظاهری.</p></div>`)}</div>
+  const plan = store.list("controlPlans")[0] || {
+    product:"سیم 1×10 افشان", process:"اکستروژن عایق", version:"نسخه ۱",
+    sampling_interval:"هر ۳۰ دقیقه", sample_count:3, responsible:"کارشناس کیفیت", approval_required:true,
+    parameters:[
+      {parameter:"قطر عایق",nominal:"۲٫۴۰",min:"۲٫۳۵",max:"۲٫۴۵",unit:"mm",method:"اندازه‌گیری"},
+      {parameter:"مقاومت هادی",nominal:"۱٫۸۳",min:"—",max:"۱٫۹۰",unit:"Ω/km",method:"آزمون الکتریکی"},
+      {parameter:"ضخامت عایق",nominal:"۰٫۸",min:"۰٫۷۵",max:"۰٫۸۵",unit:"mm",method:"اندازه‌گیری"},
+      {parameter:"ظاهر محصول",nominal:"بدون عیب",min:"—",max:"—",unit:"—",method:"بازرسی چشمی"}
+    ]
+  };
+  return `<div>${pageHeader("طرح کنترل کیفیت", "تعریف پارامترهای کنترل، حدود مجاز و روش بازرسی برای محصول و مرحله تولید", `<button class="btn btn-primary" type="submit" form="control-plan-form">ذخیره تغییرات</button>`)}
+    <form id="control-plan-form" data-local-form="control-plan" data-id="${plan.id || ""}">
+      <div class="filter-bar"><label class="field"><span>محصول</span><select name="product">${["سیم 1×10 افشان","کابل قدرت NYY 4×16","سیم افشان H07V-K 4mm²"].map(value => `<option ${value === plan.product ? "selected" : ""}>${value}</option>`).join("")}</select></label><label class="field"><span>مرحله فرآیند</span><select name="process">${["اکستروژن عایق","کابل‌کشی","بسته‌بندی"].map(value => `<option ${value === plan.process ? "selected" : ""}>${value}</option>`).join("")}</select></label><label class="field"><span>نسخه طرح</span><input name="version" value="${plan.version || "نسخه ۱"}" required></label></div>
+      ${panel("پارامترهای قابل کنترل", `<div class="table-wrap"><table class="data-table"><thead><tr><th>پارامتر</th><th>مقدار اسمی</th><th>حداقل مجاز</th><th>حداکثر مجاز</th><th>واحد</th><th>روش کنترل</th></tr></thead><tbody>${(plan.parameters || []).map((item,index) => `<tr><td><input type="hidden" name="parameter_${index}_parameter" value="${item.parameter}">${item.parameter}</td><td><input name="parameter_${index}_nominal" value="${item.nominal || ""}"></td><td><input name="parameter_${index}_min" value="${item.min || ""}"></td><td><input name="parameter_${index}_max" value="${item.max || ""}"></td><td><input name="parameter_${index}_unit" value="${item.unit || ""}"></td><td><input name="parameter_${index}_method" value="${item.method || ""}"></td></tr>`).join("")}</tbody></table></div>`)}
+      <div class="two-col-grid">${panel("تناوب نمونه‌برداری", `<div class="form-grid"><label class="field"><span>فاصله نمونه‌برداری</span><input name="sampling_interval" value="${plan.sampling_interval || "هر ۳۰ دقیقه"}" required></label><label class="field"><span>تعداد نمونه</span><input name="sample_count" type="number" min="1" max="1000" value="${plan.sample_count ?? 3}" required></label><label class="field"><span>مسئول کنترل</span><input name="responsible" value="${plan.responsible || "کارشناس کیفیت"}" required></label><label class="field"><span>الزام تأیید</span><select name="approval_required"><option value="true" ${plan.approval_required ? "selected" : ""}>بله</option><option value="false" ${!plan.approval_required ? "selected" : ""}>خیر</option></select></label></div>`)}${panel("قواعد تصمیم‌گیری", `<div class="rule-list"><p>${pill("قبول", "success")} تمام پارامترها داخل محدوده مجاز باشند.</p><p>${pill("مشروط", "warning")} انحراف جزئی با تأیید مسئول کیفیت قابل قبول باشد.</p><p>${pill("رد", "danger")} خروج از حدود بحرانی یا عدم انطباق ظاهری.</p></div>`)}</div>
+    </form>
   </div>`;
 }
-
 export function renderQuality(path) {
   switch (path) {
     case "/quality/pending": return pendingPage();
