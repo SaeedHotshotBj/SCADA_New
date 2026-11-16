@@ -1,4 +1,6 @@
 import { navigation, routeTitles, findGroup } from "../core/navigation.js";
+import { store } from "../services/demo-store.js";
+import { escapeHtml } from "../core/format.js";
 
 function renderSidebar(path) {
   const activeGroup = findGroup(path);
@@ -16,8 +18,12 @@ function renderSidebar(path) {
 
 export function renderShell(path, content) {
   const title = routeTitles[path] ?? "داشبورد";
+  const user = store.currentUser() || {};
+  const name = escapeHtml(user.name || "کاربر سامانه");
+  const role = escapeHtml(user.role || "بدون نقش");
+  const avatar = escapeHtml((user.name || "SC").trim().slice(0, 2).toUpperCase());
   return `<div class="app-shell">${renderSidebar(path)}<div class="workspace">
-    <header class="topbar"><div class="topbar-user"><span class="user-avatar">FA</span><span>مدیرعامل · کارخانه دمو</span><span class="topbar-divider"></span><span class="user-role">Factory Admin</span></div><div class="topbar-brand"><span class="topbar-section">SCADA / HMI</span><span class="topbar-logo">SCADIRAN</span></div></header>
+    <header class="topbar"><div class="topbar-user"><span class="user-avatar">${avatar}</span><span>${name}</span><span class="topbar-divider"></span><span class="user-role">${role}</span><button class="btn btn-light btn-sm" data-action="change-password">تغییر رمز</button><button class="btn btn-light btn-sm" data-action="logout">خروج</button></div><div class="topbar-brand"><span class="topbar-section">SCADA / HMI</span><span class="topbar-logo">SCADIRAN</span></div></header>
     <div class="mobile-title"><button class="btn btn-light btn-sm" data-action="toggle-sidebar">☰</button><span>${title}</span></div>
     <main class="page-content">${content}</main>
     <footer class="app-footer"><span>SCADIRAN · SCADA / HMI</span><span>محیط نمایشی — بدون ارتباط با تجهیزات واقعی</span></footer>
