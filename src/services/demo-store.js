@@ -1,3 +1,5 @@
+import { api } from "./api-client.js";
+
 import { uid } from "../core/format.js";
 
 const STORAGE_KEY = "scada-new-demo-state-v1";
@@ -68,42 +70,77 @@ const seed = {
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 
-function load() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return saved ? { ...clone(seed), ...saved } : clone(seed);
-  } catch {
-    return clone(seed);
-  }
+let state = clone(seed);
+let serverConnected = false;
+let currentUser = null;
+
+function emit() {
+  window.dispatchEvent(new CustomEvent("scada:state-changed"));
 }
 
-let state = load();
-function persist() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* Private browsing may disable storage. */ }
-  window.dispatchEvent(new CustomEvent("scada:state-changed"));
+async function hydrate() {
+  const snapshot = await api.bootstrap();
+  state = { ...clone(seed), ...snapshot.data };
+  currentUser = snapshot.user;
+  serverConnected = true;
+  emit();
+  return snapshot;
 }
 
 export const store = {
   snapshot: () => state,
+  currentUser: () => currentUser,
+  isConnected: () => serverConnected,
+  initialize: async () => {
+    try {
+      await api.me();
+      await hydrate();
+      return true;
+    } catch (error) {
+      serverConnected = false;
+      currentUser = null;
+      throw error;
+    }
+  },
+  loadAfterLogin: hydrate,
+  refresh: hydrate,
   list: name => Array.isArray(state[name]) ? [...state[name]] : [],
-  add(name, record) {
-    if (!Array.isArray(state[name])) throw new Error(`Unknown collection: ${name}`);
-    const saved = { id: uid(), ...record };
-    state[name].unshift(saved); persist(); return saved;
+  async add(name, record) {
+    if (!serverConnected) throw new Error("اتصال به Backend برقرار نیست؛ ابتدا سرور را اجرا کنید.");
+    const saved = await api.create(name, record);
+    if (!Array.isArray(state[name])) state[name] = [];
+    state[name].unshift(saved);
+    emit();
+    return saved;
   },
-  update(name, id, changes) {
-    if (!Array.isArray(state[name])) return null;
+  async update(name, id, changes) {
+    if (!serverConnected) throw new Error("اتصال به Backend برقرار نیست؛ ابتدا سرور را اجرا کنید.");
+    const saved = await api.update(name, id, changes);
+    if (!Array.isArray(state[name])) state[name] = [];
     const index = state[name].findIndex(row => row.id === id);
-    if (index < 0) return null;
-    state[name][index] = { ...state[name][index], ...changes };
-    persist(); return state[name][index];
+    if (index >= 0) state[name][index] = saved;
+    else state[name].unshift(saved);
+    emit();
+    return saved;
   },
-  remove(name, id) {
-    if (!Array.isArray(state[name])) return false;
-    const previous = state[name].length;
-    state[name] = state[name].filter(row => row.id !== id);
-    if (state[name].length !== previous) persist();
-    return state[name].length !== previous;
+  async remove(name, id) {
+    if (!serverConnected) throw new Error("اتصال به Backend برقرار نیست؛ ابتدا سرور را اجرا کنید.");
+    await api.remove(name, id);
+    state[name] = (state[name] || []).filter(row => row.id !== id);
+    emit();
+    return true;
   },
-  reset() { state = clone(seed); persist(); }
+  reset() {
+    throw new Error("بازنشانی داده‌های سرور از این صفحه مجاز نیست.");
+  },
+  clearSession() {
+    serverConnected = false;
+    currentUser = null;
+    state = clone(seed);
+    emit();
+  },
+  replaceCollection(name, rows) {
+    state[name] = Array.isArray(rows) ? rows : [];
+    emit();
+  },
 };
