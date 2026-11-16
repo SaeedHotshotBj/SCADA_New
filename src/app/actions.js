@@ -1,4 +1,5 @@
 import { store } from "../services/demo-store.js";
+import { api } from "../services/api-client.js";
 import { escapeHtml } from "../core/format.js";
 
 const schemas = {
@@ -46,7 +47,7 @@ function downloadCsv() {
   a.href = url; a.download = "scada-demo-export.csv"; a.click(); URL.revokeObjectURL(url);
 }
 
-export function handleAction(action, element) {
+export async function handleAction(action, element) {
   switch (action) {
     case "new-user": case "new-factory": case "new-plc": case "new-tag": case "new-alarm": case "new-trend": case "new-report": case "new-process": case "new-template": case "new-order": case "new-unit": case "new-qc": case "new-batch": case "new-run":
       openModal(action); break;
@@ -64,22 +65,22 @@ export function handleAction(action, element) {
     }
     case "close-modal":
       document.getElementById("modal-root").innerHTML = ""; break;
-    case "refresh-demo": toast("اطلاعات نمایشی به‌روزرسانی شد."); break;
+    case "refresh-demo": await store.refresh(); toast("اطلاعات از سرور دریافت شد."); break;
     case "export-csv": downloadCsv(); break;
-    case "reset-demo": if (confirm("اطلاعات نمایشی به حالت اولیه برگردد؟")) { store.reset(); toast("اطلاعات اولیه بازیابی شد."); } break;
+    case "reset-demo": toast("بازنشانی دیتابیس سرور از این پنل غیرفعال است.", "info"); break;
     case "toggle-status": {
       const collection = element.dataset.collection;
       const row = store.list(collection).find(item => item.id === element.dataset.id);
-      if (row) store.update(collection, row.id, { status: row.status === "فعال" ? "غیرفعال" : "فعال" });
+      if (row) await store.update(collection, row.id, { status: row.status === "فعال" ? "غیرفعال" : "فعال" });
       break;
     }
     case "toggle-plc": {
       const row = store.list("plcs").find(item => item.id === element.dataset.id);
-      if (row) store.update("plcs", row.id, { status: row.status === "CONNECTED" ? "DISCONNECTED" : "CONNECTED" });
+      if (row) await store.update("plcs", row.id, { status: row.status === "CONNECTED" ? "DISCONNECTED" : "CONNECTED" });
       break;
     }
     case "ack-alarm": {
-      store.update("alarms", element.dataset.id, { status: "تأییدشده" }); toast("آلارم تأیید شد."); break;
+      await store.update("alarms", element.dataset.id, { status: "تأییدشده", acknowledged_at: new Date().toISOString() }); toast("آلارم تأیید شد."); break;
     }
     case "select-tab": {
       const group = element.closest(".tabs");
@@ -91,8 +92,13 @@ export function handleAction(action, element) {
     case "toggle-sidebar": document.body.classList.toggle("sidebar-collapsed"); break;
     case "start-run": case "stop-run": {
       const card = element.closest("[data-run-card]");
-      if (card) { card.dataset.runState = action === "start-run" ? "running" : "stopped"; const status = card.querySelector("[data-run-status]"); if (status) status.textContent = action === "start-run" ? "در حال اجرا" : "متوقف"; }
-      toast(action === "start-run" ? "فرمان شروع در حالت شبیه‌سازی ثبت شد." : "فرمان توقف در حالت شبیه‌سازی ثبت شد.", "info");
+      const runId = element.dataset.id || element.dataset.runId || card?.dataset.runId;
+      if (!runId) { toast("برای اجرای این فرمان ابتدا یک اجرای تولید ثبت کنید.", "warning"); break; }
+      const result = action === "start-run" ? await api.startRun(runId) : await api.stopRun(runId);
+      await store.refresh();
+      const status = card?.querySelector("[data-run-status]");
+      if (status) status.textContent = result.status || (action === "start-run" ? "در حال تولید" : "متوقف");
+      toast(action === "start-run" ? "وضعیت اجرای تولید در سرور فعال شد." : "اجرای تولید در سرور متوقف شد.");
       break;
     }
     case "select-range": {
@@ -100,31 +106,43 @@ export function handleAction(action, element) {
       group?.querySelectorAll("button").forEach(button => button.classList.toggle("active", button === element));
       toast(`بازه ${element.textContent.trim()} انتخاب شد.`, "info"); break;
     }
-    case "approve-task": toast("وظیفه در محیط نمایشی تأیید شد."); element.disabled = true; element.textContent = "تأیید شد"; break;
-    case "review-qc": toast(`فرم بررسی ${element.dataset.id} در حالت نمایشی باز شد.`, "info"); break;
+    case "approve-task": await api.approveTask(element.dataset.id); await store.refresh(); toast("وظیفه در سرور تأیید شد."); break;
+    case "review-qc": { const decision = prompt("تصمیم کنترل کیفیت را وارد کنید: قبول / مشروط / رد", "قبول"); if (!decision) break; await api.decideQc(element.dataset.id, decision.trim()); await store.refresh(); toast("تصمیم کنترل کیفیت ثبت شد."); break; }
     case "apply-filter": toast("فیلترهای نمایشی اعمال شدند.", "info"); break;
     case "start-batch": {
+      const batchId = element.dataset.id || store.list("batches")[0]?.id;
+      if (!batchId) { toast("ابتدا از دکمه «بچ جدید» یک بچ ثبت کنید.", "warning"); break; }
+      await api.startBatch(batchId); await store.refresh();
       const status = document.querySelector("[data-batch-status]");
-      if (status) status.textContent = "در حال توزین (شبیه‌سازی)";
-      const weight = document.getElementById("batch-weight");
-      if (weight) weight.textContent = "۰٫۰۰";
-      toast("شروع بچ در حالت شبیه‌سازی ثبت شد.", "info"); break;
+      if (status) status.textContent = "در حال توزین (حالت شبیه‌سازی)";
+      toast("وضعیت بچ در سرور شروع شد؛ هیچ فرمانی به هاپر واقعی ارسال نشد.", "info"); break;
     }
     case "stop-batch": {
+      const batchId = element.dataset.id || store.list("batches")[0]?.id;
+      if (!batchId) { toast("بچ فعالی برای توقف وجود ندارد.", "warning"); break; }
+      await api.stopBatch(batchId); await store.refresh();
       const status = document.querySelector("[data-batch-status]");
       if (status) status.textContent = "متوقف‌شده";
-      toast("توزین نمایشی متوقف شد.", "info"); break;
+      toast("بچ در سرور متوقف شد؛ عملیات توزین سخت‌افزاری انجام نشد.", "info"); break;
     }
     case "print-label": window.print(); break;
-    case "open-modal-info": toast("این عملیات در نسخه نمایشی به سرویس بیرونی متصل نیست.", "info"); break;
+    case "run-report": { const result = await api.runReport(element.dataset.id); toast(`گزارش اجرا شد: ${result.id}`); break; }
+    case "write-tag": { const tag = store.list("tags").find(item => item.id === element.dataset.id); if (!tag) break; const raw = prompt(`مقدار جدید برای ${tag.name} (${tag.type})`, String(tag.value ?? "")); if (raw === null) break; let value = raw; if (tag.type === "bool") value = raw.toLowerCase() === "true" || raw === "1"; else if (["int16","uint16","int32","uint32"].includes(tag.type)) value = Number.parseInt(raw, 10); else if (tag.type === "float32") value = Number(raw); await api.writeTag(tag.id, value); await store.refresh(); toast("مقدار در دیتابیس شبیه‌سازی تغییر کرد؛ PLC واقعی نوشته نشد.", "info"); break; }
+    case "open-modal-info": toast("این عملیات هنوز در نسخه متصل تعریف نشده است.", "info"); break;
     default: toast("این فرمان در نسخه نمایشی تعریف نشده است.", "info");
   }
 }
 
-export function handleSubmit(event) {
+export async function handleSubmit(event) {
   if (event.target.matches("[data-local-form]")) {
     event.preventDefault();
-    if (event.target.dataset.localForm === "edge-token") toast("درخواست ایجاد توکن نمایشی ثبت شد؛ توکن واقعی از سرور صادر نمی‌شود.", "info");
+    if (event.target.dataset.localForm === "edge-token") {
+      const values = Object.fromEntries(new FormData(event.target).entries());
+      const created = await api.registerEdge(values);
+      await store.refresh();
+      alert(`توکن ثبت Edge (فقط همین یک‌بار نمایش داده می‌شود):\\n\\n${created.edge_token}\\n\\nآن را محرمانه در تنظیمات Edge ذخیره کنید.`);
+      toast("Edge در سرور ثبت شد.");
+    }
     event.target.reset();
     return true;
   }
@@ -135,10 +153,12 @@ export function handleSubmit(event) {
   const schema = schemas[form.dataset.schema];
   if (values.steps) values.steps = values.steps.split(/[،,]/).map(step => step.trim()).filter(Boolean);
   if (values.fields) values.fields = Number(values.fields);
-  if (form.dataset.editId) store.update(schema.collection, form.dataset.editId, values);
-  else store.add(schema.collection, values);
+  let saved;
+  if (form.dataset.editId) saved = await store.update(schema.collection, form.dataset.editId, values);
+  else saved = await store.add(schema.collection, values);
+  if (saved?.temporary_password) alert(`رمز موقت کاربر (فقط همین یک‌بار):\\n${saved.temporary_password}`);
   document.getElementById("modal-root").innerHTML = "";
-  toast("اطلاعات در فضای نمایشی ذخیره شد.");
+  toast("اطلاعات در پایگاه داده سرور ذخیره شد.");
   return true;
 }
 
