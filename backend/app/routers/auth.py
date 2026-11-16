@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, EmailStr, Field
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
+from pydantic import BaseModel, Field
 
 from ..config import SESSION_TTL_HOURS
 from ..database import connect, utc_now, audit
@@ -14,7 +15,7 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str = Field(min_length=5, max_length=254)
     password: str = Field(min_length=1, max_length=256)
 
 
@@ -28,23 +29,30 @@ def public_user(row) -> dict:
 
 @router.post("/login")
 def login(body: LoginRequest, request: Request, response: Response):
+    email=body.email.strip().lower()
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+        raise HTTPException(status_code=422, detail="ایمیل معتبر نیست.")
     with connect() as db:
         user = db.execute(
             "SELECT id,email,name,role,status,password_hash,must_change_password FROM users WHERE email=? COLLATE NOCASE",
-            (body.email.strip(),),
+            (email,),
         ).fetchone()
         if user is None or user["status"] != "فعال" or not verify_password(body.password, user["password_hash"]):
-            audit(db, None, "auth.login_failed", details={"email": body.email.lower()})
-            raise HTTPException(status_code=401, detail="ایمیل یا رمز عبور صحیح نیست.")
-        token = new_token()
-        expires = (datetime.now(timezone.utc) + timedelta(hours=SESSION_TTL_HOURS)).isoformat(timespec="seconds")
-        db.execute("DELETE FROM sessions WHERE expires_at<=?", (utc_now(),))
-        db.execute(
-            "INSERT INTO sessions(token_hash,user_id,expires_at,created_at) VALUES(?,?,?,?)",
-            (token_hash(token), user["id"], expires, utc_now()),
-        )
-        audit(db, user["id"], "auth.login", details={"user_agent": request.headers.get("user-agent", "")[:160]})
-        safe = dict(user)
+            audit(db, None, "auth.login_failed", details={"email": email})
+            failed=True
+        else:
+            failed=False
+            token = new_token()
+            expires = (datetime.now(timezone.utc) + timedelta(hours=SESSION_TTL_HOURS)).isoformat(timespec="seconds")
+            db.execute("DELETE FROM sessions WHERE expires_at<=?", (utc_now(),))
+            db.execute(
+                "INSERT INTO sessions(token_hash,user_id,expires_at,created_at) VALUES(?,?,?,?)",
+                (token_hash(token), user["id"], expires, utc_now()),
+            )
+            audit(db, user["id"], "auth.login", details={"user_agent": request.headers.get("user-agent", "")[:160]})
+            safe = dict(user)
+    if failed:
+        raise HTTPException(status_code=401, detail="ایمیل یا رمز عبور صحیح نیست.")
     response.set_cookie(
         "scada_session", token, max_age=SESSION_TTL_HOURS * 3600,
         httponly=True, secure=request.url.scheme == "https", samesite="lax",
@@ -54,9 +62,10 @@ def login(body: LoginRequest, request: Request, response: Response):
 
 
 @router.post("/logout")
-def logout(response: Response, scada_session: str | None = None):
-    # Cookie is read explicitly below to avoid leaking tokens into application logs.
-    from fastapi import Cookie
+def logout(response: Response, scada_session: str | None = Cookie(default=None)):
+    if scada_session:
+        with connect() as db:
+            db.execute("DELETE FROM sessions WHERE token_hash=?", (token_hash(scada_session),))
     response.delete_cookie("scada_session", path="/", httponly=True, samesite="lax")
     return {"ok": True}
 
