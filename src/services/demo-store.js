@@ -4,7 +4,7 @@ const STORAGE_KEY = "scada-new-demo-state-v1";
 
 const seed = {
   users: [
-    { id: "u1", email: "admin@scada.local", name: "Super Admin", role: "Organization Admin", status: "فعال", access: "همه منوها" },
+    { id: "u1", email: "admin@demo-cable.local", name: "Super Admin", role: "Organization Admin", status: "فعال", access: "همه منوها" },
     { id: "u2", email: "engineer@scada.local", name: "مهندس نمونه", role: "Engineer", status: "فعال", access: "همه منوها" },
     { id: "u3", email: "operator@scada.local", name: "اپراتور نمونه", role: "Operator", status: "فعال", access: "نمایش زنده" },
     { id: "u4", email: "planner@demo.local", name: "planner b208", role: "Production Planner", status: "فعال", access: "برنامه‌ریزی" },
