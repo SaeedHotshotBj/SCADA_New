@@ -156,14 +156,55 @@ export async function handleAction(action, element) {
 export async function handleSubmit(event) {
   if (event.target.matches("[data-local-form]")) {
     event.preventDefault();
-    if (event.target.dataset.localForm === "edge-token") {
-      const values = Object.fromEntries(new FormData(event.target).entries());
+    const form = event.target;
+    const localForm = form.dataset.localForm;
+    const values = Object.fromEntries(new FormData(form).entries());
+    if (localForm === "edge-token") {
       const created = await api.registerEdge(values);
       await store.refresh();
       alert(`توکن ثبت Edge (فقط همین یک‌بار نمایش داده می‌شود):\\n\\n${created.edge_token}\\n\\nآن را محرمانه در تنظیمات Edge ذخیره کنید.`);
       toast("Edge در سرور ثبت شد.");
+    } else if (localForm === "batch-config") {
+      for (const field of ["samples","tolerance_percent","stabilization_seconds"]) values[field] = Number(values[field]);
+      const hoppers = new Map();
+      for (const [key, value] of Object.entries(values)) {
+        const match = key.match(/^hopper_(\\d+)_(bin|material|ratio|target)$/);
+        if (!match) continue;
+        const index = Number(match[1]);
+        const field = match[2];
+        if (!hoppers.has(index)) hoppers.set(index, {});
+        hoppers.get(index)[field] = ["ratio","target"].includes(field) ? Number(value) : value;
+        delete values[key];
+      }
+      values.hoppers = [...hoppers.entries()].sort((a,b) => a[0]-b[0]).map(([,hopper]) => hopper);
+      const ratioTotal = values.hoppers.reduce((sum, hopper) => sum + Number(hopper.ratio || 0), 0);
+      if (!values.hoppers.length || Math.abs(ratioTotal - 100) > 0.01) throw new Error("مجموع درصد مواد باید دقیقاً ۱۰۰٪ باشد.");
+      if (form.dataset.id) await store.update("batchConfigs", form.dataset.id, values);
+      else await store.add("batchConfigs", values);
+      toast("تنظیمات خط توزین در پایگاه داده ذخیره شد.");
+    } else if (localForm === "machine-calendar") {
+      const days = ["شنبه","یکشنبه","دوشنبه","سه‌شنبه","چهارشنبه","پنجشنبه","جمعه"].map((day,index) => ({
+        day,
+        enabled: values[`day_${index}_enabled`] === "true",
+        start: values[`day_${index}_start`],
+        end: values[`day_${index}_end`],
+        break: values[`day_${index}_break`],
+      }));
+      for (const key of Object.keys(values)) if (key.startsWith("day_")) delete values[key];
+      values.days = days;
+      const existing = store.list("machineCalendars").find(row => row.machine === values.machine && row.year === values.year && row.month === values.month);
+      if (existing) await store.update("machineCalendars", existing.id, values);
+      else await store.add("machineCalendars", values);
+      toast("تقویم ماشین در پایگاه داده ذخیره شد.");
+    } else if (localForm === "control-plan") {
+      values.sample_count = Number(values.sample_count);
+      values.approval_required = values.approval_required === "true";
+      const existing = form.dataset.id;
+      if (existing) await store.update("controlPlans", existing, values);
+      else await store.add("controlPlans", values);
+      toast("تنظیمات طرح کنترل کیفیت ذخیره شد.");
     }
-    event.target.reset();
+    form.reset();
     return true;
   }
   if (event.target.id !== "record-form") return false;
