@@ -12,9 +12,29 @@ function batchRunPage() {
 }
 
 function batchSetupPage() {
-  return `<div>${pageHeader("تنظیمات توزین بچ", "پیکربندی خط، لودسل، تعداد نمونه و نسبت مواد در هر هاپر", button("ذخیره تنظیمات", "open-modal-info"))}
-    <div class="two-col-grid">${panel("اطلاعات خط توزین", `<div class="form-grid"><label class="field"><span>کد خط</span><input value="BATCH-01"></label><label class="field"><span>نام خط</span><input value="خط ترکیب مواد ۱"></label><label class="field"><span>لودسل</span><select><option>Loadcell-01</option><option>Loadcell-02</option></select></label><label class="field"><span>تعداد نمونه</span><input type="number" value="5"></label><label class="field"><span>حد مجاز خطا (%)</span><input type="number" value="0.5"></label><label class="field"><span>زمان پایدارسازی (ثانیه)</span><input type="number" value="3"></label></div>`)}${panel("انتخاب فرمول", `<label class="field"><span>فرمول فعال</span><select><option>کابل NYY 4×16</option><option>سیم PVC 1×10</option></select></label><label class="field"><span>توضیحات</span><textarea rows="3">فرمول پایه ترکیب مواد عایق</textarea></label><div class="storage-list"><div><span>تعداد مواد</span><b>۳ ماده</b></div><div><span>تعداد هاپرها</span><b>۳ هاپر</b></div></div>`)}</div>
-    ${panel("مواد و هاپرها", dataTable([{ key: "bin", label: "هاپر" }, { key: "material", label: "ماده" }, { key: "ratio", label: "درصد فرمول" }, { key: "target", label: "وزن در بچ ۵۰۰kg" }, { key: "calibration", label: "کالیبراسیون" }], [{ bin: "Hopper 01", material: "گرانول PVC", ratio: "۵۰٪", target: "۲۵۰ kg", calibration: pill("تأیید", "success") }, { bin: "Hopper 02", material: "کربنات کلسیم", ratio: "۳۰٪", target: "۱۵۰ kg", calibration: pill("تأیید", "success") }, { bin: "Hopper 03", material: "افزودنی", ratio: "۲۰٪", target: "۱۰۰ kg", calibration: pill("تأیید", "success") }]))}
+  const config = store.list("batchConfigs")[0] || {
+    code:"BATCH-01", name:"خط ترکیب مواد ۱", loadcell:"Loadcell-01", samples:5,
+    tolerance_percent:0.5, stabilization_seconds:3, formula:"کابل NYY 4×16",
+    description:"فرمول پایه ترکیب مواد عایق",
+    hoppers:[
+      {bin:"Hopper 01",material:"گرانول PVC",ratio:50,target:250},
+      {bin:"Hopper 02",material:"کربنات کلسیم",ratio:30,target:150},
+      {bin:"Hopper 03",material:"افزودنی",ratio:20,target:100}
+    ]
+  };
+  return `<div>${pageHeader("تنظیمات توزین بچ", "پیکربندی خط، لودسل، تعداد نمونه و نسبت مواد در هر هاپر", `<button class="btn btn-primary" type="submit" form="batch-config-form">ذخیره تنظیمات</button>`)}
+    <form id="batch-config-form" data-local-form="batch-config" data-id="${config.id || ""}">
+      <div class="two-col-grid">${panel("اطلاعات خط توزین", `<div class="form-grid">
+        <label class="field"><span>کد خط</span><input name="code" value="${config.code || ""}" required></label>
+        <label class="field"><span>نام خط</span><input name="name" value="${config.name || ""}" required></label>
+        <label class="field"><span>لودسل</span><select name="loadcell"><option ${config.loadcell === "Loadcell-01" ? "selected" : ""}>Loadcell-01</option><option ${config.loadcell === "Loadcell-02" ? "selected" : ""}>Loadcell-02</option></select></label>
+        <label class="field"><span>تعداد نمونه</span><input name="samples" type="number" min="1" max="100" value="${config.samples ?? 5}" required></label>
+        <label class="field"><span>حد مجاز خطا (%)</span><input name="tolerance_percent" type="number" min="0" max="100" step="0.01" value="${config.tolerance_percent ?? 0.5}" required></label>
+        <label class="field"><span>زمان پایدارسازی (ثانیه)</span><input name="stabilization_seconds" type="number" min="0" max="600" value="${config.stabilization_seconds ?? 3}" required></label>
+      </div>`)}${panel("انتخاب فرمول", `<label class="field"><span>فرمول فعال</span><select name="formula"><option ${config.formula === "کابل NYY 4×16" ? "selected" : ""}>کابل NYY 4×16</option><option ${config.formula === "سیم PVC 1×10" ? "selected" : ""}>سیم PVC 1×10</option></select></label><label class="field"><span>توضیحات</span><textarea name="description" rows="3">${config.description || ""}</textarea></label><div class="storage-list"><div><span>تعداد مواد</span><b>${(config.hoppers || []).length}</b></div><div><span>تعداد هاپرها</span><b>${(config.hoppers || []).length}</b></div></div>`)}</div>
+      ${panel("مواد و هاپرها", `<div class="table-wrap"><table class="data-table"><thead><tr><th>هاپر</th><th>ماده</th><th>درصد فرمول</th><th>وزن در بچ ۵۰۰kg</th></tr></thead><tbody>${(config.hoppers || []).map((hopper,index) => `<tr><td><input name="hopper_${index}_bin" value="${hopper.bin || ""}" required></td><td><input name="hopper_${index}_material" value="${hopper.material || ""}" required></td><td><input type="number" min="0" max="100" step="0.01" name="hopper_${index}_ratio" value="${hopper.ratio ?? 0}" required></td><td><input type="number" min="0" step="0.001" name="hopper_${index}_target" value="${hopper.target ?? 0}" required></td></tr>`).join("")}</tbody></table></div>`)}
+    </form>
+    <p class="muted-note">این مقادیر فقط تنظیمات نرم‌افزاری را ذخیره می‌کنند. کالیبراسیون و خواندن لودسل واقعی هنوز به درایور و مشخصات سخت‌افزار نیاز دارد.</p>
   </div>`;
 }
 
