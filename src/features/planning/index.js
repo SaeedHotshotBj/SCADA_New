@@ -23,12 +23,16 @@ function calendarPage() {
 
 function operatorPage() {
   const orders = store.list("orders");
+  const runs = store.list("productionRuns");
   return `<div>${pageHeader("ایستگاه اپراتور", "انتخاب سفارش و ماشین و ثبت اجرای تولید در ایستگاه کاری")}
     <div class="operator-select"><label class="field"><span>اپراتور</span><select><option>اپراتور نمونه</option><option>اپراتور شیفت صبح</option></select></label><label class="field"><span>ماشین</span><select>${machines.map(x => `<option>${x}</option>`).join("")}</select></label><label class="field"><span>شیفت</span><select><option>صبح</option><option>عصر</option><option>شب</option></select></label></div>
-    <div class="operator-grid">${orders.map((order, i) => `<article class="operator-card" data-run-card data-order-id="${order.id}" data-machine="${machines[i % machines.length]}"><div class="operator-card-head"><span>${pill(order.status, order.status === "در حال تولید" ? "success" : "info")}</span><small>${machines[i % machines.length]}</small></div><h3>${order.code}</h3><p>${order.product}</p><div class="operator-progress"><span>پیشرفت سفارش</span><b>${order.progress || 0}٪</b><i><em style="width:${order.progress || 0}%"></em></i></div><div class="operator-metrics"><div><small>مقدار هدف</small><b>${Number(order.quantity).toLocaleString("fa-IR")} ${order.unit}</b></div><div><small>مقدار تولید</small><b>${Math.round(Number(order.quantity) * (order.progress || 0) / 100).toLocaleString("fa-IR")} ${order.unit}</b></div></div><div class="operator-actions"><button class="btn btn-primary" data-action="start-run">شروع اجرا</button><button class="btn btn-light" data-action="stop-run">توقف</button><span data-run-status>متوقف</span></div></article>`).join("")}</div>
+    <div class="operator-grid">${orders.map((order, i) => {
+      const run = runs.find(item => item.order_id === order.id && item.status !== "تکمیل‌شده");
+      const running = run?.status === "در حال تولید";
+      return `<article class="operator-card" data-run-card data-order-id="${order.id}" data-run-id="${run?.id || ""}" data-machine="${machines[i % machines.length]}"><div class="operator-card-head"><span>${pill(run?.status || order.status, running ? "success" : "info")}</span><small>${machines[i % machines.length]}</small></div><h3>${order.code}</h3><p>${order.product}</p><div class="operator-progress"><span>پیشرفت سفارش</span><b>${order.progress || 0}٪</b><i><em style="width:${order.progress || 0}%"></em></i></div><div class="operator-metrics"><div><small>مقدار هدف</small><b>${Number(order.quantity).toLocaleString("fa-IR")} ${order.unit}</b></div><div><small>مقدار تولید</small><b>${Math.round(Number(order.quantity) * (order.progress || 0) / 100).toLocaleString("fa-IR")} ${order.unit}</b></div></div><div class="operator-actions">${running ? `<button class="btn btn-light" data-action="stop-run" data-run-id="${run.id}">توقف</button>` : `<button class="btn btn-primary" data-action="start-run" ${run ? `data-run-id="${run.id}"` : ""}>شروع اجرا</button>`}<span data-run-status>${run?.status || "آماده شروع"}</span></div></article>`;
+    }).join("")}</div>
   </div>`;
 }
-
 function unitsPage() {
   const units = store.list("units");
   return `<div class="collection-page" data-collection-name="units" data-edit-action="new-unit">${pageHeader("واحدهای تولید", "ردیابی قرقره‌ها، بسته‌ها و واحدهای تولیدی نهایی", button("واحد جدید", "new-unit", { icon: "+" }))}
