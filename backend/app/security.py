@@ -5,6 +5,8 @@ import hashlib
 import hmac
 import secrets
 
+from .config import SECRET_KEY
+
 
 def hash_password(password: str) -> str:
     if len(password) < 8:
@@ -28,7 +30,7 @@ def verify_password(password: str, encoded: str) -> bool:
 
 
 def token_hash(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return hmac.new(SECRET_KEY.encode("utf-8"), token.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def new_token() -> str:
