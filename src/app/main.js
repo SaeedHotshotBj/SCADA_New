@@ -5,7 +5,7 @@ import { api } from "../services/api-client.js";
 import { store } from "../services/demo-store.js";
 
 const root = document.getElementById("app");
-let renderQueued = false;
+let renderQueued = false;\nlet liveSocket = null;
 
 function render() {
   root.innerHTML = renderRoute(currentPath());
@@ -18,7 +18,7 @@ function scheduleRender() {
   requestAnimationFrame(() => { renderQueued = false; render(); });
 }
 
-window.addEventListener("hashchange", render);
+window.addEventListener("hashchange", () => { render(); syncLiveConnection(); });
 window.addEventListener("scada:state-changed", scheduleRender);
 
 document.addEventListener("click", event => {
@@ -55,7 +55,7 @@ document.addEventListener("submit", async event => {
       await store.loadAfterLogin();
       sessionStorage.setItem("scada-demo-auth", "1");
       location.hash = "/bi/dashboard";
-      showToast("ورود به سامانه با موفقیت انجام شد.");
+      syncLiveConnection();\n      showToast("ورود به سامانه با موفقیت انجام شد.");
     } catch (error) {
       showToast(error.message || "ورود ناموفق بود.", "error");
     } finally {
@@ -70,6 +70,32 @@ document.addEventListener("submit", async event => {
     showToast(error.message || "ذخیره اطلاعات انجام نشد.", "error");
   }
 });
+
+function syncLiveConnection() {
+  const path = currentPath();
+  const needsLive = path === "/live/data" || path === "/live/trends";
+  if (!needsLive) {
+    if (liveSocket) { liveSocket.close(); liveSocket = null; }
+    return;
+  }
+  if (!store.isConnected() || liveSocket) return;
+  const socketUrl = api.base.replace(/^http/, "ws") + "/api/telemetry/ws/live";
+  liveSocket = new WebSocket(socketUrl);
+  liveSocket.onmessage = event => {
+    try {
+      const message = JSON.parse(event.data);
+      if (message.type !== "telemetry.snapshot") return;
+      const current = store.list("tags");
+      const values = new Map(message.items.map(item => [item.tag_id, item.value]));
+      const next = current.map(tag => values.has(tag.id) ? { ...tag, value: values.get(tag.id) } : tag);
+      store.replaceCollection("tags", next);
+    } catch (error) {
+      console.error("Invalid telemetry message", error);
+    }
+  };
+  liveSocket.onclose = () => { liveSocket = null; };
+  liveSocket.onerror = () => { liveSocket?.close(); };
+}
 
 async function initialize() {
   if (sessionStorage.getItem("scada-demo-auth") === "1") {
