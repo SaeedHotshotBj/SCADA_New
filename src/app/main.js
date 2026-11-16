@@ -5,7 +5,8 @@ import { api } from "../services/api-client.js";
 import { store } from "../services/demo-store.js";
 
 const root = document.getElementById("app");
-let renderQueued = false;\nlet liveSocket = null;
+let renderQueued = false;
+let liveSocket = null;
 
 function render() {
   root.innerHTML = renderRoute(currentPath());
