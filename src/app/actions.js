@@ -61,6 +61,49 @@ function downloadCsv() {
   a.href = url; a.download = "scada-demo-export.csv"; a.click(); URL.revokeObjectURL(url);
 }
 
+function applyTableFilters(button) {
+  const group = button.closest(".filter-bar, .report-builder");
+  if (!group) { toast("بخش فیلتر این صفحه مشخص نیست.", "warning"); return; }
+  const terms = [...group.querySelectorAll("input, select")]
+    .filter(field => field.type !== "date" && field.type !== "time")
+    .map(field => {
+      if (field.tagName === "SELECT") {
+        const selectedText = field.selectedOptions?.[0]?.textContent || "";
+        if (field.selectedIndex === 0 || /همه|انتخاب کنید|انتخاب/u.test(selectedText)) return "";
+      }
+      return String(field.value || "").trim().toLocaleLowerCase();
+    }).filter(Boolean);
+  const page = button.closest(".page-content") || document;
+  const candidateTables = [...page.querySelectorAll(".panel table tbody")];
+  const nextPanel = group.nextElementSibling?.matches(".panel") ? group.nextElementSibling : null;
+  const tableBodies = nextPanel ? [...nextPanel.querySelectorAll("table tbody")] : candidateTables.slice(0, 1);
+  const rows = tableBodies.flatMap(body => [...body.querySelectorAll("tr")]);
+  if (!rows.length) { toast("جدولی برای اعمال این فیلترها وجود ندارد.", "info"); return; }
+  let visible = 0;
+  rows.forEach(row => {
+    const text = row.textContent.toLocaleLowerCase();
+    const match = terms.every(term => text.includes(term));
+    row.hidden = !match;
+    if (match) visible += 1;
+  });
+  toast(terms.length ? `${visible} ردیف از ${rows.length} ردیف نمایش داده شد.` : "همه ردیف‌ها نمایش داده شدند.", "info");
+}
+
+function openStartRunModal(machine) {
+  const orders = store.list("orders").filter(order => ["در انتظار", "آزادشده"].includes(order.status));
+  if (!orders.length) { toast("سفارش آزاد برای شروع تولید وجود ندارد.", "warning"); return; }
+  const options = orders.map(order => `<option value="${escapeHtml(order.id)}">${escapeHtml(order.code)} — ${escapeHtml(order.product)}</option>`).join("");
+  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="شروع تولید"><header class="modal-header"><h2>شروع تولید · ${escapeHtml(machine)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="start-run-form" data-machine="${escapeHtml(machine)}"><div class="modal-fields"><label class="field"><span>سفارش تولید</span><select name="order_id" required>${options}</select></label></div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ایجاد و شروع اجرا</button></footer></form></section></div>`;
+  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
+}
+
+function openQcReviewModal(qcId) {
+  const row = store.list("qc").find(item => item.id === qcId);
+  if (!row) { toast("رکورد کنترل کیفیت پیدا نشد.", "warning"); return; }
+  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="بررسی کنترل کیفیت"><header class="modal-header"><h2>بررسی ${escapeHtml(row.code || row.product || qcId)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="qc-review-form" data-id="${escapeHtml(qcId)}"><div class="modal-fields"><label class="field"><span>پارامتر</span><input name="parameter" value="اندازه‌گیری دستی" required></label><label class="field"><span>مقدار واقعی</span><input name="actual" type="number" step="any" required></label><label class="field"><span>مقدار اسمی (اختیاری)</span><input name="nominal" type="number" step="any"></label><label class="field"><span>حداقل مجاز (اختیاری)</span><input name="minimum" type="number" step="any"></label><label class="field"><span>حداکثر مجاز (اختیاری)</span><input name="maximum" type="number" step="any"></label><label class="field"><span>واحد</span><input name="unit" placeholder="mm / Ω / kg"></label><label class="field"><span>تصمیم نهایی</span><select name="decision" required><option value="قبول">قبول</option><option value="مشروط">مشروط</option><option value="رد">رد</option></select></label><label class="field"><span>توضیحات</span><input name="note"></label></div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ثبت اندازه‌گیری و تصمیم</button></footer></form></section></div>`;
+  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
+}
+
 export async function handleAction(action, element) {
   switch (action) {
     case "new-user": case "new-factory": case "new-plc": case "new-tag": case "new-alarm": case "new-trend": case "new-report": case "new-process": case "new-template": case "new-order": case "new-unit": case "new-qc": case "new-batch": case "new-run": case "new-product": case "new-price": case "new-machine": case "new-hmi-page":
@@ -97,8 +140,7 @@ export async function handleAction(action, element) {
       break;
     }
     case "toggle-plc": {
-      const row = store.list("plcs").find(item => item.id === element.dataset.id);
-      if (row) await store.update("plcs", row.id, { status: row.status === "CONNECTED" ? "DISCONNECTED" : "CONNECTED" });
+      toast("تغییر وضعیت PLC فقط پس از پیاده‌سازی و آزمون درایور ارتباطی مجاز است؛ وضعیت سخت‌افزار از این دکمه جعل نمی‌شود.", "warning");
       break;
     }
     case "ack-alarm": {
@@ -115,6 +157,10 @@ export async function handleAction(action, element) {
     case "start-run": case "stop-run": {
       const card = element.closest("[data-run-card]");
       let runId = element.dataset.id || element.dataset.runId || card?.dataset.runId;
+      if (!runId && action === "start-run" && !card?.dataset.orderId && card?.dataset.machine) {
+        openStartRunModal(card.dataset.machine);
+        break;
+      }
       if (!runId && action === "start-run" && card?.dataset.orderId) {
         const order = store.list("orders").find(item => item.id === card.dataset.orderId);
         if (!order) throw new Error("سفارش انتخاب‌شده پیدا نشد.");
@@ -140,8 +186,8 @@ export async function handleAction(action, element) {
       toast(`بازه ${element.textContent.trim()} انتخاب شد.`, "info"); break;
     }
     case "approve-task": await api.approveTask(element.dataset.id); await store.refresh(); toast("وظیفه در سرور تأیید شد."); break;
-    case "review-qc": { const decision = prompt("تصمیم کنترل کیفیت را وارد کنید: قبول / مشروط / رد", "قبول"); if (!decision) break; await api.decideQc(element.dataset.id, decision.trim()); await store.refresh(); toast("تصمیم کنترل کیفیت ثبت شد."); break; }
-    case "apply-filter": toast("فیلترهای نمایشی اعمال شدند.", "info"); break;
+    case "review-qc": openQcReviewModal(element.dataset.id); break;
+    case "apply-filter": applyTableFilters(element); break;
     case "start-batch": {
       const batchId = element.dataset.id || store.list("batches")[0]?.id;
       if (!batchId) { toast("ابتدا از دکمه «بچ جدید» یک بچ ثبت کنید.", "warning"); break; }
@@ -151,7 +197,7 @@ export async function handleAction(action, element) {
       toast("وضعیت بچ در سرور شروع شد؛ هیچ فرمانی به هاپر واقعی ارسال نشد.", "info"); break;
     }
     case "stop-batch": {
-      const batchId = element.dataset.id || store.list("batches")[0]?.id;
+      const batchId = element.dataset.id || store.list("batches").find(item => item.status === "در حال توزین")?.id || store.list("batches")[0]?.id;
       if (!batchId) { toast("بچ فعالی برای توقف وجود ندارد.", "warning"); break; }
       await api.stopBatch(batchId); await store.refresh();
       const status = document.querySelector("[data-batch-status]");
