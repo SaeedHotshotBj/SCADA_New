@@ -33,6 +33,8 @@ def register_edge(body: EdgeRegistration, user: dict = Depends(get_current_user)
     now = utc_now()
     edge_id = "edge-" + new_token()[:14]
     token = new_token()
+    if user["role"] == "Factory Admin" and body.factory_id != user.get("factory_id"):
+        raise HTTPException(403, "مدیر کارخانه فقط می‌تواند Edge همان کارخانه را ثبت کند.")
     with connect() as db:
         exists = db.execute("SELECT 1 FROM resources WHERE collection='factories' AND id=?", (body.factory_id,)).fetchone()
         if not exists:
@@ -52,9 +54,15 @@ def register_edge(body: EdgeRegistration, user: dict = Depends(get_current_user)
 @router.get("")
 def list_edges(user: dict = Depends(get_current_user)):
     with connect() as db:
-        rows = db.execute(
-            "SELECT id,factory_id,name,status,metadata,last_seen,created_at,updated_at FROM edge_devices ORDER BY created_at DESC"
-        ).fetchall()
+        if user["role"] == "Organization Admin":
+            rows = db.execute(
+                "SELECT id,factory_id,name,status,metadata,last_seen,created_at,updated_at FROM edge_devices ORDER BY created_at DESC"
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT id,factory_id,name,status,metadata,last_seen,created_at,updated_at FROM edge_devices WHERE factory_id=? ORDER BY created_at DESC",
+                (user.get("factory_id"),),
+            ).fetchall()
     return {"items":[{"id":r["id"],"factory_id":r["factory_id"],"name":r["name"],"status":r["status"],
                       "metadata":json_load(r["metadata"],{}),"last_seen":r["last_seen"],
                       "created_at":r["created_at"],"updated_at":r["updated_at"]} for r in rows]}
@@ -83,6 +91,9 @@ def revoke_edge(edge_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin","Factory Admin"}:
         raise HTTPException(403,"دسترسی کافی ندارید.")
     with connect() as db:
+        row = db.execute("SELECT factory_id FROM edge_devices WHERE id=?", (edge_id,)).fetchone()
+        if row is None or (user["role"] != "Organization Admin" and row["factory_id"] != user.get("factory_id")):
+            raise HTTPException(404, "Edge پیدا نشد.")
         cur = db.execute("UPDATE edge_devices SET status='REVOKED',token_hash=NULL,updated_at=? WHERE id=?", (utc_now(),edge_id))
         if cur.rowcount == 0:
             raise HTTPException(404,"Edge پیدا نشد.")
