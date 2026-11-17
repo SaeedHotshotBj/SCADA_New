@@ -191,10 +191,16 @@ export async function handleAction(action, element) {
       let runId = element.dataset.id || element.dataset.runId || card?.dataset.runId;
       const selectedMachine = card?.dataset.machine || document.querySelector('[name="operator-machine"]')?.value || "";
       if (!runId && card?.dataset.orderId) {
-        runId = store.list("productionRuns").find(item => item.order_id === card.dataset.orderId && item.status !== "تکمیل‌شده")?.id;
+        const candidates = store.list("productionRuns").filter(item => item.order_id === card.dataset.orderId);
+        runId = (action === "stop-run"
+          ? candidates.find(item => item.status === "در حال تولید")
+          : candidates.find(item => item.status !== "تکمیل‌شده"))?.id;
       }
       if (!runId && card?.dataset.machine) {
-        runId = store.list("productionRuns").find(item => item.machine === card.dataset.machine && item.status !== "تکمیل‌شده")?.id;
+        const candidates = store.list("productionRuns").filter(item => item.machine === card.dataset.machine);
+        runId = (action === "stop-run"
+          ? candidates.find(item => item.status === "در حال تولید")
+          : candidates.find(item => item.status !== "تکمیل‌شده"))?.id;
       }
       const currentRun = runId ? store.list("productionRuns").find(item => item.id === runId) : null;
       if (action === "start-run" && currentRun?.status === "در حال تولید") {
