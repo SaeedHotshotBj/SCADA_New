@@ -25,7 +25,7 @@ function classicHmiPage() {
 
 function alarmsPage() {
   const rows = store.list("alarms");
-  return `<div data-collection-name="alarms" data-edit-action="new-alarm">${pageHeader("آلارم‌ها", "تعریف، مشاهده و رسیدگی به هشدارهای ماشین‌ها و تگ‌ها", button("آلارم جدید", "new-alarm", { icon: "+" }))}${tabs(["فعال", "تاریخچه", "تعاریف"])}${panel("آلارم‌های فعال", rows.length ? dataTable([{ key: "name", label: "نام" }, { key: "severity", label: "شدت" }, { key: "status", label: "وضعیت" }, { key: "tag", label: "تگ" }, { key: "ack", label: "عملیات", render: row => `<button class="btn btn-light btn-sm" data-action="ack-alarm" data-id="${row.id}">تأیید</button>` }], rows) : emptyState("در حال حاضر آلارم فعالی وجود ندارد."))}</div>`;
+  return `<div data-collection-name="alarms" data-edit-action="new-alarm">${pageHeader("تعاریف آلارم", "تعریف قواعد هشدار. رخداد خودکار تنها پس از تعریف آستانه و اتصال درایور/منبع داده فعال می‌شود.", button("آلارم جدید", "new-alarm", { icon: "+" }))}${tabs(["تعاریف", "فعال", "تاریخچه"])}${panel("فهرست تعاریف آلارم", rows.length ? dataTable([{ key: "name", label: "نام" }, { key: "severity", label: "شدت" }, { key: "status", label: "وضعیت", render: row => pill(row.status || "فعال", row.status === "غیرفعال" ? "muted" : "success") }, { key: "tag", label: "تگ" }, { key: "operation", label: "عملیات", render: row => `<button class="btn btn-light btn-sm" data-action="toggle-status" data-collection="alarms" data-id="${row.id}">${row.status === "غیرفعال" ? "فعال‌سازی" : "غیرفعال‌سازی"}</button>` }], rows) : emptyState("تعریف آلارمی ثبت نشده است."))}</div>`;
 }
 
 function trendsPage() {
