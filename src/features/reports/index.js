@@ -10,10 +10,11 @@ function reportsPage() {
     ${panel("فهرست گزارش‌ها", dataTable([
       { key: "name", label: "نام گزارش" }, { key: "type", label: "دوره اجرا" }, { key: "tags", label: "تعداد تگ" },
       { key: "status", label: "وضعیت", render: row => pill(row.status || "فعال", row.status === "غیرفعال" ? "muted" : "success") },
-      { key: "last", label: "آخرین اجرا", render: () => "امروز · ۱۱:۰۰" },
-      { key: "format", label: "قالب خروجی", render: () => "CSV / Excel" }
+      { key: "last_run_at", label: "آخرین اجرا", render: row => row.last_run_at || "—" },
+      { key: "format", label: "قالب خروجی", render: () => "JSON / CSV" },
+      { key: "run", label: "اجرا", render: row => `<button class="btn btn-primary btn-sm" data-action="run-report" data-id="${row.id}">اجرای گزارش</button>` }
     ], rows, { actions: true }))}
-    <div class="panel-actions">${button("دریافت CSV", "export-csv", { variant: "light" })}${button("اجرای گزارش", "open-modal-info", { variant: "primary" })}</div>
+    <div class="panel-actions">${button("دریافت CSV", "export-csv", { variant: "light" })}${button("اجرای گزارش", "run-report", { variant: "primary" })}</div>
   </div>`;
 }
 
