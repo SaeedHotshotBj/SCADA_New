@@ -44,7 +44,7 @@ export function renderBi() {
     ${gradientBanner(
       "داشبورد مدیریتی هوش تجاری",
       `${factory?.name || "کارخانه انتخاب نشده"} · ${sampleMode} · آخرین دریافت: ${analytics.generated_at ? new Date(analytics.generated_at).toLocaleTimeString("fa-IR") : "—"}`,
-      `${button("چیدمان داشبورد", "open-modal-info", { variant: "light" })}${button("تنظیمات", "open-modal-info", { variant: "light", icon: "⚙" })}${button("دانلود", "export-csv", { variant: "light", icon: "⇩" })}${button("به‌روزرسانی", "refresh-demo", { variant: "light" })}`,
+      `${button("چیدمان فشرده", "toggle-bi-layout", { variant: "light" })}<a class="btn btn-light" href="#/system/storage">مرکز داده</a>${button("دانلود", "export-csv", { variant: "light", icon: "⇩" })}${button("تمام‌صفحه", "toggle-fullscreen", { variant: "light" })}${button("به‌روزرسانی", "refresh-demo", { variant: "light" })}`,
       "▥"
     )}
     <div class="dashboard-filters">
