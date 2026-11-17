@@ -348,3 +348,47 @@ def test_numeric_alarm_rule_triggers_acknowledges_and_clears_from_edge_samples()
                         if item["id"] == alarm_id)
         assert resolved["condition_active"] is False
         assert resolved["status"] == "رفع‌شده"
+
+
+def test_plc_tag_factory_ownership_is_enforced_and_returned():
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local", "password": "demo1234"
+        })
+        factory = client.post("/api/resources/factories", json={
+            "name": "کارخانه دوم تست", "code": "FACTORY-CI-2", "status": "فعال"
+        })
+        assert factory.status_code == 201
+        factory_id = factory.json()["id"]
+
+        plc = client.post("/api/resources/plcs", json={
+            "factory_id": factory_id,
+            "name": "PLC کارخانه دوم",
+            "protocol": "simulator",
+            "address": "127.0.0.1:1503",
+            "unit": "1",
+        })
+        assert plc.status_code == 201
+        assert plc.json()["factory_id"] == factory_id
+
+        mismatched_tag = client.post("/api/resources/tags", json={
+            "factory_id": factory_id,
+            "name": "TEST.Mismatched",
+            "plc": "p1",
+            "type": "float32",
+            "address": "40101",
+            "access": "read",
+            "unit": "A",
+        })
+        assert mismatched_tag.status_code == 422
+
+        inherited_tag = client.post("/api/resources/tags", json={
+            "name": "TEST.FactoryTwo",
+            "plc": plc.json()["id"],
+            "type": "float32",
+            "address": "40102",
+            "access": "read",
+            "unit": "A",
+        })
+        assert inherited_tag.status_code == 201
+        assert inherited_tag.json()["factory_id"] == factory_id
