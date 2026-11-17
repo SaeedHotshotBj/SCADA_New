@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
@@ -68,9 +70,21 @@ def list_edges(user: dict = Depends(get_current_user)):
                 "SELECT id,factory_id,name,status,metadata,last_seen,created_at,updated_at FROM edge_devices WHERE factory_id=? ORDER BY created_at DESC",
                 (user.get("factory_id") or "",),
             ).fetchall()
-    return {"items":[{"id":r["id"],"factory_id":r["factory_id"],"name":r["name"],"status":r["status"],
-                      "metadata":json_load(r["metadata"],{}),"last_seen":r["last_seen"],
-                      "created_at":r["created_at"],"updated_at":r["updated_at"]} for r in rows]}
+    now = datetime.now(timezone.utc)
+    items = []
+    for row in rows:
+        status = row["status"]
+        if status == "ONLINE":
+            try:
+                last_seen = datetime.fromisoformat(row["last_seen"].replace("Z", "+00:00")) if row["last_seen"] else None
+                if last_seen is None or now - last_seen.astimezone(timezone.utc) > timedelta(seconds=90):
+                    status = "OFFLINE"
+            except ValueError:
+                status = "OFFLINE"
+        items.append({"id":row["id"],"factory_id":row["factory_id"],"name":row["name"],"status":status,
+                      "metadata":json_load(row["metadata"],{}),"last_seen":row["last_seen"],
+                      "created_at":row["created_at"],"updated_at":row["updated_at"]})
+    return {"items": items}
 
 
 @router.post("/heartbeat")
