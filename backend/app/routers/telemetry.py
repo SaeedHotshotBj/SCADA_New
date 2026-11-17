@@ -224,12 +224,12 @@ def history(tag_id: str, hours: int = Query(24, ge=1, le=744),
             raise HTTPException(404, "تگ پیدا نشد.")
         if user["role"] == "Organization Admin":
             rows=db.execute(
-                "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples WHERE tag_id=? AND sampled_at>=? ORDER BY sampled_at DESC LIMIT ?",
+                "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples WHERE tag_id=? AND sampled_at>=? ORDER BY sampled_at DESC,id DESC LIMIT ?",
                 (tag_id,since,limit),
             ).fetchall()
         else:
             rows=db.execute(
-                "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples WHERE tag_id=? AND factory_id=? AND sampled_at>=? ORDER BY sampled_at DESC LIMIT ?",
+                "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples WHERE tag_id=? AND factory_id=? AND sampled_at>=? ORDER BY sampled_at DESC,id DESC LIMIT ?",
                 (tag_id,user.get("factory_id"),since,limit),
             ).fetchall()
     return {"items":[{"tag_id":r["tag_id"],"value":json_load(r["value_json"]),
