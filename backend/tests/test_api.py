@@ -283,3 +283,68 @@ def test_analytics_summary_storage_and_audit_are_database_backed():
         audit = client.get("/api/analytics/audit?limit=10")
         assert audit.status_code == 200
         assert isinstance(audit.json(), list)
+
+
+def test_numeric_alarm_rule_triggers_acknowledges_and_clears_from_edge_samples():
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local", "password": "demo1234"
+        })
+        alarm = client.post("/api/resources/alarms", json={
+            "name": "High speed",
+            "severity": "زیاد",
+            "tag": "t6",
+            "operator": ">",
+            "threshold": 100,
+            "status": "فعال",
+        })
+        assert alarm.status_code == 201
+        alarm_id = alarm.json()["id"]
+
+        registered = client.post("/api/edge/register", json={
+            "name": "EDGE-ALARM-CI", "factory_id": "f1", "note": "alarm test"
+        })
+        assert registered.status_code == 201
+        token = registered.json()["edge_token"]
+
+        triggered = client.post(
+            "/api/telemetry/edge/ingest",
+            headers={"X-Edge-Token": token},
+            json={"samples": [{"tag_id": "t6", "value": 130.0}]},
+        )
+        assert triggered.status_code == 200
+        assert any(item["id"] == alarm_id and item["status"] == "فعال"
+                   for item in triggered.json()["items"][0]["alarm_transitions"])
+
+        active = client.get("/api/resources/alarms").json()["items"]
+        active_alarm = next(item for item in active if item["id"] == alarm_id)
+        assert active_alarm["condition_active"] is True
+        assert active_alarm["trigger_count"] == 1
+
+        acknowledged = client.patch(
+            f"/api/resources/alarms/{alarm_id}", json={"status": "تأییدشده"}
+        )
+        assert acknowledged.status_code == 200
+        still_high = client.post(
+            "/api/telemetry/edge/ingest",
+            headers={"X-Edge-Token": token},
+            json={"samples": [{"tag_id": "t6", "value": 125.0}]},
+        )
+        assert still_high.status_code == 200
+        confirmed = next(item for item in client.get("/api/resources/alarms").json()["items"]
+                         if item["id"] == alarm_id)
+        assert confirmed["status"] == "تأییدشده"
+        assert confirmed["condition_active"] is True
+
+        cleared = client.post(
+            "/api/telemetry/edge/ingest",
+            headers={"X-Edge-Token": token},
+            json={"samples": [{"tag_id": "t6", "value": 90.0}]},
+        )
+        assert cleared.status_code == 200
+        assert any(item["id"] == alarm_id and item["status"] == "رفع‌شده"
+                   for item in cleared.json()["items"][0]["alarm_transitions"])
+        resolved = next(item for item in client.get("/api/resources/alarms").json()["items"]
+                        if item["id"] == alarm_id)
+        assert resolved["condition_active"] is False
+        assert resolved["status"] == "رفع‌شده"
