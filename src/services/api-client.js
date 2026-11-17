@@ -40,7 +40,7 @@ export const api = {
   changePassword: body => request("/api/auth/change-password", { method: "POST", body }),
   me: () => request("/api/auth/me"),
   bootstrap: () => request("/api/bootstrap"),
-  analyticsSummary: () => request("/api/analytics/summary"),
+  analyticsSummary: (days = 7) => request(`/api/analytics/summary?days=${encodeURIComponent(days)}`),
   analyticsStorage: () => request("/api/analytics/storage"),
   auditHistory: (limit = 100) => request(`/api/analytics/audit?limit=${encodeURIComponent(limit)}`),
   list: collection => request(`/api/resources/${encodeURIComponent(collection)}`),
