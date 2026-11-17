@@ -96,14 +96,21 @@ function batchReportPage() {
 }
 
 function batchComparePage() {
-  return `<div>${pageHeader("مقایسه مقدار اسمی و واقعی بچ", "مقایسه وزن مورد انتظار فرمول با مقادیر ثبت‌شده در توزین")}
-    <div class="filter-bar"><label class="field"><span>انتخاب بچ</span><select><option>BATCH-1405-00021</option><option>BATCH-1405-00020</option></select></label><button class="btn btn-primary btn-sm" data-action="apply-filter">نمایش مقایسه</button></div>
-    <div class="stats-grid stats-grid-4">${statCard("وزن اسمی", "۵۰۰٫۰۰", "kg", "blue")}${statCard("وزن واقعی", "۴۹۹٫۶۲", "kg", "green")}${statCard("اختلاف", "۰٫۳۸-", "kg", "orange")}${statCard("انحراف", "۰٫۰۸", "%", "purple")}</div>
-    ${lineChart("مقایسه وزن اسمی و واقعی مواد", undefined, "#1699c8", [50, 30, 20, 50, 30, 20, 50])}
-    <div class="two-col-grid">${panel("مقایسه بر اساس ماده", dataTable([{ key: "material", label: "ماده" }, { key: "nominal", label: "وزن اسمی" }, { key: "actual", label: "وزن واقعی" }, { key: "deviation", label: "انحراف" }], [{ material: "گرانول PVC", nominal: "250.00", actual: "249.82", deviation: "-0.18 kg" }, { material: "کربنات کلسیم", nominal: "150.00", actual: "149.92", deviation: "-0.08 kg" }, { material: "افزودنی", nominal: "100.00", actual: "99.88", deviation: "-0.12 kg" }]))}${panel("مقایسه بر اساس هاپر", dataTable([{ key: "bin", label: "هاپر" }, { key: "target", label: "هدف" }, { key: "actual", label: "واقعی" }, { key: "result", label: "نتیجه", render: () => pill("در محدوده", "success") }], [{ bin: "Hopper 01", target: "250.00", actual: "249.82" }, { bin: "Hopper 02", target: "150.00", actual: "149.92" }, { bin: "Hopper 03", target: "100.00", actual: "99.88" }]))}</div>
+  const batches = store.list("batches");
+  const snapshot = store.snapshot();
+  const selectedId = snapshot.selectedBatchId || batches[0]?.id || "";
+  const weights = store.list("batchWeighments");
+  const targetTotal = weights.reduce((sum, row) => sum + Number(row.target_weight || 0), 0);
+  const actualTotal = weights.reduce((sum, row) => sum + Number(row.actual_weight || 0), 0);
+  const difference = actualTotal - targetTotal;
+  const deviation = targetTotal > 0 ? Math.abs(difference) * 100 / targetTotal : null;
+  return `<div>${pageHeader("مقایسه مقدار اسمی و واقعی بچ", "مقایسه از رکوردهای توزین ذخیره‌شده؛ وزن دستی با برچسب DEMO مشخص می‌شود.")}
+    <form id="batch-compare-form" class="filter-bar"><label class="field"><span>انتخاب بچ</span><select name="batch_id" required>${batches.map(batch => `<option value="${batch.id}" ${batch.id === selectedId ? "selected" : ""}>${batch.code || batch.id}</option>`).join("")}</select></label><button class="btn btn-primary btn-sm" type="submit">دریافت توزین‌ها از Backend</button></form>
+    <div class="stats-grid stats-grid-4">${statCard("وزن اسمی", targetTotal.toLocaleString("fa-IR", { maximumFractionDigits: 3 }), "kg", "blue")}${statCard("وزن واقعی", actualTotal.toLocaleString("fa-IR", { maximumFractionDigits: 3 }), "kg", "green")}${statCard("اختلاف واقعی - اسمی", difference.toLocaleString("fa-IR", { maximumFractionDigits: 3 }), "kg", "orange")}${statCard("انحراف", deviation == null ? "—" : deviation.toLocaleString("fa-IR", { maximumFractionDigits: 3 }), "%", "purple")}</div>
+    ${lineChart("مقایسه وزن هدف و واقعی", undefined, "#1699c8", weights.length ? weights.map(row => Number(row.actual_weight || 0)) : [0])}
+    ${panel("مقایسه بر اساس ماده و هاپر", weights.length ? dataTable([{ key: "hopper_key", label: "هاپر" }, { key: "material", label: "ماده" }, { key: "target_weight", label: "وزن اسمی" }, { key: "actual_weight", label: "وزن واقعی" }, { key: "tolerance_percent", label: "تلرانس (%)" }, { key: "result", label: "نتیجه", render: row => pill(row.result, row.result === "IN_TOLERANCE" ? "success" : "danger") }, { key: "quality", label: "کیفیت منبع" }], weights) : emptyState("برای این بچ هنوز توزینی دریافت نشده است."))}
   </div>`;
 }
-
 export function renderBatch(path) {
   switch (path) {
     case "/batch/setup": return batchSetupPage();
