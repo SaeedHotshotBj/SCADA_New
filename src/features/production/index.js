@@ -1,8 +1,6 @@
 import { store } from "../../services/demo-store.js";
 import { button, dataTable, pageHeader, panel, pill, tabs, statCard, dateFilter, lineChart, emptyState } from "../../shared/ui.js";
 
-const lines = ["کشش مفتول راد", "مولتی‌وایر", "بانچر", "اکسترودر عایق", "کابل‌کشی", "قرقره‌پیچ"];
-
 function runPage() {
   const runs = store.list("productionRuns");
   const machines = store.list("machines");
@@ -37,19 +35,31 @@ function machinesPage() {
   </div>`;
 }
 function configPage() {
-  const products = [
-    { code: "CB-001", name: "کابل قدرت NYY 4×16mm²", unit: "m", fields: "قرارداد، مشتری، قرقره" },
-    { code: "WR-010", name: "سیم 1×10 افشان", unit: "m", fields: "قرارداد، رنگ، وزن" },
-    { code: "WR-004", name: "سیم افشان H07V-K 4mm²", unit: "m", fields: "قرارداد، رنگ" }
-  ];
-  return `<div>${pageHeader("پیکربندی کارخانه", "اطلاعات پایه، محصولات، اپراتورها و قواعد اجرای تولید")}
-    ${tabs(["محصولات و فیلدها", "اپراتورها", "علل توقف", "نوع ورودی", "خطوط توقف", "نوع خروجی قرقره", "شماره‌گذاری اسناد", "قواعد برنامه"])}
-    ${panel("محصولات", dataTable([{ key: "code", label: "کد محصول" }, { key: "name", label: "نام محصول" }, { key: "unit", label: "واحد اصلی" }, { key: "fields", label: "فیلدهای اختصاصی" }, { key: "action", label: "تنظیم", render: () => `<button class="btn btn-light btn-sm" data-action="open-modal-info">فیلدها</button>` }], products))}
-    <div class="two-col-grid">${panel("اپراتورها", dataTable([{ key: "name", label: "نام" }, { key: "code", label: "کد" }, { key: "role", label: "نقش" }], [{ name: "اپراتور نمونه", code: "OP-01", role: "اپراتور تولید" }, { name: "سرپرست شیفت", code: "SP-01", role: "سرپرست" }]))}${panel("علل توقف", dataTable([{ key: "code", label: "کد" }, { key: "reason", label: "علت توقف" }, { key: "group", label: "گروه" }], [{ code: "DWN-01", reason: "تنظیم / تعویض قالب", group: "فرآیندی" }, { code: "DWN-02", reason: "کمبود مواد اولیه", group: "تأمین" }, { code: "DWN-03", reason: "خرابی دستگاه", group: "فنی" }]))}</div>
-    <div class="two-col-grid">${panel("قواعد شماره‌گذاری", `<div class="storage-list"><div><span>شماره سفارش</span><b>PO-{YEAR}-{SEQ:6}</b></div><div><span>قرقره تولید</span><b>RL-{YEAR}-{SEQ:6}</b></div><div><span>شماره قرارداد</span><b>CT-{YEAR}-{SEQ:5}</b></div></div>`)}${panel("قواعد اجرای برنامه", `<div class="rule-list"><p>الزام انتخاب سفارش پیش از شروع تولید</p><p>ثبت کنتور تولید در زمان توقف و شروع مجدد</p><p>ثبت علت برای توقف‌های برنامه‌ریزی‌نشده</p></div>`)}</div>
+  const products = store.list("products");
+  const fields = store.list("productFields");
+  const users = store.list("users");
+  const reasons = store.list("downtimeReasons");
+  const inputTypes = store.list("inputTypes");
+  const stopLines = store.list("stopLines");
+  const outputTypes = store.list("outputTypes");
+  const sequences = store.list("documentSequences");
+  const rules = store.list("productionRules");
+  const dictionaryTable = (rows, columns, empty) => rows.length ? dataTable(columns, rows, { actions: true }) : emptyState(empty);
+  return `<div class="factory-config-page">${pageHeader("پیکربندی کارخانه", "تعاریف پایه و قواعد اجرایی از Backend خوانده و در همان‌جا ذخیره می‌شوند.")}
+    <div class="two-col-grid">
+      <section data-collection-name="products" data-edit-action="new-product">${panel("محصولات", `${button("محصول جدید", "new-product", { icon: "+" })}${dictionaryTable(products, [{ key: "code", label: "کد محصول" }, { key: "name", label: "نام محصول" }, { key: "unit", label: "واحد اصلی" }, { key: "status", label: "وضعیت" }], "محصولی ثبت نشده است.")}`)}</section>
+      <section data-collection-name="productFields" data-edit-action="new-product-field">${panel("فیلدهای اختصاصی محصول", `${button("فیلد جدید", "new-product-field", { icon: "+" })}${dictionaryTable(fields, [{ key: "product_code", label: "محصول" }, { key: "name", label: "نام فیلد" }, { key: "field_type", label: "نوع" }, { key: "required", label: "الزامی" }, { key: "options", label: "گزینه‌ها" }], "فیلد اختصاصی تعریف نشده است.")}`)}</section>
+      ${panel("اپراتورها و کاربران", users.length ? dataTable([{ key: "name", label: "نام" }, { key: "email", label: "ایمیل" }, { key: "role", label: "نقش" }, { key: "status", label: "وضعیت" }], users) : emptyState("کاربری برای نمایش در دسترس نیست."))}
+      <section data-collection-name="downtimeReasons" data-edit-action="new-downtime-reason">${panel("علل توقف", `${button("علت توقف جدید", "new-downtime-reason", { icon: "+" })}${dictionaryTable(reasons, [{ key: "code", label: "کد" }, { key: "reason", label: "علت توقف" }, { key: "group", label: "گروه" }], "علت توقفی تعریف نشده است.")}`)}</section>
+      <section data-collection-name="inputTypes" data-edit-action="new-input-type">${panel("انواع ورودی", `${button("نوع ورودی جدید", "new-input-type", { icon: "+" })}${dictionaryTable(inputTypes, [{ key: "code", label: "کد" }, { key: "name", label: "عنوان" }, { key: "unit", label: "واحد" }, { key: "description", label: "توضیحات" }], "نوع ورودی تعریف نشده است.")}`)}</section>
+      <section data-collection-name="stopLines" data-edit-action="new-stop-line">${panel("خطوط توقف", `${button("خط توقف جدید", "new-stop-line", { icon: "+" })}${dictionaryTable(stopLines, [{ key: "code", label: "کد" }, { key: "name", label: "نام" }, { key: "description", label: "توضیحات" }], "خط توقفی تعریف نشده است.")}`)}</section>
+      <section data-collection-name="outputTypes" data-edit-action="new-output-type">${panel("انواع خروجی قرقره", `${button("نوع خروجی جدید", "new-output-type", { icon: "+" })}${dictionaryTable(outputTypes, [{ key: "code", label: "کد" }, { key: "name", label: "عنوان" }, { key: "unit", label: "واحد" }, { key: "description", label: "توضیحات" }], "نوع خروجی تعریف نشده است.")}`)}</section>
+      <section data-collection-name="documentSequences" data-edit-action="new-document-sequence">${panel("قواعد شماره‌گذاری اسناد", `${button("قاعده جدید", "new-document-sequence", { icon: "+" })}${dictionaryTable(sequences, [{ key: "document", label: "نوع سند" }, { key: "prefix", label: "پیشوند" }, { key: "year_pattern", label: "الگوی سال" }, { key: "sequence_length", label: "طول توالی" }], "قاعده شماره‌گذاری تعریف نشده است.")}`)}</section>
+      <section data-collection-name="productionRules" data-edit-action="new-production-rule">${panel("قواعد اجرای تولید", `${button("قاعده جدید", "new-production-rule", { icon: "+" })}${dictionaryTable(rules, [{ key: "code", label: "کد" }, { key: "name", label: "نام قاعده" }, { key: "rule", label: "شرح قاعده" }, { key: "status", label: "وضعیت" }], "قاعده‌ای تعریف نشده است.")}`)}</section>
+    </div>
+    <div class="insight insight-info">این صفحه تعاریف و قواعد را ذخیره می‌کند؛ موتور اجرای خودکار قواعد و تولید شماره ترتیبی هنوز به چرخه سفارش/تولید متصل نشده است.</div>
   </div>`;
 }
-
 function pricesPage() {
   const prices = store.list("prices");
   const products = store.list("products");
