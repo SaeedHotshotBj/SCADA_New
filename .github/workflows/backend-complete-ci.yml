@@ -1,0 +1,38 @@
+name: SCADA_New backend-complete validation
+
+on:
+  push:
+    branches: ["backend-complete"]
+  pull_request:
+    branches: ["rebuild-from-video"]
+  workflow_dispatch:
+
+jobs:
+  backend-and-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install backend and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-dev.txt
+      - name: Compile Python modules
+        working-directory: backend
+        run: python -m compileall -q app
+      - name: Run backend API tests
+        working-directory: backend
+        env:
+          PYTHONPATH: .
+          SCADA_DB_PATH: ./data/ci_scada.sqlite3
+          SCADA_SECRET_KEY: ci-only-secret-key-at-least-32-characters
+          SCADA_DEMO_TELEMETRY: "false"
+        run: pytest -q tests
+      - name: Check frontend JavaScript syntax
+        run: node scripts/check.mjs
