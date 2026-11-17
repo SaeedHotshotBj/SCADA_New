@@ -153,51 +153,119 @@ def decide_qc(qc_id: str, body: DecisionRequest, user: dict = Depends(get_curren
 def run_report(report_id: str, body: RunRequest, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin", "Factory Admin", "Engineer", "Production Manager", "Production Planner"}:
         raise HTTPException(403, "نقش کاربری اجازه‌ی اجرای گزارش را ندارد.")
+
+    params = body.parameters or {}
+    start_date = str(params.get("start_date") or params.get("date_from") or "").strip()
+    end_date = str(params.get("end_date") or params.get("date_to") or "").strip()
+    for field_name, value in (("start_date", start_date), ("end_date", end_date)):
+        if value:
+            try:
+                from datetime import date as _date
+                _date.fromisoformat(value)
+            except ValueError:
+                raise HTTPException(422, f"{field_name} باید با قالب YYYY-MM-DD باشد.")
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(422, "تاریخ شروع نباید بعد از تاریخ پایان باشد.")
+
+    machine = str(params.get("machine") or "").strip()
+    product = str(params.get("product") or "").strip()
+    status_filter = str(params.get("status") or "").strip()
+    order_filter = str(params.get("order") or params.get("order_code") or "").strip()
+    tag_filter = str(params.get("tag_id") or "").strip()
+
+    def row_date(item: dict) -> str:
+        return str(item.get("started_at") or item.get("created_at") or item.get("updated_at") or "")[:10]
+
+    def matches(item: dict, *, use_machine: bool = False, use_product: bool = True) -> bool:
+        stamp = row_date(item)
+        if start_date and (not stamp or stamp < start_date):
+            return False
+        if end_date and (not stamp or stamp > end_date):
+            return False
+        if use_machine and machine and str(item.get("machine") or "") != machine:
+            return False
+        if use_product and product and str(item.get("product") or "") != product:
+            return False
+        if status_filter and str(item.get("status") or "") != status_filter:
+            return False
+        if order_filter and str(item.get("order") or item.get("code") or "") != order_filter:
+            return False
+        return True
+
     with connect() as db:
         report = _get_resource(db, "reports", report_id, user)
         if report is None:
-            raise HTTPException(404,"قالب گزارش پیدا نشد.")
+            raise HTTPException(404, "قالب گزارش پیدا نشد.")
         execution_id = "rep-" + uuid.uuid4().hex[:14]
         created = utc_now()
+        is_org = user["role"] == "Organization Admin"
+        factory_id = user.get("factory_id")
 
-        def collection_snapshot(collection: str, limit: int = 200) -> list[dict]:
-            rows = db.execute(
-                "SELECT id,factory_id,payload,updated_at FROM resources WHERE collection=? ORDER BY updated_at DESC LIMIT ?",
-                (collection, limit),
-            ).fetchall()
+        def collection_snapshot(collection: str, limit: int = 500) -> list[dict]:
+            if is_org:
+                rows = db.execute(
+                    """SELECT id,factory_id,payload,created_at,updated_at FROM resources
+                       WHERE collection=? ORDER BY updated_at DESC LIMIT ?""",
+                    (collection, limit),
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    """SELECT id,factory_id,payload,created_at,updated_at FROM resources
+                       WHERE collection=? AND (factory_id=? OR factory_id IS NULL)
+                       ORDER BY updated_at DESC LIMIT ?""",
+                    (collection, factory_id, limit),
+                ).fetchall()
             return [
                 {"id": row["id"], **(json_load(row["payload"], {}) or {}),
-                 **({"factory_id": row["factory_id"]} if row["factory_id"] else {}),
+                 "factory_id": row["factory_id"], "created_at": row["created_at"],
                  "updated_at": row["updated_at"]}
                 for row in rows
             ]
 
+        plcs = collection_snapshot("plcs", 1000)
         tags = collection_snapshot("tags", 1000)
-        orders = collection_snapshot("orders")
-        runs = collection_snapshot("productionRuns")
-        qc_records = collection_snapshot("qc")
-        alarms = collection_snapshot("alarms")
-        batches = collection_snapshot("batches")
-        recent_samples = db.execute(
-            "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples ORDER BY sampled_at DESC LIMIT 500"
-        ).fetchall()
+        orders = [row for row in collection_snapshot("orders") if matches(row)]
+        runs = [row for row in collection_snapshot("productionRuns") if matches(row, use_machine=True)]
+        qc_records = [row for row in collection_snapshot("qc") if matches(row, use_machine=True)]
+        alarms = [row for row in collection_snapshot("alarms") if matches(row, use_machine=True, use_product=False)]
+        batches = [row for row in collection_snapshot("batches") if matches(row, use_product=False)]
+        sample_sql = "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples WHERE 1=1"
+        sample_args: list[Any] = []
+        if not is_org:
+            sample_sql += " AND (factory_id=? OR factory_id IS NULL)"
+            sample_args.append(factory_id)
+        if tag_filter:
+            sample_sql += " AND tag_id=?"
+            sample_args.append(tag_filter)
+        if start_date:
+            sample_sql += " AND substr(sampled_at,1,10)>=?"
+            sample_args.append(start_date)
+        if end_date:
+            sample_sql += " AND substr(sampled_at,1,10)<=?"
+            sample_args.append(end_date)
+        sample_sql += " ORDER BY sampled_at DESC LIMIT 1000"
+        recent_samples = db.execute(sample_sql, sample_args).fetchall()
+
         report_result = {
             "mode": "APPLICATION_DATA",
             "generated_at": created,
             "report": {"id": report_id, **report},
-            "filters": body.parameters,
+            "filters": params,
             "summary": {
-                "plc_count": db.execute("SELECT COUNT(*) FROM resources WHERE collection='plcs'").fetchone()[0],
+                "plc_count": len(plcs),
                 "tag_count": len(tags),
                 "alarm_count": len(alarms),
-                "active_alarm_count": sum(1 for item in alarms if item.get("status") not in {"تأییدشده", "غیرفعال"}),
+                "active_alarm_count": sum(1 for item in alarms if item.get("status") not in {"تأییدشده", "غیرفعال", "بسته"}),
                 "order_count": len(orders),
                 "production_run_count": len(runs),
                 "running_count": sum(1 for item in runs if item.get("status") == "در حال تولید"),
+                "produced_quantity": round(sum(float(item.get("quantity_actual") or 0) for item in runs), 4),
                 "qc_record_count": len(qc_records),
                 "batch_count": len(batches),
+                "telemetry_sample_count": len(recent_samples),
             },
             "tables": {
+                "plcs": plcs,
                 "tags": tags,
                 "orders": orders,
                 "production_runs": runs,
@@ -214,12 +282,12 @@ def run_report(report_id: str, body: RunRequest, user: dict = Depends(get_curren
         db.execute(
             """INSERT INTO report_executions(id,report_id,status,parameters,result,requested_by,created_at,completed_at)
                VALUES(?,?,?,?,?,?,?,?)""",
-            (execution_id,report_id,"COMPLETED",json_dump(body.parameters),
-             json_dump(report_result),user["id"],created,created),
+            (execution_id, report_id, "COMPLETED", json_dump(params),
+             json_dump(report_result), user["id"], created, created),
         )
-        audit(db,user["id"],"report.run","reports",report_id,{"execution_id":execution_id})
-    return {"id":execution_id,"report_id":report_id,"status":"COMPLETED","created_at":created,
-            "result":report_result}
+        audit(db, user["id"], "report.run", "reports", report_id, {"execution_id": execution_id})
+    return {"id": execution_id, "report_id": report_id, "status": "COMPLETED",
+            "created_at": created, "result": report_result}
 
 
 @router.get("/reports/{report_id}/executions/{execution_id}")
