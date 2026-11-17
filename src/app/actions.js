@@ -44,7 +44,7 @@ function openModal(action, record = null) {
         ? store.list("plcs").map(plc => ({ value: plc.id, label: plc.name }))
         : name === "tag" && schema.collection === "alarms"
           ? store.list("tags").map(tag => ({ value: tag.id, label: tag.name }))
-          : name === "factory_id" && schema.collection === "plcs"
+          : name === "factory_id" && ["plcs", "users"].includes(schema.collection)
             ? store.list("factories").map(factory => ({ value: factory.id, label: factory.name }))
             : name === "machine" && ["hmiPages","orders","productionRuns","qc"].includes(schema.collection)
               ? store.list("machines").map(machine => ({ value: machine.name, label: machine.name }))
