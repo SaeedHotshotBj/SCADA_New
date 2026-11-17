@@ -55,7 +55,7 @@ function machinesPage() {
 function configPage() {
   const products = store.list("products");
   return `<div class="factory-config" data-collection-name="products" data-edit-action="new-product">${pageHeader("پیکربندی کارخانه", "مدیریت محصولات ثبت‌شده و قواعد پایه کارخانه", button("محصول جدید", "new-product", { icon: "+" }))}
-    ${tabs(["محصولات و فیلدها", "اپراتورها", "علل توقف", "نوع ورودی", "خطوط توقف", "نوع خروجی قرقره", "شماره‌گذاری اسناد", "قواعد برنامه"])}
+    <p class="muted-note">این صفحه در حال حاضر فهرست محصولات ذخیره‌شده و قواعد پایه شماره‌گذاری را نمایش می‌دهد. فهرست اپراتورها، کد علل توقف و انواع ورودی/خروجی هنوز مدل داده و گردش‌کار مستقلی ندارند.</p>
     ${panel("محصولات", dataTable([{ key: "code", label: "کد محصول" }, { key: "name", label: "نام محصول" }, { key: "unit", label: "واحد اصلی" }, { key: "status", label: "وضعیت", render: row => pill(row.status || "فعال", row.status === "غیرفعال" ? "muted" : "success") }], products, { actions: true }))}
     <div class="two-col-grid">${panel("قواعد شماره‌گذاری", `<div class="storage-list"><div><span>شماره سفارش</span><b>PO-{YEAR}-{SEQ:6}</b></div><div><span>قرقره تولید</span><b>RL-{YEAR}-{SEQ:6}</b></div><div><span>شماره قرارداد</span><b>CT-{YEAR}-{SEQ:5}</b></div></div>`)}${panel("قواعد اجرای برنامه", `<div class="rule-list"><p>الزام انتخاب سفارش پیش از شروع تولید</p><p>ثبت کنتور تولید در زمان توقف و شروع مجدد، پس از اتصال منبع داده معتبر</p><p>ثبت علت برای توقف‌های برنامه‌ریزی‌نشده</p></div>`)}</div>
   </div>`;
@@ -64,7 +64,7 @@ function configPage() {
 function pricesPage() {
   const rows = store.list("prices");
   return `<div class="price-page" data-collection-name="prices" data-edit-action="new-price">${pageHeader("قیمت‌ها و تعرفه‌ها", "مدیریت قیمت مواد اولیه و تعرفه انرژی", button("ثبت قیمت / تعرفه", "new-price", { icon: "+" }))}
-    ${tabs(["مواد اولیه", "قیمت مواد", "تعرفه انرژی"])}
+    <div class="filter-bar"><label class="field"><span>گروه</span><select><option value="">همه گروه‌ها</option><option>مواد اولیه</option><option>تعرفه انرژی</option></select></label><button class="btn btn-primary btn-sm" data-action="apply-filter">اعمال فیلتر</button></div>
     ${panel("فهرست قیمت‌ها و تعرفه‌های ثبت‌شده", rows.length ? dataTable([{ key: "kind", label: "گروه" }, { key: "code", label: "کد" }, { key: "name", label: "عنوان" }, { key: "price", label: "مبلغ واحد", render: row => Number(row.price || 0).toLocaleString("fa-IR") }, { key: "currency", label: "واحد پول" }, { key: "unit", label: "واحد اندازه‌گیری" }, { key: "valid_from", label: "تاریخ اعتبار" }, { key: "status", label: "وضعیت", render: row => pill(row.status || "فعال", row.status === "غیرفعال" ? "muted" : "success") }], rows, { actions: true }) : emptyState("قیمت یا تعرفه‌ای ثبت نشده است."))}
   </div>`;
 }
