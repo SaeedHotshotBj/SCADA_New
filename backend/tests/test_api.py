@@ -82,6 +82,9 @@ def test_production_workflow_qc_batch_and_report_transitions():
         }).json()
         assert client.post(f"/api/operations/batches/{batch['id']}/start").status_code == 200
         assert client.post(f"/api/operations/batches/{batch['id']}/stop").status_code == 200
+        cancelled = client.post(f"/api/operations/batches/{batch['id']}/cancel")
+        assert cancelled.status_code == 200
+        assert cancelled.json()["status"] == "لغوشده"
 
         report = client.post("/api/resources/reports", json={
             "name":"گزارش تست","type":"روزانه","tags":1
