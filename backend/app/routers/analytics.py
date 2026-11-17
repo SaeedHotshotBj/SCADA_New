@@ -86,7 +86,11 @@ def summary(user: dict = Depends(get_current_user)):
 
     return {
         "generated_at": now.isoformat(timespec="seconds"),
-        "data_quality": "DEMO" if latest_sample and latest_sample["quality"] == "DEMO" else "RECORDED",
+        "data_quality": (
+            "UNSAMPLED" if latest_sample is None
+            else "DEMO" if latest_sample["quality"] == "DEMO"
+            else latest_sample["quality"]
+        ),
         "kpis": {
             "factory_count": counts.get("factories", 0),
             "plc_count": counts.get("plcs", 0),
