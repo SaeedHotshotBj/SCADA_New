@@ -1,12 +1,8 @@
 # SCADA_New Backend
 
-FastAPI + SQLite application layer for the SCADA_New browser client.
+FastAPI application layer with SQLite persistence for the SCADA_New frontend.
 
-## Scope and safety boundary
-
-This backend provides authenticated application APIs, persistent records, audit history, reporting jobs, production/batch workflow state, Edge registration/heartbeat, and a clearly marked demo telemetry source. It does **not** claim to control a real PLC. PLC writes are simulation-only until a tested protocol adapter, per-PLC address map, network access policy, and explicit commissioning configuration are supplied. The default configuration rejects physical writes.
-
-## Install and run (Windows CMD)
+## Start locally (Windows CMD)
 
 ```cmd
 cd /d F:\SCADA_New\backend
@@ -17,24 +13,39 @@ copy .env.example .env
 py -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Keep the backend terminal open. From another CMD window:
+OpenAPI documentation: http://127.0.0.1:8000/docs
+Health check: http://127.0.0.1:8000/health
+
+The seeded local demonstration account is:
+- Email: `admin@demo-cable.local`
+- Password: `demo1234`
+
+The seed is created only when the users table is empty. Change the password and replace `SCADA_SECRET_KEY` before using non-demo data. The database path in `.env` is resolved relative to this `backend` folder unless it is absolute.
+
+## API areas
+
+- `/api/auth`: session login/logout, current identity, password change.
+- `/api/bootstrap`: initial collections for the browser client.
+- `/api/resources/{collection}`: validated CRUD for application resources.
+- `/api/operations`: production runs and quantities, batches and weighments, workflow decisions, QC measurements and report execution.
+- `/api/edge`: one-time Edge registration, heartbeat, revocation and authenticated telemetry ingestion.
+- `/api/telemetry`: latest values, persisted history, explicit simulation-only tag writes and authenticated WebSocket snapshots.
+- `/api/analytics`: data-derived overview, production, quality and energy summaries.
+
+## Industrial safety boundary
+
+This is an application backend with explicit simulation/demo functionality. It is **not yet commissioned for machinery control**.
+
+- Demo telemetry is labelled `DEMO`; simulated tag writes do not contact PLCs.
+- Edge ingestion accepts readings from an Edge agent with a valid registration token; a real agent, device-side protocol implementation and commissioning test are still required.
+- Production and batch state transitions persist application records. They do not start motors, open feeders or control a scale.
+- The repository does not yet include a commissioned Modbus TCP/RTU or Siemens S7 driver. Actual PLC I/O requires the exact device models, address maps, data encoding, scaling, safe-state strategy, network policy and hardware-in-loop tests.
+- Do not expose the development service directly to the public Internet or connect it to machinery without a separate commissioning and safety review.
+
+## Tests
 
 ```cmd
-cd /d F:\SCADA_New
-py -m http.server 4173
+py -m pip install -r requirements-dev.txt
+set PYTHONPATH=.
+py -m pytest -q tests
 ```
-
-Open http://localhost:4173. API documentation is at http://127.0.0.1:8000/docs.
-
-Set a long random `SCADA_SECRET_KEY` before exposing the API beyond localhost. For production use, put the application behind HTTPS and restrict network access. SQLite is intended for this single-server deployment; use managed PostgreSQL only after the deployment topology and backup strategy are decided.
-
-## API groups
-
-- `/api/auth`: login, logout, session identity
-- `/api/bootstrap`: authenticated client data snapshot
-- `/api/resources/{collection}`: validated CRUD for the modules represented in the UI
-- `/api/operations`: state transitions for production runs, batches, workflow approval, QC decisions and report execution
-- `/api/edge`: one-time Edge token issue and authenticated heartbeat
-- `/api/telemetry` and `/ws/live`: stored samples and explicitly labelled demo telemetry
-
-The database is created automatically at first start. A demonstration administrator is seeded: `admin@demo-cable.local / demo`. Change this password before using non-demo data.
