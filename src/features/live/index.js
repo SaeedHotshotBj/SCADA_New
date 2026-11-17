@@ -24,10 +24,28 @@ function classicHmiPage() {
 }
 
 function alarmsPage() {
-  const rows = store.list("alarms");
-  return `<div data-collection-name="alarms" data-edit-action="new-alarm">${pageHeader("تعاریف آلارم", "تعریف قواعد هشدار. رخداد خودکار تنها پس از تعریف آستانه و اتصال درایور/منبع داده فعال می‌شود.", button("آلارم جدید", "new-alarm", { icon: "+" }))}${tabs(["تعاریف", "فعال", "تاریخچه"])}${panel("فهرست تعاریف آلارم", rows.length ? dataTable([{ key: "name", label: "نام" }, { key: "severity", label: "شدت" }, { key: "status", label: "وضعیت", render: row => pill(row.status || "فعال", row.status === "غیرفعال" ? "muted" : "success") }, { key: "tag", label: "تگ" }, { key: "operation", label: "عملیات", render: row => `<button class="btn btn-light btn-sm" data-action="toggle-status" data-collection="alarms" data-id="${row.id}">${row.status === "غیرفعال" ? "فعال‌سازی" : "غیرفعال‌سازی"}</button>` }], rows) : emptyState("تعریف آلارمی ثبت نشده است."))}</div>`;
+  const rules = store.list("alarms");
+  const events = store.list("alarmEvents");
+  const active = events.filter(row => row.state === "ACTIVE");
+  return `<div data-collection-name="alarms" data-edit-action="new-alarm">
+    ${pageHeader("آلارم‌ها", "قواعد آستانه در Backend ارزیابی می‌شوند؛ رخداد فقط پس از دریافت نمونه معتبر GOOD از Edge ایجاد می‌شود.", `${button("قانون جدید", "new-alarm", { icon: "+" })}${button("به‌روزرسانی رخدادها", "refresh-demo", { variant: "light" })}`)}
+    <div class="stats-grid stats-grid-3">${statCard("قواعد ثبت‌شده", rules.length, "قانون", "blue")}${statCard("رخداد فعال", active.length, "رخداد", "red")}${statCard("تاریخچه رخداد", events.length, "رخداد", "orange")}</div>
+    ${panel("رخدادهای آلارم", events.length ? dataTable([
+      { key: "alarm_name", label: "قانون" }, { key: "tag_name", label: "تگ" },
+      { key: "value", label: "مقدار هنگام رخداد" }, { key: "severity", label: "شدت", render: row => pill(row.severity, "warning") },
+      { key: "state", label: "وضعیت", render: row => pill(row.state, row.state === "ACTIVE" ? "danger" : row.state === "ACKNOWLEDGED" ? "warning" : "success") },
+      { key: "triggered_at", label: "زمان ایجاد" },
+      { key: "action", label: "اقدام", render: row => row.state === "ACTIVE" ? `<button class="btn btn-primary btn-sm" data-action="ack-alarm" data-id="${row.id}">تأیید رخداد</button>` : (row.acknowledged_by || "—") }
+    ], events) : emptyState("رخدادی ثبت نشده است. با رسیدن داده معتبر از Edge، قواعد فعال ارزیابی می‌شوند."))}
+    ${panel("قواعد آستانه", rules.length ? dataTable([
+      { key: "name", label: "نام قانون" }, { key: "tag", label: "شناسه تگ" },
+      { key: "operator", label: "شرط" }, { key: "threshold", label: "آستانه" },
+      { key: "deadband", label: "هیسترزیس" }, { key: "severity", label: "شدت" },
+      { key: "status", label: "وضعیت", render: row => pill(row.status || "فعال", row.status === "غیرفعال" ? "muted" : "success") },
+      { key: "operation", label: "عملیات", render: row => `<button class="btn btn-light btn-sm" data-action="toggle-status" data-collection="alarms" data-id="${row.id}">${row.status === "غیرفعال" ? "فعال‌سازی" : "غیرفعال‌سازی"}</button>` }
+    ], rules) : emptyState("هنوز قانون آستانه‌ای تعریف نشده است."))}
+  </div>`;
 }
-
 function trendsPage() {
   const rows = store.list("trends");
   const history = store.list("trendHistory");
