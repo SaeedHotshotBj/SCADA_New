@@ -22,12 +22,16 @@ class RunRequest(BaseModel):
     parameters: dict[str, Any] = Field(default_factory=dict)
 
 
-def _get_resource(db, collection: str, record_id: str):
+def _get_resource(db, collection: str, record_id: str, user: dict | None = None):
     row = db.execute(
-        "SELECT payload FROM resources WHERE collection=? AND id=?",
+        "SELECT factory_id,payload FROM resources WHERE collection=? AND id=?",
         (collection, record_id),
     ).fetchone()
-    return json_load(row["payload"], {}) if row else None
+    if row is None:
+        return None
+    if user and user.get("role") != "Organization Admin" and row["factory_id"] != user.get("factory_id"):
+        return None
+    return json_load(row["payload"], {})
 
 
 def _save_resource(db, collection: str, record_id: str, payload: dict):
@@ -42,7 +46,7 @@ def start_production_run(run_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه‌ی شروع تولید ندارد.")
     with connect() as db:
-        row = _get_resource(db, "productionRuns", run_id)
+        row = _get_resource(db, "productionRuns", run_id, user)
         if row is None:
             raise HTTPException(404, "اجرای تولید پیدا نشد.")
         if row.get("status") == "در حال تولید":
@@ -65,7 +69,7 @@ def stop_production_run(run_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه‌ی توقف تولید را ندارد.")
     with connect() as db:
-        row = _get_resource(db,"productionRuns",run_id)
+        row = _get_resource(db,"productionRuns",run_id,user)
         if row is None:
             raise HTTPException(404,"اجرای تولید پیدا نشد.")
         if row.get("status") != "در حال تولید":
@@ -86,7 +90,7 @@ def start_batch(batch_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه‌ی شروع بچ را ندارد.")
     with connect() as db:
-        row = _get_resource(db,"batches",batch_id)
+        row = _get_resource(db,"batches",batch_id,user)
         if row is None:
             raise HTTPException(404,"بچ پیدا نشد.")
         if row.get("status") == "در حال توزین":
@@ -106,7 +110,7 @@ def stop_batch(batch_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه‌ی توقف بچ را ندارد.")
     with connect() as db:
-        row = _get_resource(db,"batches",batch_id)
+        row = _get_resource(db,"batches",batch_id,user)
         if row is None:
             raise HTTPException(404,"بچ پیدا نشد.")
         if row.get("status") != "در حال توزین":
@@ -124,7 +128,7 @@ def cancel_batch(batch_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه‌ی لغو بچ را ندارد.")
     with connect() as db:
-        row = _get_resource(db, "batches", batch_id)
+        row = _get_resource(db, "batches", batch_id, user)
         if row is None:
             raise HTTPException(404, "بچ پیدا نشد.")
         if row.get("status") == "در حال توزین":
@@ -151,7 +155,7 @@ def approve_workflow_task(task_id: str, body: DecisionRequest | None = None,
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Production Planner", "Quality Control"}:
         raise HTTPException(403, "نقش کاربری اجازه‌ی تأیید این وظیفه را ندارد.")
     with connect() as db:
-        row = _get_resource(db,"workflowTasks",task_id)
+        row = _get_resource(db,"workflowTasks",task_id,user)
         if row is None:
             raise HTTPException(404,"وظیفه گردش‌کار پیدا نشد.")
         if row.get("status") != "در انتظار":
@@ -170,7 +174,7 @@ def decide_qc(qc_id: str, body: DecisionRequest, user: dict = Depends(get_curren
     if body.decision not in {"قبول","مشروط","رد"}:
         raise HTTPException(422,"تصمیم کنترل کیفیت باید قبول، مشروط یا رد باشد.")
     with connect() as db:
-        row = _get_resource(db,"qc",qc_id)
+        row = _get_resource(db,"qc",qc_id,user)
         if row is None:
             raise HTTPException(404,"رکورد کنترل کیفیت پیدا نشد.")
         row.update({"decision":body.decision,"status":"بررسی‌شده","inspector":user["name"],
@@ -185,17 +189,23 @@ def run_report(report_id: str, body: RunRequest, user: dict = Depends(get_curren
     if user["role"] not in {"Organization Admin", "Factory Admin", "Engineer", "Production Manager", "Production Planner"}:
         raise HTTPException(403, "نقش کاربری اجازه‌ی اجرای گزارش را ندارد.")
     with connect() as db:
-        report = _get_resource(db,"reports",report_id)
+        report = _get_resource(db,"reports",report_id,user)
         if report is None:
             raise HTTPException(404,"قالب گزارش پیدا نشد.")
         execution_id = "rep-" + uuid.uuid4().hex[:14]
         created = utc_now()
 
         def collection_snapshot(collection: str, limit: int = 200) -> list[dict]:
-            rows = db.execute(
-                "SELECT id,factory_id,payload,updated_at FROM resources WHERE collection=? ORDER BY updated_at DESC LIMIT ?",
-                (collection, limit),
-            ).fetchall()
+            if user["role"] == "Organization Admin":
+                rows = db.execute(
+                    "SELECT id,factory_id,payload,updated_at FROM resources WHERE collection=? ORDER BY updated_at DESC LIMIT ?",
+                    (collection, limit),
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    "SELECT id,factory_id,payload,updated_at FROM resources WHERE collection=? AND factory_id=? ORDER BY updated_at DESC LIMIT ?",
+                    (collection, user["factory_id"], limit),
+                ).fetchall()
             return [
                 {"id": row["id"], **(json_load(row["payload"], {}) or {}),
                  **({"factory_id": row["factory_id"]} if row["factory_id"] else {}),
@@ -209,16 +219,27 @@ def run_report(report_id: str, body: RunRequest, user: dict = Depends(get_curren
         qc_records = collection_snapshot("qc")
         alarms = collection_snapshot("alarms")
         batches = collection_snapshot("batches")
-        recent_samples = db.execute(
-            "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples ORDER BY sampled_at DESC LIMIT 500"
-        ).fetchall()
+        if user["role"] == "Organization Admin":
+            recent_samples = db.execute(
+                "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples ORDER BY sampled_at DESC LIMIT 500"
+            ).fetchall()
+            plc_count = db.execute("SELECT COUNT(*) FROM resources WHERE collection='plcs'").fetchone()[0]
+        else:
+            recent_samples = db.execute(
+                "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples WHERE factory_id=? ORDER BY sampled_at DESC LIMIT 500",
+                (user["factory_id"],),
+            ).fetchall()
+            plc_count = db.execute(
+                "SELECT COUNT(*) FROM resources WHERE collection='plcs' AND factory_id=?",
+                (user["factory_id"],),
+            ).fetchone()[0]
         report_result = {
             "mode": "APPLICATION_DATA",
             "generated_at": created,
             "report": {"id": report_id, **report},
             "filters": body.parameters,
             "summary": {
-                "plc_count": db.execute("SELECT COUNT(*) FROM resources WHERE collection='plcs'").fetchone()[0],
+                "plc_count": plc_count,
                 "tag_count": len(tags),
                 "alarm_count": len(alarms),
                 "active_alarm_count": sum(1 for item in alarms if item.get("status") not in {"تأییدشده", "غیرفعال"}),
@@ -256,6 +277,8 @@ def run_report(report_id: str, body: RunRequest, user: dict = Depends(get_curren
 @router.get("/reports/{report_id}/executions/{execution_id}")
 def get_report_execution(report_id: str, execution_id: str, user: dict = Depends(get_current_user)):
     with connect() as db:
+        if _get_resource(db, "reports", report_id, user) is None:
+            raise HTTPException(404, "قالب گزارش پیدا نشد.")
         row = db.execute(
             "SELECT id,report_id,status,parameters,result,requested_by,created_at,completed_at FROM report_executions WHERE report_id=? AND id=?",
             (report_id, execution_id),
@@ -270,6 +293,8 @@ def get_report_execution(report_id: str, execution_id: str, user: dict = Depends
 @router.get("/reports/{report_id}/executions")
 def list_report_executions(report_id: str, user: dict = Depends(get_current_user)):
     with connect() as db:
+        if _get_resource(db, "reports", report_id, user) is None:
+            raise HTTPException(404, "قالب گزارش پیدا نشد.")
         rows = db.execute(
             "SELECT id,report_id,status,parameters,result,requested_by,created_at,completed_at FROM report_executions WHERE report_id=? ORDER BY created_at DESC LIMIT 100",
             (report_id,),
@@ -317,7 +342,7 @@ def record_production_quantity(run_id: str, body: ProductionQuantityRequest,
     if not math.isfinite(body.quantity) or not math.isfinite(body.scrap_quantity):
         raise HTTPException(422, "مقادیر تولید باید عدد محدود باشند.")
     with connect() as db:
-        row = _get_resource(db, "productionRuns", run_id)
+        row = _get_resource(db, "productionRuns", run_id, user)
         if row is None:
             raise HTTPException(404, "اجرای تولید پیدا نشد.")
         if row.get("status") != "در حال تولید":
@@ -349,7 +374,7 @@ def complete_production_run(run_id: str, user: dict = Depends(get_current_user))
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه تکمیل تولید را ندارد.")
     with connect() as db:
-        row = _get_resource(db, "productionRuns", run_id)
+        row = _get_resource(db, "productionRuns", run_id, user)
         if row is None:
             raise HTTPException(404, "اجرای تولید پیدا نشد.")
         if row.get("status") != "در حال تولید":
@@ -368,9 +393,15 @@ def complete_production_run(run_id: str, user: dict = Depends(get_current_user))
 @router.get("/production-runs/{run_id}/events")
 def production_run_events(run_id: str, user: dict = Depends(get_current_user)):
     with connect() as db:
-        exists = db.execute(
-            "SELECT 1 FROM resources WHERE collection='productionRuns' AND id=?", (run_id,)
-        ).fetchone()
+        if user["role"] == "Organization Admin":
+            exists = db.execute(
+                "SELECT 1 FROM resources WHERE collection='productionRuns' AND id=?", (run_id,)
+            ).fetchone()
+        else:
+            exists = db.execute(
+                "SELECT 1 FROM resources WHERE collection='productionRuns' AND id=? AND factory_id=?",
+                (run_id, user["factory_id"]),
+            ).fetchone()
         if not exists:
             raise HTTPException(404, "اجرای تولید پیدا نشد.")
         rows = db.execute(
@@ -388,7 +419,7 @@ def record_batch_weighments(batch_id: str, body: BatchWeighmentsRequest,
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه ثبت توزین را ندارد.")
     with connect() as db:
-        batch = _get_resource(db, "batches", batch_id)
+        batch = _get_resource(db, "batches", batch_id, user)
         if batch is None:
             raise HTTPException(404, "بچ پیدا نشد.")
         if batch.get("status") != "در حال توزین":
@@ -397,11 +428,17 @@ def record_batch_weighments(batch_id: str, body: BatchWeighmentsRequest,
         if not 0 <= tolerance <= 100:
             raise HTTPException(422, "درصد تلرانس بچ معتبر نیست.")
         config_id = batch.get("config_id") or batch.get("batch_config_id")
-        config = _get_resource(db, "batchConfigs", config_id) if config_id else None
+        config = _get_resource(db, "batchConfigs", config_id, user) if config_id else None
         if config is None and batch.get("formula"):
-            config_row = db.execute(
-                "SELECT id,payload FROM resources WHERE collection='batchConfigs' ORDER BY updated_at DESC"
-            ).fetchall()
+            if user["role"] == "Organization Admin":
+                config_row = db.execute(
+                    "SELECT id,payload FROM resources WHERE collection='batchConfigs' ORDER BY updated_at DESC"
+                ).fetchall()
+            else:
+                config_row = db.execute(
+                    "SELECT id,payload FROM resources WHERE collection='batchConfigs' AND factory_id=? ORDER BY updated_at DESC",
+                    (user["factory_id"],),
+                ).fetchall()
             for item in config_row:
                 candidate = json_load(item["payload"], {}) or {}
                 if batch.get("formula") in {candidate.get("formula"), candidate.get("name"), candidate.get("code")}:
@@ -438,7 +475,13 @@ def record_batch_weighments(batch_id: str, body: BatchWeighmentsRequest,
 @router.get("/batches/{batch_id}/weighments")
 def list_batch_weighments(batch_id: str, user: dict = Depends(get_current_user)):
     with connect() as db:
-        exists = db.execute("SELECT 1 FROM resources WHERE collection='batches' AND id=?", (batch_id,)).fetchone()
+        if user["role"] == "Organization Admin":
+            exists = db.execute("SELECT 1 FROM resources WHERE collection='batches' AND id=?", (batch_id,)).fetchone()
+        else:
+            exists = db.execute(
+                "SELECT 1 FROM resources WHERE collection='batches' AND id=? AND factory_id=?",
+                (batch_id, user["factory_id"]),
+            ).fetchone()
         if not exists:
             raise HTTPException(404, "بچ پیدا نشد.")
         rows = db.execute(
@@ -454,7 +497,7 @@ def complete_batch(batch_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه تکمیل بچ را ندارد.")
     with connect() as db:
-        batch = _get_resource(db, "batches", batch_id)
+        batch = _get_resource(db, "batches", batch_id, user)
         if batch is None:
             raise HTTPException(404, "بچ پیدا نشد.")
         if batch.get("status") != "در حال توزین":
@@ -469,7 +512,7 @@ def complete_batch(batch_id: str, user: dict = Depends(get_current_user)):
         if not latest:
             raise HTTPException(409, "برای این بچ هنوز هیچ توزینی ثبت نشده است.")
         config_id = batch.get("config_id") or batch.get("batch_config_id")
-        config = _get_resource(db, "batchConfigs", config_id) if config_id else None
+        config = _get_resource(db, "batchConfigs", config_id, user) if config_id else None
         expected = {str(item.get("bin")) for item in (config or {}).get("hoppers", []) if item.get("bin")}
         if expected and set(latest) != expected:
             raise HTTPException(409, "توزین همه هاپرهای تعریف‌شده باید ثبت شود.")
