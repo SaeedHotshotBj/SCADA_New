@@ -207,6 +207,18 @@ export async function handleAction(action, element) {
       toast(compact ? "فاصله‌گذاری داشبورد فشرده شد." : "چیدمان عادی داشبورد فعال شد.", "info");
       break;
     }
+    case "filter-tag-plc": {
+      const page = element.closest(".classic-page");
+      if (!page) break;
+      const selectedPlc = element.dataset.plc || "all";
+      page.querySelectorAll(".machine-card[data-plc-id]").forEach(card => {
+        card.hidden = selectedPlc !== "all" && card.dataset.plcId !== selectedPlc;
+      });
+      const group = element.closest(".classic-tabs");
+      group?.querySelectorAll("button").forEach(button => button.classList.toggle("active", button === element));
+      toast(selectedPlc === "all" ? "همه تگ‌ها نمایش داده شدند." : "تگ‌های PLC انتخاب‌شده نمایش داده شدند.", "info");
+      break;
+    }
     case "filter-read-write": {
       const table = document.querySelector('[data-collection-name="tags"] .data-table tbody');
       if (!table) break;
