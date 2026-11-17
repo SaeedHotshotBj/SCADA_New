@@ -59,8 +59,8 @@ def latest(user: dict = Depends(get_current_user)):
             edges = db.execute("SELECT id,name,status,last_seen FROM edge_devices WHERE factory_id=? ORDER BY created_at",
                                (user.get("factory_id") or "",)).fetchall()
     return {"items":[{"tag_id":t["id"],"name":t.get("name"),"value":t.get("value"),
-                      "unit":t.get("unit",""),"type":t.get("type"),"quality":"DEMO",
-                      "source":"demo-seed-or-simulator","sampled_at":t["updated_at"]} for t in tags],
+                      "unit":t.get("unit",""),"type":t.get("type"),"quality":t.get("last_quality") or "DEMO",
+                      "source":t.get("last_source") or "demo-seed-or-simulator","sampled_at":t["updated_at"]} for t in tags],
             "edges":[dict(e) for e in edges],
             "note":"مقادیر دارای quality=DEMO هستند و داده‌ی PLC واقعی محسوب نمی‌شوند."}
 
@@ -223,7 +223,7 @@ async def demo_simulator_loop(stop_event: asyncio.Event) -> None:
 async def websocket_identity(websocket: WebSocket) -> dict | None:
     token=websocket.cookies.get("scada_session")
     if not token:
-        return False
+        return None
     now=utc_now()
     with connect() as db:
         row=db.execute(
@@ -243,15 +243,17 @@ async def live_socket(websocket: WebSocket):
         while True:
             with connect() as db:
                 identity = await websocket_identity(websocket)
-                if identity is None:
+                if not identity:
                     await websocket.close(code=4401)
                     return
                 tags = _tag_rows(db, identity.get("factory_id"), restrict=identity["role"] != "Organization Admin")
             await websocket.send_json({
                 "type":"telemetry.snapshot",
-                "quality":"DEMO",
+                "quality":"MIXED",
                 "items":[{"tag_id":t["id"],"name":t.get("name"),"value":t.get("value"),
-                          "unit":t.get("unit",""),"quality":"DEMO","sampled_at":t.get("updated_at")} for t in tags],
+                          "unit":t.get("unit",""),"quality":t.get("last_quality") or "DEMO",
+                          "source":t.get("last_source") or "demo-seed-or-simulator",
+                          "sampled_at":t.get("updated_at")} for t in tags],
             })
             await asyncio.sleep(5)
     except WebSocketDisconnect:
