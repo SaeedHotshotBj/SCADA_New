@@ -55,7 +55,7 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
     required = {
         "users": ("name", "email", "role"),
         "factories": ("name", "code"),
-        "plcs": ("name", "protocol", "address"),
+        "plcs": ("name", "protocol", "address", "factory_id"),
         "tags": ("name", "plc", "type", "address", "access"),
         "alarms": ("name", "severity", "tag", "operator", "threshold"),
         "trends": ("name", "tags", "period"),
@@ -113,13 +113,21 @@ def _public_user(row) -> dict:
 
 
 def validate_references(collection: str, payload: dict[str, Any], db) -> None:
+    if collection == "plcs" and not payload.get("factory_id"):
+        raise HTTPException(status_code=422, detail="هر PLC باید به یک کارخانه تخصیص داده شود.")
     if collection == "tags" and payload.get("plc"):
         plc = db.execute(
-            "SELECT 1 FROM resources WHERE collection='plcs' AND id=?",
+            "SELECT factory_id FROM resources WHERE collection='plcs' AND id=?",
             (payload["plc"],),
         ).fetchone()
         if plc is None:
             raise HTTPException(status_code=422, detail="PLC انتخاب‌شده در سامانه ثبت نشده است.")
+        plc_factory_id = plc["factory_id"]
+        tag_factory_id = payload.get("factory_id")
+        if tag_factory_id and plc_factory_id and tag_factory_id != plc_factory_id:
+            raise HTTPException(status_code=422, detail="تگ و PLC باید به یک کارخانه تخصیص داده شوند.")
+        if not tag_factory_id and plc_factory_id:
+            payload["factory_id"] = plc_factory_id
     if collection == "alarms" and payload.get("tag"):
         tag = db.execute(
             "SELECT 1 FROM resources WHERE collection='tags' AND id=?",
