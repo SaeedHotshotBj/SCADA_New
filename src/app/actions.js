@@ -5,7 +5,7 @@ import { escapeHtml } from "../core/format.js";
 const schemas = {
   "new-user": { title: "کاربر جدید", collection: "users", fields: [["name", "نام", "text"], ["email", "ایمیل", "email"], ["role", "نقش", "select", ["Engineer", "Operator", "Production Planner", "Quality Control", "Production Manager"]], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
   "new-factory": { title: "کارخانه جدید", collection: "factories", fields: [["name", "نام کارخانه", "text"], ["code", "کد", "text"], ["edge", "Edge", "text"], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
-  "new-plc": { title: "PLC جدید", collection: "plcs", fields: [["name", "نام", "text"], ["protocol", "پروتکل", "select", ["modbus-tcp", "modbus-rtu", "s7", "simulator"]], ["address", "آدرس", "text"], ["unit", "شناسه Unit", "text"], ["poll", "Poll interval", "text"]] },
+  "new-plc": { title: "PLC جدید", collection: "plcs", fields: [["factory_id", "کارخانه", "select", []], ["name", "نام", "text"], ["protocol", "پروتکل", "select", ["modbus-tcp", "modbus-rtu", "s7", "simulator"]], ["address", "آدرس", "text"], ["unit", "شناسه Unit", "text"], ["poll", "Poll interval", "text"]] },
   "new-tag": { title: "تگ جدید", collection: "tags", fields: [["name", "نام تگ", "text"], ["plc", "PLC", "select", []], ["type", "نوع", "select", ["bool", "int16", "uint16", "int32", "uint32", "float32", "string"]], ["address", "آدرس", "text"], ["access", "دسترسی", "select", ["read", "read_write"]], ["unit", "واحد", "text"]] },
   "new-alarm": { title: "قانون آلارم جدید", collection: "alarms", fields: [["name", "نام آلارم", "text"], ["severity", "شدت", "select", ["بحرانی", "زیاد", "متوسط", "کم"]], ["tag", "تگ مرتبط", "select", []], ["operator", "شرط مقایسه", "select", [">", ">=", "<", "<=", "==", "!="]], ["threshold", "حد آستانه", "number"], ["status", "وضعیت قانون", "select", ["فعال", "غیرفعال"]]] },
   "new-trend": { title: "روند جدید", collection: "trends", fields: [["name", "نام روند", "text"], ["tags", "تگ‌ها", "text"], ["period", "بازه نمونه‌برداری", "select", ["۱ دقیقه", "۵ دقیقه", "۱۵ دقیقه", "۱ ساعت"]], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
@@ -40,7 +40,9 @@ function openModal(action, record = null) {
         ? store.list("plcs").map(plc => ({ value: plc.id, label: plc.name }))
         : name === "tag" && schema.collection === "alarms"
           ? store.list("tags").map(tag => ({ value: tag.id, label: tag.name }))
-          : (options || []).map(option => ({ value: option, label: option }));
+          : name === "factory_id" && schema.collection === "plcs"
+            ? store.list("factories").map(factory => ({ value: factory.id, label: factory.name }))
+            : (options || []).map(option => ({ value: option, label: option }));
       return `<label class="field"><span>${escapeHtml(label)}</span><select name="${name}" required>${sourceOptions.map(option => `<option value="${escapeHtml(option.value)}" ${String(option.value) === String(value) ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label>`;
     }
     return `<label class="field"><span>${escapeHtml(label)}</span><input name="${name}" type="${type}" value="${escapeHtml(value)}" ${type === "number" ? "min=0 step=any" : ""} required /></label>`;
