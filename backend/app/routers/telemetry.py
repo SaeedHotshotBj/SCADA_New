@@ -79,6 +79,87 @@ def _tag_rows(db):
     return output
 
 
+def _evaluate_tag_alarms(db, tag_id: str, value: Any, evaluated_at: str | None = None) -> list[dict]:
+    """Evaluate configured numeric alarm rules for one tag and persist transitions.
+
+    Rule fields: tag (tag id or name), operator, threshold, optional enabled.
+    The alarm record's status is the event state; condition_active tracks whether
+    the process condition is still present after an operator acknowledges it.
+    """
+    numeric = _numeric_value(value)
+    if numeric is None:
+        return []
+    now = evaluated_at or utc_now()
+    tag_row = db.execute(
+        "SELECT payload FROM resources WHERE collection='tags' AND id=?",
+        (tag_id,),
+    ).fetchone()
+    if tag_row is None:
+        return []
+    tag_payload = json_load(tag_row["payload"], {}) or {}
+    tag_name = tag_payload.get("name")
+    rows = db.execute(
+        "SELECT id,payload FROM resources WHERE collection='alarms'"
+    ).fetchall()
+    transitions: list[dict] = []
+    comparators = {
+        ">": lambda actual, limit: actual > limit,
+        ">=": lambda actual, limit: actual >= limit,
+        "<": lambda actual, limit: actual < limit,
+        "<=": lambda actual, limit: actual <= limit,
+        "==": lambda actual, limit: actual == limit,
+        "!=": lambda actual, limit: actual != limit,
+    }
+    for row in rows:
+        alarm = json_load(row["payload"], {}) or {}
+        configured_tag = str(alarm.get("tag") or "")
+        if configured_tag not in {tag_id, str(tag_name or "")}:
+            continue
+        if alarm.get("status") == "غیرفعال" or alarm.get("enabled") is False:
+            continue
+        operator = alarm.get("operator")
+        comparator = comparators.get(operator)
+        threshold = _numeric_value(alarm.get("threshold"))
+        if comparator is None or threshold is None:
+            continue
+        condition = comparator(numeric, threshold)
+        was_active = bool(alarm.get("condition_active", False))
+        previous_status = alarm.get("status", "فعال")
+        if condition:
+            alarm["condition_active"] = True
+            alarm["last_value"] = value
+            alarm["evaluated_at"] = now
+            if not was_active:
+                alarm["status"] = "فعال"
+                alarm["triggered_at"] = now
+                alarm["trigger_count"] = int(alarm.get("trigger_count", 0)) + 1
+                transitions.append({"id": row["id"], "status": "فعال", "value": value})
+                audit(
+                    db, None, "alarm.triggered", "alarms", row["id"],
+                    {"tag_id": tag_id, "value": value, "operator": operator, "threshold": threshold},
+                )
+            elif previous_status not in {"تأییدشده", "فعال"}:
+                alarm["status"] = "فعال"
+                transitions.append({"id": row["id"], "status": "فعال", "value": value})
+        else:
+            alarm["last_value"] = value
+            alarm["evaluated_at"] = now
+            if was_active:
+                alarm["condition_active"] = False
+                alarm["status"] = "رفع‌شده"
+                alarm["resolved_at"] = now
+                transitions.append({"id": row["id"], "status": "رفع‌شده", "value": value})
+                audit(
+                    db, None, "alarm.cleared", "alarms", row["id"],
+                    {"tag_id": tag_id, "value": value, "operator": operator, "threshold": threshold},
+                )
+        db.execute(
+            "UPDATE resources SET payload=?,updated_at=? WHERE collection='alarms' AND id=?",
+            (json_dump(alarm), now, row["id"]),
+        )
+    return transitions
+
+
 def _latest_sample_map(db) -> dict[str, dict]:
     rows = db.execute(
         """SELECT s.id,s.tag_id,s.value_json,s.quality,s.source,s.sampled_at
@@ -186,7 +267,9 @@ def ingest_edge_telemetry(
                     "GOOD", f"edge:{edge['id']}", sampled_at_text,
                 ),
             )
+            alarm_transitions = _evaluate_tag_alarms(db, sample.tag_id, value, sampled_at_text)
             accepted.append({
+                "alarm_transitions": alarm_transitions,
                 "tag_id": sample.tag_id,
                 "value": value,
                 "quality": "GOOD",
@@ -256,7 +339,8 @@ def write_tag(tag_id: str, body: TagWrite, user: dict = Depends(get_current_user
             "INSERT INTO telemetry_samples(factory_id,tag_id,value_json,quality,source,sampled_at) VALUES(?,?,?,?,?,?)",
             (row["factory_id"],tag_id,json_dump(value),"DEMO","web-write-simulation",utc_now()),
         )
-    return {"tag_id":tag_id,"value":value,"quality":"DEMO","execution_mode":"SIMULATION",
+        alarm_transitions = _evaluate_tag_alarms(db, tag_id, value)
+    return {"tag_id":tag_id,"value":value,"quality":"DEMO","alarm_transitions":alarm_transitions,"execution_mode":"SIMULATION",
             "warning":"مقدار فقط در پایگاه داده‌ی دمو تغییر کرد؛ به PLC واقعی نوشته نشد."}
 
 
@@ -284,6 +368,7 @@ async def demo_simulator_loop(stop_event: asyncio.Event) -> None:
                         "INSERT INTO telemetry_samples(factory_id,tag_id,value_json,quality,source,sampled_at) VALUES(?,?,?,?,?,?)",
                         (tag.get("factory_id"),tag["id"],json_dump(value),"DEMO","demo-simulator",now),
                     )
+                    _evaluate_tag_alarms(db, tag["id"], value, now)
                 db.execute(
                     "DELETE FROM telemetry_samples WHERE sampled_at < ?",
                     ((datetime.now(timezone.utc)-timedelta(days=30)).isoformat(timespec="seconds"),),
