@@ -5,16 +5,16 @@ function liveDataPage() {
   const rows = store.list("tags");
   const columns = [
     { key: "name", label: "تگ" }, { key: "value", label: "مقدار" },
-    { key: "unit", label: "واحد" }, { key: "quality", label: "کیفیت", render: () => pill("GOOD", "success") },
-    { key: "time", label: "زمان", render: () => "۱۱:۰۹:۲۷" },
-    { key: "write", label: "نوشتن", render: row => row.access === "read_write" ? `<button class="btn btn-light btn-sm" data-action="open-modal-info">Write</button>` : "—" }
+    { key: "unit", label: "واحد" }, { key: "quality", label: "کیفیت", render: row => pill(row.last_quality || "DEMO", row.last_quality === "BAD" ? "danger" : row.last_quality === "GOOD" ? "success" : "warning") },
+    { key: "time", label: "زمان", render: row => row.updated_at ? new Date(row.updated_at).toLocaleTimeString("fa-IR") : "—" },
+    { key: "write", label: "نوشتن", render: row => row.access === "read_write" ? `<button class="btn btn-light btn-sm" data-action="write-tag" data-id="${row.id}">Write</button>` : "—" }
   ];
   return `<div>${pageHeader("مقادیر زنده تگ", "داده‌های زنده از PLC از طریق WebSocket؛ مقادیر این صفحه نمونه هستند.", pill("متصل · WEBSOCKET", "success"))}${panel("مقادیر لحظه‌ای", dataTable(columns, rows))}</div>`;
 }
 
 function hmiPagesPage() {
-  const designs = ["نمای کلی خط", "کشش مفتول راد", "مولتی‌وایر", "بانچر", "قرقره‌پیچ", "اکسترودر عایق", "استرندر", "اکسترودر روشن", "انرژی و تأسیسات", "آلارم‌ها"];
-  return `<div>${pageHeader("صفحات HMI", "صفحات عملیاتی خود را با قطعات دلخواه بسازید — گیج، مخزن، پمپ، نمودار و صفحه سفارشی", button("صفحه جدید", "open-modal-info", { icon: "+" }))}<div class="hmi-gallery">${designs.map((name, index) => `<article class="hmi-card"><div class="hmi-preview"><div class="preview-top"></div><div class="preview-layout"><div class="preview-gauge"></div><div class="preview-info"></div><div class="preview-chart"></div><div class="preview-tiles"><i></i><i></i><i></i><i></i><i></i></div></div></div><div class="hmi-card-footer"><span><b>${index + 1}.</b> ${name}</span><small>کلاسیک · ${index % 2 ? 54 : 72} قطعه</small><div><button class="btn btn-light btn-sm" data-action="open-modal-info">ویرایش</button><a class="btn btn-link btn-sm" href="#/live/classic">اجرا ›</a></div></div></article>`).join("")}</div></div>`;
+  const designs = store.list("hmiPages");
+  return `<div>${pageHeader("صفحات HMI", "صفحات عملیاتی ذخیره‌شده در پایگاه داده", button("صفحه جدید", "new-hmi-page", { icon: "+" }))}<div class="hmi-gallery">${designs.map((page, index) => { const name = page.name; return `<article class="hmi-card"><div class="hmi-preview"><div class="preview-top"></div><div class="preview-layout"><div class="preview-gauge"></div><div class="preview-info"></div><div class="preview-chart"></div><div class="preview-tiles"><i></i><i></i><i></i><i></i><i></i></div></div></div><div class="hmi-card-footer"><span><b>${index + 1}.</b> ${name}</span><small>${page.machine || "ماشین نامشخص"} · ${page.components || 0} قطعه</small><div><button class="btn btn-light btn-sm" data-action="edit-record" data-id="${page.id}">ویرایش</button><a class="btn btn-link btn-sm" href="#/live/classic">اجرا ›</a></div></div></article>`; }).join("")}</div></div>`;
 }
 
 const machineTabs = ["نمای کلی", "کشش مفتول راد", "مولتی‌وایر", "بانچر", "اکسترودر عایق", "کابل‌کشی", "اکسترودر روشن", "قرقره‌پیچ", "انرژی", "آلارم‌ها"];
@@ -30,7 +30,12 @@ function alarmsPage() {
 
 function trendsPage() {
   const rows = store.list("trends");
-  return `<div data-collection-name="trends" data-edit-action="new-trend">${pageHeader("روندها", "نمایش زنده و تاریخی تگ‌های انتخاب‌شده", button("روند جدید", "new-trend", { icon: "+" }))}<div class="trend-tags">${rows.map((row, i) => `<button class="${i === 0 ? "active" : ""}" data-action="select-range">${row.name}</button>`).join("")}</div><div class="trend-controls"><span>${pill("زنده · به‌روزرسانی هر ۵ ثانیه", "success")}</span><div class="range-pills">${["۱ دقیقه", "۵ دقیقه", "۱۵ دقیقه", "۱ ساعت", "۶ ساعت", "بازه دلخواه"].map((x, i) => `<button data-action="select-range" class="${i === 1 ? "active" : ""}">${x}</button>`).join("")}</div></div><div class="two-col-grid">${lineChart("سرعت ماشین‌های خط", undefined, "#e7a300", [299, 300, 301, 299, 300, 299, 301])}${lineChart("دمای زون‌های اکسترودر", undefined, "#12b9aa", [170, 170, 168, 184, 185, 181, 183])}</div>${panel("مدیریت روندها", dataTable([{ key: "name", label: "نام روند" }, { key: "tags", label: "تگ‌ها" }, { key: "period", label: "بازه" }, { key: "status", label: "وضعیت", render: row => pill(row.status, "success") }], rows, { actions: true }))}</div>`;
+  const history = store.list("trendHistory");
+  const historyValues = history.map(item => Number(item.value)).filter(Number.isFinite);
+  const trendVisual = historyValues.length
+    ? lineChart("تاریخچه تگ انتخاب‌شده از دیتابیس", undefined, "#1699c8", historyValues.slice(-60))
+    : emptyState("برای تگ انتخاب‌شده هنوز تاریخچه‌ای در دیتابیس ثبت نشده است.");
+  return `<div data-collection-name="trends" data-edit-action="new-trend">${pageHeader("روندها", "نمایش زنده و تاریخی تگ‌های انتخاب‌شده", button("روند جدید", "new-trend", { icon: "+" }))}<div class="trend-tags">${rows.map((row, i) => `<button class="${i === 0 ? "active" : ""}" data-action="select-range">${row.name}</button>`).join("")}</div><div class="trend-controls"><span>${pill("زنده · به‌روزرسانی هر ۵ ثانیه", "success")}</span><div class="range-pills">${["۱ دقیقه", "۵ دقیقه", "۱۵ دقیقه", "۱ ساعت", "۶ ساعت", "بازه دلخواه"].map((x, i) => `<button data-action="select-range" class="${i === 1 ? "active" : ""}">${x}</button>`).join("")}</div></div><div class="two-col-grid">${trendVisual}</div>${panel("مدیریت روندها", dataTable([{ key: "name", label: "نام روند" }, { key: "tags", label: "تگ‌ها" }, { key: "period", label: "بازه" }, { key: "status", label: "وضعیت", render: row => pill(row.status, "success") }], rows, { actions: true }))}</div>`;
 }
 
 export function renderLive(path) {
