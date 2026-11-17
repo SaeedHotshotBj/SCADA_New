@@ -181,6 +181,7 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                                 raise ValueError
                         except (TypeError, ValueError):
                             raise HTTPException(status_code=422, detail=f"حد {bound} در جزء شماره {index + 1} معتبر نیست.")
+            payload["components"] = len(layout)
     factory_id = payload.get("factory_id")
     if factory_id:
         factory = db.execute(
