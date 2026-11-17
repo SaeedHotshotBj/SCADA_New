@@ -80,7 +80,17 @@ function emit() {
 
 async function hydrate() {
   const snapshot = await api.bootstrap();
-  state = { ...clone(seed), ...snapshot.data };
+  const analytics = await api.analyticsOverview().catch(error => ({
+    error: error.message || "دریافت شاخص‌های تحلیلی انجام نشد."
+  }));
+  const edgeResult = await api.listEdges().catch(() => ({ items: [] }));
+  state = {
+    ...clone(seed),
+    ...snapshot.data,
+    analytics,
+    edges: edgeResult.items || [],
+    trendHistory: state.trendHistory || [],
+  };
   currentUser = snapshot.user;
   serverConnected = true;
   emit();
