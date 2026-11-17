@@ -16,7 +16,7 @@ function qualityDashboard() {
 }
 
 function qualityRecordsPage() {
-  const rows = [...store.list("qc"), ...qcSamples.filter(sample => !store.list("qc").some(row => row.code === sample.code))];
+  const rows = store.list("qc");
   return `<div class="collection-page" data-collection-name="qc" data-edit-action="new-qc">${pageHeader("سوابق کنترل کیفیت", "جستجو و مشاهده نتایج بازرسی‌های ثبت‌شده", button("ثبت کنترل کیفیت", "new-qc", { icon: "+" }))}
     <div class="filter-bar"><label class="field"><span>محصول</span><select><option>همه محصولات</option><option>سیم 1×10 افشان</option><option>کابل قدرت NYY</option></select></label><label class="field"><span>تصمیم</span><select><option>همه</option><option>قبول</option><option>مشروط</option><option>رد</option></select></label><label class="field"><span>ماشین</span><select><option>همه ماشین‌ها</option><option>اکسترودر عایق</option><option>کابل‌کشی</option></select></label><button class="btn btn-primary btn-sm" data-action="apply-filter">جستجو</button></div>
     ${panel("سوابق بازرسی", dataTable([{ key: "code", label: "شماره کنترل" }, { key: "product", label: "محصول" }, { key: "machine", label: "ماشین" }, { key: "inspector", label: "بازرس", render: row => row.inspector || "کارشناس کیفیت" }, { key: "decision", label: "تصمیم", render: row => pill(row.decision, row.decision === "قبول" ? "success" : row.decision === "رد" ? "danger" : "warning") }, { key: "time", label: "زمان" }], rows, { actions: true }))}
@@ -24,11 +24,8 @@ function qualityRecordsPage() {
 }
 
 function pendingPage() {
-  const pending = [
-    { code: "QC-CB-001152", product: "کابل قدرت NYY 4×16", machine: "کابل‌کشی", sample: "نمونه نهایی", created: "امروز · ۱۱:۱۰", status: "در انتظار" },
-    { code: "QC-CB-001151", product: "سیم افشان H07V-K 4mm²", machine: "بانچر", sample: "کنترل حین تولید", created: "امروز · ۱۰:۲۵", status: "در انتظار" }
-  ];
-  return `<div>${pageHeader("در انتظار بررسی", "نمونه‌ها و بازرسی‌هایی که منتظر تصمیم کارشناس کیفیت هستند.")}${statCard("موارد در انتظار", pending.length, "مورد", "orange")}${panel("صف بررسی کیفیت", dataTable([{ key: "code", label: "شماره کنترل" }, { key: "product", label: "محصول" }, { key: "machine", label: "ماشین" }, { key: "sample", label: "نوع نمونه" }, { key: "created", label: "زمان ثبت" }, { key: "action", label: "اقدام", render: row => `<button class="btn btn-primary btn-sm" data-action="review-qc" data-id="${row.code}">بررسی نتیجه</button>` }], pending))}</div>`;
+  const pending = store.list("qc").filter(row => ["در انتظار", "در حال بررسی"].includes(row.status));
+  return `<div>${pageHeader("در انتظار بررسی", "نمونه‌هایی که از پایگاه داده منتظر تصمیم کارشناس کیفیت هستند.")}${statCard("موارد در انتظار", pending.length, "مورد", "orange")}${panel("صف بررسی کیفیت", pending.length ? dataTable([{ key: "code", label: "شماره کنترل" }, { key: "product", label: "محصول" }, { key: "machine", label: "ماشین" }, { key: "created_at", label: "زمان ثبت" }, { key: "action", label: "اقدام", render: row => `<button class="btn btn-primary btn-sm" data-action="review-qc" data-id="${row.id}">بررسی نتیجه</button>` }], pending) : emptyState("رکوردی در انتظار بررسی وجود ندارد."))}</div>`;
 }
 
 function planPage() {
