@@ -35,6 +35,8 @@ Set a long random `SCADA_SECRET_KEY` before exposing the API beyond localhost. F
 - `/api/resources/{collection}`: validated CRUD for the modules represented in the UI
 - `/api/operations`: state transitions for production runs, batches, workflow approval, QC decisions and report execution
 - `/api/edge`: one-time Edge token issue and authenticated heartbeat
-- `/api/telemetry` and `/ws/live`: stored samples and explicitly labelled demo telemetry
+- `/api/telemetry`: stored samples, explicit DEMO/SIMULATION tag writes, and authenticated Edge batch ingest at `/api/telemetry/edge/ingest` using `X-Edge-Token`.
+- `/api/analytics`: database-derived counters, SQLite storage measurements and audit history.
+- `/api/telemetry/ws/live`: authenticated live snapshots with per-tag quality/source labels.
 
-The database is created automatically at first start. A demonstration administrator is seeded: `admin@demo-cable.local / demo`. Change this password before using non-demo data.
+The database is created automatically at first start. A demonstration administrator is seeded: `admin@demo-cable.local / demo1234`. Change this password and set a unique `SCADA_SECRET_KEY` before using non-demo data.
