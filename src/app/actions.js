@@ -115,6 +115,16 @@ function openProductionQuantityModal(runId) {
   document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
 }
 
+function downloadJson(filename, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function handleAction(action, element) {
   switch (action) {
     case "new-user": case "new-factory": case "new-plc": case "new-tag": case "new-alarm": case "new-trend": case "new-report": case "new-process": case "new-template": case "new-order": case "new-unit": case "new-qc": case "new-run": case "new-product": case "new-price": case "new-machine": case "new-hmi-page": case "new-batch-config":
@@ -180,6 +190,10 @@ export async function handleAction(action, element) {
       const currentRun = runId ? store.list("productionRuns").find(item => item.id === runId) : null;
       if (action === "start-run" && currentRun?.status === "در حال تولید") {
         toast("این اجرای تولید از قبل فعال است.", "info");
+        break;
+      }
+      if (action === "stop-run" && currentRun && currentRun.status !== "در حال تولید") {
+        toast("این اجرای تولید در حال حاضر فعال نیست.", "warning");
         break;
       }
       if (!runId && action === "start-run" && !card?.dataset.orderId && card?.dataset.machine) {
@@ -254,7 +268,8 @@ export async function handleAction(action, element) {
       if (!reportId) { toast("ابتدا یک قالب گزارش فعال ثبت کنید.", "warning"); break; }
       const result = await api.runReport(reportId, parameters);
       await store.refresh();
-      toast(`گزارش از داده‌های ذخیره‌شده اجرا شد: ${result.id}`);
+      downloadJson(`scada-report-${result.id}.json`, result.result || result);
+      toast(`گزارش ذخیره‌شده تولید و فایل JSON آن دریافت شد: ${result.id}`);
       break;
     }
     case "write-tag": { const tag = store.list("tags").find(item => item.id === element.dataset.id); if (!tag) break; const raw = prompt(`مقدار جدید برای ${tag.name} (${tag.type})`, String(tag.value ?? "")); if (raw === null) break; let value = raw; if (tag.type === "bool") { const normalized = raw.trim().toLowerCase(); if (!["true","false","1","0"].includes(normalized)) throw new Error("Boolean باید true / false یا 1 / 0 باشد."); value = normalized === "true" || normalized === "1"; } else if (["int16","uint16","int32","uint32"].includes(tag.type)) { if (!/^-?\d+$/.test(raw.trim())) throw new Error("مقدار این تگ باید عدد صحیح باشد."); value = Number.parseInt(raw, 10); } else if (tag.type === "float32") { value = Number(raw); if (!Number.isFinite(value)) throw new Error("مقدار این تگ باید عدد معتبر باشد."); } await api.writeTag(tag.id, value); await store.refresh(); toast("مقدار در دیتابیس شبیه‌سازی تغییر کرد؛ PLC واقعی نوشته نشد.", "info"); break; }
