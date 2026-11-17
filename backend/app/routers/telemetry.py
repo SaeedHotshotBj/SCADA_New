@@ -79,16 +79,45 @@ def _tag_rows(db):
     return output
 
 
+def _latest_sample_map(db) -> dict[str, dict]:
+    rows = db.execute(
+        """SELECT s.id,s.tag_id,s.value_json,s.quality,s.source,s.sampled_at
+           FROM telemetry_samples s
+           JOIN (
+             SELECT tag_id,MAX(id) AS max_id
+             FROM telemetry_samples
+             GROUP BY tag_id
+           ) latest ON latest.max_id=s.id"""
+    ).fetchall()
+    return {row["tag_id"]: dict(row) for row in rows}
+
+
 @router.get("/latest")
 def latest(user: dict = Depends(get_current_user)):
     with connect() as db:
         tags = _tag_rows(db)
         edges = db.execute("SELECT id,name,status,last_seen FROM edge_devices ORDER BY created_at").fetchall()
-    return {"items":[{"tag_id":t["id"],"name":t.get("name"),"value":t.get("value"),
-                      "unit":t.get("unit",""),"type":t.get("type"),"quality":"DEMO",
-                      "source":"demo-seed-or-simulator","sampled_at":t["updated_at"]} for t in tags],
-            "edges":[dict(e) for e in edges],
-            "note":"مقادیر دارای quality=DEMO هستند و داده‌ی PLC واقعی محسوب نمی‌شوند."}
+        samples = _latest_sample_map(db)
+    items = []
+    for tag in tags:
+        sample = samples.get(tag["id"])
+        items.append({
+            "tag_id": tag["id"],
+            "name": tag.get("name"),
+            "value": json_load(sample["value_json"]) if sample else tag.get("value"),
+            "unit": tag.get("unit", ""),
+            "type": tag.get("type"),
+            "quality": sample["quality"] if sample else "UNSAMPLED",
+            "source": sample["source"] if sample else "seed",
+            "sampled_at": sample["sampled_at"] if sample else tag["updated_at"],
+        })
+    qualities = {item["quality"] for item in items}
+    return {
+        "items": items,
+        "edges": [dict(edge) for edge in edges],
+        "quality": next(iter(qualities)) if len(qualities) == 1 else "MIXED",
+        "note": "کیفیت هر مقدار از آخرین نمونه ذخیره‌شده خوانده می‌شود؛ مقدار seed به‌عنوان UNSAMPLED مشخص است.",
+    }
 
 
 @router.get("/history")
@@ -290,12 +319,25 @@ async def live_socket(websocket: WebSocket):
     try:
         while True:
             with connect() as db:
-                tags=_tag_rows(db)
+                tags = _tag_rows(db)
+                samples = _latest_sample_map(db)
+            items = []
+            for tag in tags:
+                sample = samples.get(tag["id"])
+                items.append({
+                    "tag_id": tag["id"],
+                    "name": tag.get("name"),
+                    "value": json_load(sample["value_json"]) if sample else tag.get("value"),
+                    "unit": tag.get("unit", ""),
+                    "quality": sample["quality"] if sample else "UNSAMPLED",
+                    "source": sample["source"] if sample else "seed",
+                    "sampled_at": sample["sampled_at"] if sample else tag.get("updated_at"),
+                })
+            qualities = {item["quality"] for item in items}
             await websocket.send_json({
-                "type":"telemetry.snapshot",
-                "quality":"DEMO",
-                "items":[{"tag_id":t["id"],"name":t.get("name"),"value":t.get("value"),
-                          "unit":t.get("unit",""),"quality":"DEMO","sampled_at":t.get("updated_at")} for t in tags],
+                "type": "telemetry.snapshot",
+                "quality": next(iter(qualities)) if len(qualities) == 1 else "MIXED",
+                "items": items,
             })
             await asyncio.sleep(5)
     except WebSocketDisconnect:
