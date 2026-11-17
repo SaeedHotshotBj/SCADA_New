@@ -1,5 +1,5 @@
 import { store } from "../../services/demo-store.js";
-import { button, dataTable, pageHeader, panel, pill, statCard, distributionDonutChart, barChart, emptyState } from "../../shared/ui.js";
+import { button, dataTable, pageHeader, panel, pill, statCard, distributionDonutChart, distributionBarChart, emptyState } from "../../shared/ui.js";
 
 function qualityDashboard() {
   const rows = store.list("qc");
@@ -28,7 +28,7 @@ function qualityDashboard() {
     </div>
     <div class="two-col-grid">
       ${distributionDonutChart("نتیجه بازرسی‌های ثبت‌شده", decisions)}
-      ${barChart("تعداد بازرسی بر اساس ماشین", machineRows.length ? machineRows.map(item => item.machine) : ["بدون داده"], machineRows.length ? machineRows.map(item => item.count) : [0])}
+      ${distributionBarChart("تعداد بازرسی بر اساس ماشین", machineRows.map(item => ({ name: item.machine, count: item.count })))}
     </div>
     <div class="two-col-grid">
       ${panel("خلاصه سوابق کنترل کیفیت", `<div class="storage-list"><div><span>کل بازرسی‌های ذخیره‌شده</span><b>${total.toLocaleString("fa-IR")}</b></div><div><span>تصمیم‌های ثبت‌شده</span><b>${(accepted + rejected + rows.filter(row => row.decision === "مشروط").length).toLocaleString("fa-IR")}</b></div><div><span>موارد در انتظار</span><b>${pending.toLocaleString("fa-IR")}</b></div></div>`)}
