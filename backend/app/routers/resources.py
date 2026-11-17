@@ -90,7 +90,7 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
             raise HTTPException(status_code=422, detail="ایمیل معتبر نیست.")
         payload["email"] = email
     numeric_fields = {
-        "orders": ("quantity", "progress"), "units": ("quantity",), "alarms": ("threshold",),
+        "orders": ("quantity", "progress"), "units": ("quantity",),
         "batches": ("target",), "productionRuns": ("target",),
         "prices": ("price",), "batchConfigs": ("samples", "tolerance_percent", "stabilization_seconds"),
         "controlPlans": ("sample_count",), "hmiPages": ("components",),
@@ -105,6 +105,14 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
                     payload[field] = number
                 except (ValueError, TypeError):
                     raise HTTPException(status_code=422, detail=f"{field} باید عدد معتبر و غیرمنفی باشد.")
+    if collection == "alarms" and "threshold" in payload:
+        try:
+            threshold = float(payload["threshold"])
+            if threshold != threshold or abs(threshold) == float("inf"):
+                raise ValueError
+            payload["threshold"] = threshold
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=422, detail="آستانه آلارم باید عدد محدود و معتبر باشد.")
     return payload
 
 
