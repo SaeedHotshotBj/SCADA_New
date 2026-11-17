@@ -113,6 +113,36 @@ export function distributionDonutChart(title, items = []) {
   return `<section class="panel donut-panel"><div class="panel-heading"><h3>${escapeHtml(title)}</h3></div><div class="panel-body donut-content"><svg viewBox="0 0 130 130">${circles}<text x="65" y="70" text-anchor="middle" class="donut-center">${faNumber(total)}</text></svg><div class="donut-legend">${legend}</div></div></section>`;
 }
 
+export function distributionBarChart(title, items = []) {
+  const valid = items.map(item => ({
+    name: String(item.name ?? "نامشخص"),
+    count: Math.max(0, Number(item.count) || 0),
+  }));
+  if (!valid.length || valid.every(item => item.count === 0)) {
+    return `<section class="panel chart-panel"><div class="panel-heading"><h3>${escapeHtml(title)}</h3></div><div class="panel-body">${emptyState("برای این نمودار هنوز داده‌ای ثبت نشده است.")}</div></section>`;
+  }
+  const width = 740;
+  const height = 220;
+  const left = 36;
+  const right = 16;
+  const usable = width - left - right;
+  const slot = usable / valid.length;
+  const barWidth = Math.min(58, slot * 0.58);
+  const max = Math.max(1, ...valid.map(item => item.count));
+  const bars = valid.map((item, index) => {
+    const barHeight = item.count / max * 132;
+    const x = left + slot * index + (slot - barWidth) / 2;
+    const y = 166 - barHeight;
+    const label = item.name.length > 14 ? item.name.slice(0, 13) + "…" : item.name;
+    return `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="5" fill="#2789c8"/><text x="${x + barWidth / 2}" y="184" text-anchor="middle">${escapeHtml(label)}</text><text x="${x + barWidth / 2}" y="${Math.max(12,y-6)}" text-anchor="middle">${faNumber(item.count)}</text>`;
+  }).join("");
+  const grids = [0,1,2,3].map(index => {
+    const y = 34 + index * 44;
+    return `<line x1="${left}" x2="${width-right}" y1="${y}" y2="${y}"/>`;
+  }).join("");
+  return `<section class="panel chart-panel"><div class="panel-heading"><h3>${escapeHtml(title)}</h3></div><div class="panel-body"><svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(title)}"><g class="chart-grid">${grids}</g>${bars}</svg></div></section>`;
+}
+
 export function emptyState(message = "داده‌ای برای نمایش وجود ندارد.") {
   return `<div class="empty-state"><span>▧</span><p>${escapeHtml(message)}</p></div>`;
 }
