@@ -291,8 +291,10 @@ def update_record(collection: str, record_id: str, body: ResourceInput, user: di
     if collection == "users":
         if user["role"] not in ADMIN_ROLES:
             raise HTTPException(status_code=403, detail="مدیریت کاربران فقط برای مدیر سامانه یا کارخانه مجاز است.")
-        if changes.get("role") == "Organization Admin" and user["role"] != "Organization Admin":
-            raise HTTPException(status_code=403, detail="تعیین نقش مدیر سازمان فقط برای مدیر سازمان مجاز است.")
+        if user["role"] == "Factory Admin" and changes.get("role") in ADMIN_ROLES:
+            raise HTTPException(status_code=403, detail="مدیر کارخانه نمی‌تواند نقش مدیر را به حساب دیگری بدهد.")
+        if "factory_id" in changes and user["role"] != "Organization Admin":
+            raise HTTPException(status_code=403, detail="تغییر کارخانه کاربر فقط برای مدیر سازمان مجاز است.")
     elif user["role"] not in ROLES - {"Operator"}:
         raise HTTPException(status_code=403, detail="نقش کاربری اجازه‌ی ویرایش رکورد ندارد.")
     now = utc_now()
@@ -302,14 +304,25 @@ def update_record(collection: str, record_id: str, body: ResourceInput, user: di
             row = db.execute("SELECT * FROM users WHERE id=?", (record_id,)).fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="کاربر پیدا نشد.")
-            merged = {"email":row["email"],"name":row["name"],"role":row["role"],"status":row["status"],**allowed}
-            db.execute("UPDATE users SET email=?,name=?,role=?,status=?,updated_at=? WHERE id=?",
-                       (merged["email"],merged["name"],merged["role"],merged["status"],now,record_id))
+            if user["role"] == "Factory Admin" and row["factory_id"] != user.get("factory_id"):
+                raise HTTPException(status_code=404, detail="کاربر پیدا نشد.")
+            allowed = {k:v for k,v in changes.items() if k in {"email","name","role","status","factory_id"}}
+            merged = {"email":row["email"],"name":row["name"],"role":row["role"],
+                      "status":row["status"],"factory_id":row["factory_id"],**allowed}
+            db.execute("UPDATE users SET email=?,name=?,role=?,status=?,factory_id=?,updated_at=? WHERE id=?",
+                       (merged["email"],merged["name"],merged["role"],merged["status"],merged["factory_id"],now,record_id))
             result = {"id":record_id, **merged, "updated_at":now}
         else:
             row = db.execute("SELECT * FROM resources WHERE collection=? AND id=?", (collection,record_id)).fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="رکورد پیدا نشد.")
+            if user["role"] != "Organization Admin":
+                if collection == "factories" and row["id"] != user.get("factory_id"):
+                    raise HTTPException(status_code=404, detail="رکورد پیدا نشد.")
+                if collection != "factories" and row["factory_id"] != user.get("factory_id"):
+                    raise HTTPException(status_code=404, detail="رکورد پیدا نشد.")
+                if "factory_id" in changes and changes["factory_id"] != user.get("factory_id"):
+                    raise HTTPException(status_code=403, detail="اجازه انتقال رکورد به کارخانه دیگر را ندارید.")
             merged = {**json_load(row["payload"],{}), **changes}
             validate_references(collection, merged, db)
             factory_id = merged.pop("factory_id", row["factory_id"])
@@ -330,8 +343,24 @@ def delete_record(collection: str, record_id: str, user: dict = Depends(get_curr
         if collection == "users":
             if record_id == user["id"]:
                 raise HTTPException(status_code=409, detail="حذف حساب کاربری جاری مجاز نیست.")
+            if user["role"] == "Factory Admin":
+                target = db.execute("SELECT factory_id FROM users WHERE id=?", (record_id,)).fetchone()
+                if target is None or target["factory_id"] != user.get("factory_id"):
+                    raise HTTPException(status_code=404, detail="کاربر پیدا نشد.")
             cursor = db.execute("DELETE FROM users WHERE id=?", (record_id,))
         else:
+            if user["role"] == "Factory Admin":
+                target = db.execute(
+                    "SELECT id,factory_id FROM resources WHERE collection=? AND id=?", (collection, record_id)
+                ).fetchone()
+                if target is None:
+                    raise HTTPException(status_code=404, detail="رکورد پیدا نشد.")
+                if collection == "factories":
+                    allowed = target["id"] == user.get("factory_id")
+                else:
+                    allowed = target["factory_id"] == user.get("factory_id")
+                if not allowed:
+                    raise HTTPException(status_code=404, detail="رکورد پیدا نشد.")
             cursor = db.execute("DELETE FROM resources WHERE collection=? AND id=?", (collection,record_id))
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="رکورد پیدا نشد.")
