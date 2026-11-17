@@ -480,3 +480,55 @@ def test_resource_update_returns_factory_scope_and_user_update_is_safe():
         )
         assert updated_user.status_code == 200
         assert updated_user.json()["name"] == "Updated Engineer"
+
+
+def test_edge_registration_requires_factory_scope():
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local", "password": "demo1234"
+        })
+        response = client.post("/api/edge/register", json={
+            "name": "EDGE-WITHOUT-FACTORY", "note": "must be rejected"
+        })
+        assert response.status_code == 422
+
+
+def test_disabled_alarm_rule_does_not_remain_active_and_can_be_reenabled():
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local", "password": "demo1234"
+        })
+        alarm = client.post("/api/resources/alarms", json={
+            "name": "Disable test", "severity": "متوسط", "tag": "t6",
+            "operator": ">", "threshold": 50, "status": "فعال"
+        })
+        assert alarm.status_code == 201
+        alarm_id = alarm.json()["id"]
+        edge = client.post("/api/edge/register", json={
+            "name": "EDGE-DISABLE-CI", "factory_id": "f1"
+        })
+        assert edge.status_code == 201
+        headers = {"X-Edge-Token": edge.json()["edge_token"]}
+
+        first = client.post("/api/telemetry/edge/ingest", headers=headers,
+                            json={"samples": [{"tag_id": "t6", "value": 70.0}]})
+        assert first.status_code == 200
+        assert any(item["id"] == alarm_id for item in first.json()["items"][0]["alarm_transitions"])
+
+        disabled = client.patch(f"/api/resources/alarms/{alarm_id}", json={
+            "status": "غیرفعال", "condition_active": False
+        })
+        assert disabled.status_code == 200
+
+        while_disabled = client.post("/api/telemetry/edge/ingest", headers=headers,
+                                     json={"samples": [{"tag_id": "t6", "value": 80.0}]})
+        assert while_disabled.status_code == 200
+        assert while_disabled.json()["items"][0]["alarm_transitions"] == []
+
+        reenabled = client.patch(f"/api/resources/alarms/{alarm_id}", json={
+            "status": "فعال", "condition_active": False
+        })
+        assert reenabled.status_code == 200
+        after_enable = client.post("/api/telemetry/edge/ingest", headers=headers,
+                                   json={"samples": [{"tag_id": "t6", "value": 90.0}]})
+        assert any(item["id"] == alarm_id for item in after_enable.json()["items"][0]["alarm_transitions"])
