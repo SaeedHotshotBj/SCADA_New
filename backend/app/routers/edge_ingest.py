@@ -133,6 +133,8 @@ def ingest_samples(body: EdgeIngestRequest, x_edge_token: str | None = Header(de
         ).fetchone()
         if edge is None or edge["status"] == "REVOKED":
             raise HTTPException(401, "توکن Edge معتبر نیست یا لغو شده است.")
+        if not edge["factory_id"]:
+            raise HTTPException(403, "پیش از ارسال داده، Edge باید به یک کارخانه مشخص تخصیص داده شود.")
         for sample in body.samples:
             tag_row = db.execute(
                 "SELECT id,factory_id,payload FROM resources WHERE collection='tags' AND id=?",
@@ -140,7 +142,7 @@ def ingest_samples(body: EdgeIngestRequest, x_edge_token: str | None = Header(de
             ).fetchone()
             if tag_row is None:
                 raise HTTPException(404, f"تگ {sample.tag_id} در سامانه ثبت نشده است.")
-            if edge["factory_id"] and tag_row["factory_id"] != edge["factory_id"]:
+            if tag_row["factory_id"] != edge["factory_id"]:
                 raise HTTPException(403, "Edge اجازه ارسال داده برای این تگ را ندارد.")
             tag = json_load(tag_row["payload"], {}) or {}
             value = _validate_value(tag.get("type", ""), sample.value)
