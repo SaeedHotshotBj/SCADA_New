@@ -82,7 +82,14 @@ function syncLiveConnection() {
   const path = currentPath();
   const needsLive = path === "/live/data" || path === "/live/trends";
   if (path === "/live/trends" && store.isConnected()) {
-    const sourceTag = store.list("tags").find(tag => tag.access === "read" && ["float32","int16","uint16","int32","uint32"].includes(tag.type));
+    const configuredTrend = store.list("trends")[0];
+    const configuredNames = String(configuredTrend?.tags || "").split(/[،,]/).map(name => name.trim()).filter(Boolean);
+    const sourceTag = store.list("tags").find(tag =>
+      configuredNames.includes(tag.name) && tag.access === "read" &&
+      ["float32","int16","uint16","int32","uint32"].includes(tag.type)
+    ) || store.list("tags").find(tag =>
+      tag.access === "read" && ["float32","int16","uint16","int32","uint32"].includes(tag.type)
+    );
     if (sourceTag) {
       api.telemetryHistory(sourceTag.id, 24)
         .then(result => store.replaceCollection("trendHistory", result.items || []))
@@ -103,8 +110,17 @@ function syncLiveConnection() {
       const message = JSON.parse(event.data);
       if (message.type !== "telemetry.snapshot") return;
       const current = store.list("tags");
-      const values = new Map(message.items.map(item => [item.tag_id, item.value]));
-      const next = current.map(tag => values.has(tag.id) ? { ...tag, value: values.get(tag.id) } : tag);
+      const samples = new Map(message.items.map(item => [item.tag_id, item]));
+      const next = current.map(tag => {
+        const sample = samples.get(tag.id);
+        return sample ? {
+          ...tag,
+          value: sample.value,
+          quality: sample.quality,
+          source: sample.source,
+          sampled_at: sample.sampled_at,
+        } : tag;
+      });
       store.replaceCollection("tags", next);
     } catch (error) {
       console.error("Invalid telemetry message", error);
