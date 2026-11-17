@@ -225,7 +225,15 @@ export async function handleAction(action, element) {
       group?.querySelectorAll("button").forEach(button => button.classList.toggle("active", button === element));
       toast(`بازه ${element.textContent.trim()} انتخاب شد.`, "info"); break;
     }
-    case "approve-task": await api.approveTask(element.dataset.id); await store.refresh(); toast("وظیفه در سرور تأیید شد."); break;
+    case "approve-task": await api.decideWorkflowTask(element.dataset.id, "approve", ""); await store.refresh(); toast("وظیفه در Backend تأیید شد."); break;
+    case "reject-task": {
+      const note = prompt("دلیل رد وظیفه را وارد کنید:", "");
+      if (note === null) break;
+      await api.decideWorkflowTask(element.dataset.id, "reject", note);
+      await store.refresh();
+      toast("رد وظیفه در Backend ثبت شد.", "info");
+      break;
+    }
     case "review-qc": openQcReviewModal(element.dataset.id); break;
     case "apply-filter": applyTableFilters(element); break;
     case "start-batch": {
