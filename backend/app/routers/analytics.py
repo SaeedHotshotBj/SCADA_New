@@ -103,9 +103,13 @@ def overview(user: dict = Depends(get_current_user)):
                 "SELECT status,COUNT(*) AS count FROM edge_devices WHERE factory_id=? GROUP BY status",
                 (user.get("factory_id") or "",),
             ).fetchall()
-        demo_count = db.execute(
-            "SELECT COUNT(*) FROM telemetry_samples WHERE quality='DEMO'"
-        ).fetchone()[0]
+        if user["role"] == "Organization Admin":
+            demo_count = db.execute("SELECT COUNT(*) FROM telemetry_samples WHERE quality='DEMO'").fetchone()[0]
+        else:
+            demo_count = db.execute(
+                "SELECT COUNT(*) FROM telemetry_samples WHERE quality='DEMO' AND factory_id=?",
+                (user.get("factory_id") or "",),
+            ).fetchone()[0]
         edge_counts = {row["status"]: row["count"] for row in edge_rows}
 
     actual = [_number(run.get("quantity_actual")) for run in runs]
@@ -192,9 +196,19 @@ def quality(
     start, end = _period(start_date, end_date)
     with connect() as db:
         rows = _records(db, "qc", user)
-        measurements = db.execute(
-            "SELECT qc_id,parameter,actual,minimum,maximum,result,created_at FROM qc_measurements ORDER BY created_at DESC LIMIT 2000"
-        ).fetchall()
+        if user["role"] == "Organization Admin":
+            measurements = db.execute(
+                "SELECT m.qc_id,m.parameter,m.actual,m.minimum,m.maximum,m.result,m.created_at FROM qc_measurements m ORDER BY m.created_at DESC LIMIT 2000"
+            ).fetchall()
+        else:
+            measurements = db.execute(
+                """SELECT m.qc_id,m.parameter,m.actual,m.minimum,m.maximum,m.result,m.created_at
+                   FROM qc_measurements m JOIN resources q
+                   ON q.collection='qc' AND q.id=m.qc_id
+                   WHERE q.factory_id=? OR q.factory_id IS NULL
+                   ORDER BY m.created_at DESC LIMIT 2000""",
+                (user.get("factory_id"),),
+            ).fetchall()
     selected = [row for row in rows if _in_period(row, start, end)
                 and (not product or row.get("product") == product)
                 and (not machine or row.get("machine") == machine)]
@@ -224,7 +238,13 @@ def energy(
                 raise HTTPException(404, "تگ پیدا نشد.")
             tag_ids = [tag_id]
         else:
-            tag_rows = db.execute("SELECT id,payload FROM resources WHERE collection='tags'").fetchall()
+            if user["role"] == "Organization Admin":
+                tag_rows = db.execute("SELECT id,payload FROM resources WHERE collection='tags'").fetchall()
+            else:
+                tag_rows = db.execute(
+                    "SELECT id,payload FROM resources WHERE collection='tags' AND (factory_id=? OR factory_id IS NULL)",
+                    (user.get("factory_id"),),
+                ).fetchall()
             tag_ids = [row["id"] for row in tag_rows if (json_load(row["payload"], {}) or {}).get("unit") in {"kWh", "MWh"}]
         result = {}
         for selected_id in tag_ids:
