@@ -289,6 +289,9 @@ def run_report(report_id: str, body: RunRequest, user: dict = Depends(get_curren
                 ],
             },
         }
+        report["last_run_at"] = created
+        report["last_execution_id"] = execution_id
+        _save_resource(db, "reports", report_id, report)
         db.execute(
             """INSERT INTO report_executions(id,report_id,status,parameters,result,requested_by,created_at,completed_at)
                VALUES(?,?,?,?,?,?,?,?)""",
