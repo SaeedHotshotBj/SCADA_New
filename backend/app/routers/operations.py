@@ -106,6 +106,32 @@ def stop_batch(batch_id: str, user: dict = Depends(get_current_user)):
     return {"id":batch_id,**row,"execution_mode":"SIMULATION"}
 
 
+@router.post("/batches/{batch_id}/cancel")
+def cancel_batch(batch_id: str, user: dict = Depends(get_current_user)):
+    if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
+        raise HTTPException(403, "نقش کاربری اجازه‌ی لغو بچ را ندارد.")
+    with connect() as db:
+        row = _get_resource(db, "batches", batch_id)
+        if row is None:
+            raise HTTPException(404, "بچ پیدا نشد.")
+        if row.get("status") == "در حال توزین":
+            raise HTTPException(409, "ابتدا بچ را متوقف کنید، سپس آن را لغو کنید.")
+        if row.get("status") in {"لغوشده", "تکمیل‌شده"}:
+            raise HTTPException(409, "بچ قبلاً نهایی شده و قابل لغو مجدد نیست.")
+        row.update({
+            "status": "لغوشده",
+            "cancelled_at": utc_now(),
+            "cancelled_by": user["id"],
+        })
+        _save_resource(db, "batches", batch_id, row)
+        db.execute(
+            "INSERT INTO batch_events(batch_id,event,payload,created_at) VALUES(?,?,?,?)",
+            (batch_id, "CANCEL", json_dump({"mode": "SIMULATION", "actor": user["id"]}), utc_now()),
+        )
+        audit(db, user["id"], "batch.cancel", "batches", batch_id, {"mode": "SIMULATION"})
+    return {"id": batch_id, **row, "execution_mode": "SIMULATION"}
+
+
 @router.post("/workflow-tasks/{task_id}/approve")
 def approve_workflow_task(task_id: str, body: DecisionRequest | None = None,
                           user: dict = Depends(get_current_user)):
