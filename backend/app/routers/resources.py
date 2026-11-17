@@ -121,11 +121,18 @@ def _public_user(row) -> dict:
 
 
 
-def _resource_value_exists(db, collection: str, field: str, value: str) -> bool:
-    rows = db.execute(
-        "SELECT payload FROM resources WHERE collection=?",
-        (collection,),
-    ).fetchall()
+def _resource_value_exists(db, collection: str, field: str, value: str,
+                           factory_id: str | None = None) -> bool:
+    if factory_id:
+        rows = db.execute(
+            "SELECT payload FROM resources WHERE collection=? AND (factory_id=? OR factory_id IS NULL)",
+            (collection, factory_id),
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT payload FROM resources WHERE collection=?",
+            (collection,),
+        ).fetchall()
     return any((json_load(row["payload"], {}) or {}).get(field) == value for row in rows)
 
 
@@ -144,24 +151,25 @@ def _finite_number(value: Any) -> float | None:
 
 
 def validate_references(collection: str, payload: dict[str, Any], db) -> None:
+    scope_factory = payload.get("factory_id")
     if collection in {"orders", "productionRuns", "qc", "controlPlans"}:
         product_name = payload.get("product")
-        if product_name and not _resource_value_exists(db, "products", "name", product_name):
+        if product_name and not _resource_value_exists(db, "products", "name", product_name, scope_factory):
             raise HTTPException(status_code=422, detail="محصول انتخاب‌شده در سامانه ثبت نشده است.")
     if collection in {"orders", "productionRuns", "qc"}:
         machine_name = payload.get("machine")
-        if machine_name and not _resource_value_exists(db, "machines", "name", machine_name):
+        if machine_name and not _resource_value_exists(db, "machines", "name", machine_name, scope_factory):
             raise HTTPException(status_code=422, detail="ماشین انتخاب‌شده در سامانه ثبت نشده است.")
     if collection == "productionRuns":
         order_code = payload.get("order")
-        if order_code and not _resource_value_exists(db, "orders", "code", order_code):
+        if order_code and not _resource_value_exists(db, "orders", "code", order_code, scope_factory):
             raise HTTPException(status_code=422, detail="سفارش انتخاب‌شده در سامانه ثبت نشده است.")
     if collection == "batchConfigs" and payload.get("weight_tag_id"):
         tag = db.execute(
-            "SELECT 1 FROM resources WHERE collection='tags' AND id=?",
+            "SELECT factory_id FROM resources WHERE collection='tags' AND id=?",
             (payload["weight_tag_id"],),
         ).fetchone()
-        if tag is None:
+        if tag is None or (scope_factory and tag["factory_id"] not in {None, scope_factory}):
             raise HTTPException(status_code=422, detail="تگ لودسل انتخاب‌شده در سامانه ثبت نشده است.")
     if collection == "plcs" and not payload.get("factory_id"):
         raise HTTPException(status_code=422, detail="هر PLC باید به یک کارخانه تخصیص داده شود.")
@@ -180,18 +188,24 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
             payload["factory_id"] = plc_factory_id
     if collection == "alarms" and payload.get("tag"):
         tag = db.execute(
-            "SELECT 1 FROM resources WHERE collection='tags' AND id=?",
+            "SELECT factory_id FROM resources WHERE collection='tags' AND id=?",
             (payload["tag"],),
         ).fetchone()
-        if tag is None:
+        if tag is None or (scope_factory and tag["factory_id"] not in {None, scope_factory}):
             raise HTTPException(status_code=422, detail="تگ انتخاب‌شده برای آلارم در سامانه ثبت نشده است.")
     if collection == "hmiPages":
         if "layout" not in payload:
             raise HTTPException(status_code=422, detail="چیدمان صفحه HMI الزامی است.")
         if payload.get("machine"):
-            machine_rows = db.execute(
-                "SELECT payload FROM resources WHERE collection='machines'"
-            ).fetchall()
+            if scope_factory:
+                machine_rows = db.execute(
+                    "SELECT payload FROM resources WHERE collection='machines' AND (factory_id=? OR factory_id IS NULL)",
+                    (scope_factory,),
+                ).fetchall()
+            else:
+                machine_rows = db.execute(
+                    "SELECT payload FROM resources WHERE collection='machines'"
+                ).fetchall()
             machine_exists = any(
                 (json_load(row["payload"], {}) or {}).get("name") == payload["machine"]
                 for row in machine_rows
@@ -211,8 +225,8 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                     "SELECT payload,factory_id FROM resources WHERE collection='tags' AND id=?",
                     (tag_id,),
                 ).fetchone()
-                if tag_row is None:
-                    raise HTTPException(status_code=422, detail=f"تگ جزء شماره {index + 1} پیدا نشد.")
+                if tag_row is None or (scope_factory and tag_row["factory_id"] not in {None, scope_factory}):
+                    raise HTTPException(status_code=422, detail=f"تگ جزء شماره {index + 1} پیدا نشد یا متعلق به کارخانه دیگری است.")
                 tag_payload = json_load(tag_row["payload"], {}) or {}
                 if component["type"] == "write" and tag_payload.get("access") != "read_write":
                     raise HTTPException(status_code=422, detail=f"تگ جزء شماره {index + 1} فقط خواندنی است.")
@@ -230,7 +244,7 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
             payload["components"] = len(layout)
     if collection == "machineCalendars":
         machine_name = payload.get("machine")
-        if machine_name and not _resource_value_exists(db, "machines", "name", machine_name):
+        if machine_name and not _resource_value_exists(db, "machines", "name", machine_name, scope_factory):
             raise HTTPException(status_code=422, detail="ماشین انتخاب‌شده برای تقویم ثبت نشده است.")
         days = payload.get("days")
         expected_days = {"شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"}
@@ -280,9 +294,11 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
             raise HTTPException(status_code=422, detail="زمان پایدارسازی باید بین صفر تا ۶۰۰ ثانیه باشد.")
         if payload.get("weight_tag_id"):
             tag_row = db.execute(
-                "SELECT payload FROM resources WHERE collection='tags' AND id=?",
+                "SELECT payload,factory_id FROM resources WHERE collection='tags' AND id=?",
                 (payload["weight_tag_id"],),
             ).fetchone()
+            if tag_row is None or (scope_factory and tag_row["factory_id"] not in {None, scope_factory}):
+                raise HTTPException(status_code=422, detail="تگ لودسل به کارخانه‌ی دیگری تعلق دارد.")
             tag_payload = json_load(tag_row["payload"], {}) or {}
             if tag_payload.get("access") != "read" or tag_payload.get("type") not in {"float32","int16","uint16","int32","uint32"}:
                 raise HTTPException(status_code=422, detail="تگ لودسل باید عددی و فقط‌خواندنی باشد.")
