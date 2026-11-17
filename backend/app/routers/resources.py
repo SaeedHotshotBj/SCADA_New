@@ -33,6 +33,7 @@ ENUMS = {
     "factories.status": {"فعال", "غیرفعال"},
     "orders.status": {"در انتظار", "آزادشده", "در حال تولید", "تکمیل‌شده", "لغوشده"},
     "qc.decision": {"قبول", "مشروط", "رد"},
+    "alarms.operator": {">", ">=", "<", "<=", "==", "!="},
 }
 
 
@@ -56,7 +57,7 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
         "factories": ("name", "code"),
         "plcs": ("name", "protocol", "address"),
         "tags": ("name", "plc", "type", "address", "access"),
-        "alarms": ("name", "severity"),
+        "alarms": ("name", "severity", "tag", "operator", "threshold"),
         "trends": ("name", "tags", "period"),
         "reports": ("name", "type"),
         "processes": ("name", "code"),
@@ -103,6 +104,8 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
                     payload[field] = number
                 except (ValueError, TypeError):
                     raise HTTPException(status_code=422, detail=f"{field} باید عدد معتبر و غیرمنفی باشد.")
+    if collection == "alarms" and "deadband" in payload and payload["deadband"] < 0:
+        raise HTTPException(status_code=422, detail="deadband باید صفر یا عدد مثبت باشد.")
     return payload
 
 
