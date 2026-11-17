@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/edge", tags=["Edge"])
 
 class EdgeRegistration(BaseModel):
     name: str = Field(min_length=2, max_length=120)
-    factory_id: str | None = None
+    factory_id: str = Field(min_length=1, max_length=128)
     note: str = Field(default="", max_length=500)
 
 
@@ -34,10 +34,9 @@ def register_edge(body: EdgeRegistration, user: dict = Depends(get_current_user)
     edge_id = "edge-" + new_token()[:14]
     token = new_token()
     with connect() as db:
-        if body.factory_id:
-            exists = db.execute("SELECT 1 FROM resources WHERE collection='factories' AND id=?", (body.factory_id,)).fetchone()
-            if not exists:
-                raise HTTPException(404,"کارخانه انتخاب‌شده پیدا نشد.")
+        exists = db.execute("SELECT 1 FROM resources WHERE collection='factories' AND id=?", (body.factory_id,)).fetchone()
+        if not exists:
+            raise HTTPException(404,"کارخانه انتخاب‌شده پیدا نشد.")
         db.execute(
             """INSERT INTO edge_devices(id,factory_id,name,status,token_hash,metadata,created_at,updated_at)
                VALUES(?,?,?,?,?,?,?,?)""",
