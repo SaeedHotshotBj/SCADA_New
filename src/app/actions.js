@@ -185,7 +185,18 @@ export async function handleAction(action, element) {
     case "toggle-status": {
       const collection = element.dataset.collection;
       const row = store.list(collection).find(item => item.id === element.dataset.id);
-      if (row) await store.update(collection, row.id, { status: row.status === "فعال" ? "غیرفعال" : "فعال" });
+      if (row && collection === "alarms") {
+        const disabling = row.status !== "غیرفعال";
+        await store.update(collection, row.id, {
+          status: disabling ? "غیرفعال" : "فعال",
+          condition_active: false,
+          ...(disabling
+            ? { disabled_at: new Date().toISOString() }
+            : { enabled_at: new Date().toISOString() }),
+        });
+      } else if (row) {
+        await store.update(collection, row.id, { status: row.status === "فعال" ? "غیرفعال" : "فعال" });
+      }
       break;
     }
     case "ack-alarm": {
