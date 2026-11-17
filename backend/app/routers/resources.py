@@ -129,6 +129,20 @@ def _resource_value_exists(db, collection: str, field: str, value: str) -> bool:
     return any((json_load(row["payload"], {}) or {}).get(field) == value for row in rows)
 
 
+def _finite_number(value: Any) -> float | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        text = str(value).strip().translate(str.maketrans(
+            "۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩٫٬",
+            "01234567890123456789.,"
+        ))
+        number = float(text)
+        return number if number == number and abs(number) != float("inf") else None
+    except (TypeError, ValueError):
+        return None
+
+
 def validate_references(collection: str, payload: dict[str, Any], db) -> None:
     if collection in {"orders", "productionRuns", "qc", "controlPlans"}:
         product_name = payload.get("product")
@@ -200,15 +214,98 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                 tag_payload = json_load(tag_row["payload"], {}) or {}
                 if component["type"] == "write" and tag_payload.get("access") != "read_write":
                     raise HTTPException(status_code=422, detail=f"تگ جزء شماره {index + 1} فقط خواندنی است.")
+                bounds = {}
                 for bound in ("min", "max"):
                     if bound in component:
-                        try:
-                            number = float(component[bound])
-                            if number != number or abs(number) == float("inf"):
-                                raise ValueError
-                        except (TypeError, ValueError):
+                        number = _finite_number(component[bound])
+                        if number is None:
                             raise HTTPException(status_code=422, detail=f"حد {bound} در جزء شماره {index + 1} معتبر نیست.")
+                        bounds[bound] = number
+                if component["type"] == "gauge" and (
+                    "min" not in bounds or "max" not in bounds or bounds["max"] <= bounds["min"]
+                ):
+                    raise HTTPException(status_code=422, detail=f"حداقل و حداکثر گیج شماره {index + 1} معتبر نیست.")
             payload["components"] = len(layout)
+    if collection == "machineCalendars":
+        machine_name = payload.get("machine")
+        if machine_name and not _resource_value_exists(db, "machines", "name", machine_name):
+            raise HTTPException(status_code=422, detail="ماشین انتخاب‌شده برای تقویم ثبت نشده است.")
+        days = payload.get("days")
+        expected_days = {"شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"}
+        if not isinstance(days, list) or len(days) != 7:
+            raise HTTPException(status_code=422, detail="تقویم باید دقیقاً شامل هفت روز هفته باشد.")
+        names = [day.get("day") for day in days if isinstance(day, dict)]
+        if len(names) != 7 or set(names) != expected_days:
+            raise HTTPException(status_code=422, detail="روزهای تقویم باید هر هفت روز هفته را بدون تکرار شامل شوند.")
+        time_pattern = re.compile(r"^(?:[01]\\d|2[0-3]):[0-5]\\d$")
+        for day in days:
+            if not isinstance(day.get("enabled"), bool):
+                raise HTTPException(status_code=422, detail="وضعیت کاری هر روز باید بولی باشد.")
+            start_time, end_time, break_time = day.get("start"), day.get("end"), day.get("break")
+            if not all(isinstance(value, str) and time_pattern.fullmatch(value) for value in (start_time, end_time, break_time)):
+                raise HTTPException(status_code=422, detail="ساعات شروع، پایان و استراحت باید در قالب HH:MM باشند.")
+            start_minutes = int(start_time[:2]) * 60 + int(start_time[3:])
+            end_minutes = int(end_time[:2]) * 60 + int(end_time[3:])
+            break_minutes = int(break_time[:2]) * 60 + int(break_time[3:])
+            if day["enabled"] and (end_minutes <= start_minutes or break_minutes > end_minutes - start_minutes):
+                raise HTTPException(status_code=422, detail="پایان شیفت و زمان استراحت برای روز کاری معتبر نیست.")
+
+    if collection == "batchConfigs":
+        hoppers = payload.get("hoppers")
+        if not isinstance(hoppers, list) or not 1 <= len(hoppers) <= 20:
+            raise HTTPException(status_code=422, detail="فرمول بچ باید بین یک تا بیست هاپر داشته باشد.")
+        ratios = []
+        for index, hopper in enumerate(hoppers):
+            if not isinstance(hopper, dict) or not hopper.get("bin") or not hopper.get("material"):
+                raise HTTPException(status_code=422, detail=f"اطلاعات هاپر شماره {index + 1} ناقص است.")
+            ratio = _finite_number(hopper.get("ratio"))
+            target = _finite_number(hopper.get("target"))
+            if ratio is None or not 0 <= ratio <= 100:
+                raise HTTPException(status_code=422, detail=f"درصد هاپر شماره {index + 1} باید بین صفر تا صد باشد.")
+            if target is None or target < 0:
+                raise HTTPException(status_code=422, detail=f"وزن هدف هاپر شماره {index + 1} معتبر نیست.")
+            ratios.append(ratio)
+        if abs(sum(ratios) - 100.0) > 0.01:
+            raise HTTPException(status_code=422, detail="مجموع نسبت مواد باید دقیقاً ۱۰۰ درصد باشد.")
+        samples = _finite_number(payload.get("samples"))
+        tolerance = _finite_number(payload.get("tolerance_percent"))
+        stabilization = _finite_number(payload.get("stabilization_seconds"))
+        if samples is None or not 1 <= samples <= 100:
+            raise HTTPException(status_code=422, detail="تعداد نمونه باید بین ۱ تا ۱۰۰ باشد.")
+        if tolerance is None or not 0 <= tolerance <= 100:
+            raise HTTPException(status_code=422, detail="تلرانس باید بین صفر تا صد درصد باشد.")
+        if stabilization is None or not 0 <= stabilization <= 600:
+            raise HTTPException(status_code=422, detail="زمان پایدارسازی باید بین صفر تا ۶۰۰ ثانیه باشد.")
+        if payload.get("weight_tag_id"):
+            tag_row = db.execute(
+                "SELECT payload FROM resources WHERE collection='tags' AND id=?",
+                (payload["weight_tag_id"],),
+            ).fetchone()
+            tag_payload = json_load(tag_row["payload"], {}) or {}
+            if tag_payload.get("access") != "read" or tag_payload.get("type") not in {"float32","int16","uint16","int32","uint32"}:
+                raise HTTPException(status_code=422, detail="تگ لودسل باید عددی و فقط‌خواندنی باشد.")
+
+    if collection == "controlPlans":
+        parameters = payload.get("parameters")
+        if not isinstance(parameters, list) or not 1 <= len(parameters) <= 50:
+            raise HTTPException(status_code=422, detail="طرح کنترل باید بین یک تا پنجاه پارامتر داشته باشد.")
+        if not isinstance(payload.get("approval_required"), bool):
+            raise HTTPException(status_code=422, detail="الزام تأیید باید مقدار بولی داشته باشد.")
+        sample_count = _finite_number(payload.get("sample_count"))
+        if sample_count is None or not 1 <= sample_count <= 1000:
+            raise HTTPException(status_code=422, detail="تعداد نمونه باید بین یک تا هزار باشد.")
+        for index, parameter in enumerate(parameters):
+            if not isinstance(parameter, dict) or not parameter.get("parameter"):
+                raise HTTPException(status_code=422, detail=f"پارامتر شماره {index + 1} ناقص است.")
+            lower = _finite_number(parameter.get("min")) if parameter.get("min") not in (None, "", "—") else None
+            upper = _finite_number(parameter.get("max")) if parameter.get("max") not in (None, "", "—") else None
+            if parameter.get("min") not in (None, "", "—") and lower is None:
+                raise HTTPException(status_code=422, detail=f"حداقل پارامتر شماره {index + 1} معتبر نیست.")
+            if parameter.get("max") not in (None, "", "—") and upper is None:
+                raise HTTPException(status_code=422, detail=f"حداکثر پارامتر شماره {index + 1} معتبر نیست.")
+            if lower is not None and upper is not None and lower > upper:
+                raise HTTPException(status_code=422, detail=f"حدود پارامتر شماره {index + 1} معکوس هستند.")
+
     factory_id = payload.get("factory_id")
     if factory_id:
         factory = db.execute(
