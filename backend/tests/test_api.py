@@ -556,3 +556,37 @@ def test_disabled_alarm_rule_does_not_remain_active_and_can_be_reenabled():
         after_enable = client.post("/api/telemetry/edge/ingest", headers=headers,
                                    json={"samples": [{"tag_id": "t6", "value": 90.0}]})
         assert any(item["id"] == alarm_id for item in after_enable.json()["items"][0]["alarm_transitions"])
+
+
+def test_demo_simulator_never_overwrites_a_tag_owned_by_edge():
+    import asyncio
+    from app.routers.telemetry import demo_simulator_loop
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local", "password": "demo1234"
+        })
+        edge = client.post("/api/edge/register", json={
+            "name": "EDGE-AUTHORITY-TEST", "factory_id": "f1", "note": "simulator must not overwrite"
+        })
+        assert edge.status_code == 201, edge.text
+        token = edge.json()["edge_token"]
+        ingested = client.post("/api/telemetry/edge/ingest", headers={"X-Edge-Token": token}, json={
+            "samples": [{"tag_id": "t6", "value": 123.45}]
+        })
+        assert ingested.status_code == 200, ingested.text
+
+        async def one_simulator_cycle():
+            stop_event = asyncio.Event()
+            task = asyncio.create_task(demo_simulator_loop(stop_event))
+            await asyncio.sleep(0.05)
+            stop_event.set()
+            await task
+
+        asyncio.run(one_simulator_cycle())
+        history = client.get("/api/telemetry/history", params={"tag_id": "t6", "hours": 24})
+        assert history.status_code == 200
+        latest = history.json()["items"][-1]
+        assert latest["value"] == 123.45
+        assert latest["quality"] == "GOOD"
+        assert latest["source"].startswith("edge:")
