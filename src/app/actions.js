@@ -363,6 +363,16 @@ export async function handleSubmit(event) {
     form.reset();
     return true;
   }
+  if (event.target.id === "batch-compare-form") {
+    event.preventDefault();
+    const batchId = new FormData(event.target).get("batch_id");
+    if (!batchId) throw new Error("یک بچ برای مقایسه انتخاب کنید.");
+    const result = await api.listBatchWeighments(batchId);
+    store.replaceCollection("batchWeighments", result.items || []);
+    store.setSnapshotValue?.("selectedBatchId", batchId);
+    toast(`${(result.items || []).length} رکورد توزین از Backend دریافت شد.`);
+    return true;
+  }
   if (event.target.id === "production-report-filter") {
     event.preventDefault();
     const values = Object.fromEntries(new FormData(event.target).entries());
