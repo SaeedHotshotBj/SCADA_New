@@ -174,6 +174,13 @@ def test_factory_admin_cannot_read_or_modify_another_factory_resources():
 def test_report_filters_are_applied_to_persisted_production_runs():
     with TestClient(app) as client:
         _login(client)
+        # The API integration suite shares its CI SQLite file; isolate this
+        # assertion from production runs created by earlier test cases.
+        existing = client.get("/api/resources/productionRuns")
+        assert existing.status_code == 200, existing.text
+        for row in existing.json()["items"]:
+            deleted = client.delete(f"/api/resources/productionRuns/{row['id']}")
+            assert deleted.status_code == 204, deleted.text
         created_ids = []
         for machine in ["بانچر", "کشش مفتول"]:
             created = client.post("/api/resources/productionRuns", json={
