@@ -236,7 +236,7 @@ export async function handleAction(action, element) {
 }
 
 export async function handleSubmit(event) {
-  if (event.target.matches("[data-local-form]")) {
+  if (event.target.matches('[data-local-form]:not([data-local-form="batch-weighment"])')) {
     event.preventDefault();
     const form = event.target;
     const localForm = form.dataset.localForm;
