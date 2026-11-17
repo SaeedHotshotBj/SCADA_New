@@ -54,7 +54,7 @@ def initialize_schema() -> None:
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE,
       name TEXT NOT NULL, role TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'فعال',
-      password_hash TEXT NOT NULL, must_change_password INTEGER NOT NULL DEFAULT 0,
+      factory_id TEXT, password_hash TEXT NOT NULL, must_change_password INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS sessions (
@@ -116,6 +116,11 @@ def initialize_schema() -> None:
     """
     with connect() as db:
         db.executescript(schema)
+        # Backward-compatible migration: bind non-organization accounts to one factory.
+        user_columns = {row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()}
+        if "factory_id" not in user_columns:
+            db.execute("ALTER TABLE users ADD COLUMN factory_id TEXT")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_users_factory ON users(factory_id, role)")
 
 
 def audit(db: sqlite3.Connection, actor_id: str | None, action: str,
