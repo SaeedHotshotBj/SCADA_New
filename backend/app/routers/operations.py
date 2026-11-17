@@ -56,8 +56,13 @@ def start_production_run(run_id: str, user: dict = Depends(get_current_user)):
             raise HTTPException(409, "این اجرای تولید از قبل فعال است.")
         if row.get("status") == "تکمیل‌شده":
             raise HTTPException(409, "اجرای تکمیل‌شده قابل شروع مجدد نیست.")
-        row.update({"status":"در حال تولید","started_at":utc_now(),"started_by":user["id"]})
+        started = utc_now()
+        row.update({"status":"در حال تولید","started_at":started,"started_by":user["id"]})
         _save_resource(db,"productionRuns",run_id,row)
+        db.execute(
+            "INSERT INTO production_run_events(run_id,event,details,actor_id,created_at) VALUES(?,?,?,?,?)",
+            (run_id,"START",json_dump({"order":row.get("order"),"machine":row.get("machine")}),user["id"],started),
+        )
         audit(db,user["id"],"production.start","productionRuns",run_id)
     return {"id":run_id,**row}
 
@@ -72,8 +77,13 @@ def stop_production_run(run_id: str, user: dict = Depends(get_current_user)):
             raise HTTPException(404,"اجرای تولید پیدا نشد.")
         if row.get("status") != "در حال تولید":
             raise HTTPException(409,"اجرای تولید در وضعیت فعال نیست.")
-        row.update({"status":"متوقف","stopped_at":utc_now(),"stopped_by":user["id"]})
+        stopped = utc_now()
+        row.update({"status":"متوقف","stopped_at":stopped,"stopped_by":user["id"]})
         _save_resource(db,"productionRuns",run_id,row)
+        db.execute(
+            "INSERT INTO production_run_events(run_id,event,details,actor_id,created_at) VALUES(?,?,?,?,?)",
+            (run_id,"STOP",json_dump({"quantity_actual":row.get("quantity_actual",0)}),user["id"],stopped),
+        )
         audit(db,user["id"],"production.stop","productionRuns",run_id)
     return {"id":run_id,**row}
 
@@ -436,6 +446,15 @@ def record_batch_weighments(batch_id: str, body: BatchWeighmentsRequest,
         tolerance = float(batch.get("tolerance_percent", 0.5) or 0.5)
         if tolerance < 0 or tolerance > 100:
             raise HTTPException(422, "درصد تلرانس بچ معتبر نیست.")
+        config_id = batch.get("batch_config_id")
+        if config_id:
+            config = _get_resource(db, "batchConfigs", config_id)
+            if config is None:
+                raise HTTPException(409, "تنظیمات خط مرتبط با این بچ دیگر وجود ندارد.")
+            expected = {str(item.get("bin")) for item in (config.get("hoppers") or []) if item.get("bin")}
+            submitted = [item.hopper_key for item in body.items]
+            if len(submitted) != len(set(submitted)) or set(submitted) != expected:
+                raise HTTPException(422, "برای هر هاپر تعریف‌شده دقیقاً یک وزن ارسال کنید.")
         results = []
         for item in body.items:
             deviation = abs(item.actual_weight - item.target_weight) * 100 / item.target_weight
@@ -493,6 +512,14 @@ def complete_batch(batch_id: str, user: dict = Depends(get_current_user)):
             latest.setdefault(row["hopper_key"], row["result"])
         if not latest:
             raise HTTPException(409, "برای این بچ هنوز هیچ توزینی ثبت نشده است.")
+        config_id = batch.get("batch_config_id")
+        if config_id:
+            config = _get_resource(db, "batchConfigs", config_id)
+            if config is None:
+                raise HTTPException(409, "تنظیمات خط مرتبط با این بچ دیگر وجود ندارد.")
+            expected = {str(item.get("bin")) for item in (config.get("hoppers") or []) if item.get("bin")}
+            if set(latest) != expected:
+                raise HTTPException(409, "توزین همه هاپرهای تعریف‌شده باید ثبت شود.")
         if any(result != "IN_TOLERANCE" for result in latest.values()):
             raise HTTPException(409, "حداقل یک هاپر خارج از تلرانس است؛ پیش از تکمیل باید اصلاح یا تعیین تکلیف شود.")
         batch.update({"status": "تکمیل‌شده", "completed_at": utc_now(), "completed_by": user["id"]})
