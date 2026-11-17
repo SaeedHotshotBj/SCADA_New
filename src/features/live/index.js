@@ -62,7 +62,42 @@ function classicHmiPage() {
 
 function alarmsPage() {
   const rows = store.list("alarms");
-  return `<div data-collection-name="alarms" data-edit-action="new-alarm">${pageHeader("آلارم‌ها", "تعریف، مشاهده و رسیدگی به هشدارهای ماشین‌ها و تگ‌ها", button("آلارم جدید", "new-alarm", { icon: "+" }))}${tabs(["فعال", "تاریخچه", "تعاریف"])}${panel("آلارم‌های فعال", rows.length ? dataTable([{ key: "name", label: "نام" }, { key: "severity", label: "شدت" }, { key: "status", label: "وضعیت" }, { key: "tag", label: "تگ" }, { key: "ack", label: "عملیات", render: row => `<button class="btn btn-light btn-sm" data-action="ack-alarm" data-id="${row.id}">تأیید</button>` }], rows) : emptyState("در حال حاضر آلارم فعالی وجود ندارد."))}</div>`;
+  const active = rows.filter(row => row.condition_active && row.status !== "رفع‌شده");
+  const history = rows.filter(row => ["رفع‌شده", "تأییدشده"].includes(row.status) && !row.condition_active);
+  const definitions = rows.filter(row => row.operator !== undefined && row.threshold !== undefined);
+  const columns = [
+    { key: "name", label: "نام آلارم" },
+    { key: "severity", label: "شدت" },
+    { key: "tag", label: "شناسه تگ" },
+    { key: "operator", label: "شرط" },
+    { key: "threshold", label: "آستانه" },
+    { key: "last_value", label: "آخرین مقدار" },
+    { key: "status", label: "وضعیت", render: row => pill(row.status || "تعریف‌شده", row.status === "فعال" ? "danger" : row.status === "تأییدشده" ? "warning" : row.status === "رفع‌شده" ? "success" : "muted") },
+    { key: "triggered_at", label: "زمان فعال‌شدن", render: row => row.triggered_at ? new Date(row.triggered_at).toLocaleString("fa-IR") : "—" },
+    { key: "ack", label: "عملیات", render: row => row.condition_active && row.status !== "تأییدشده"
+      ? `<button class="btn btn-light btn-sm" data-action="ack-alarm" data-id="${row.id}">تأیید</button>`
+      : row.condition_active ? "تأییدشده" : "—" },
+  ];
+  return `<div data-collection-name="alarms" data-edit-action="new-alarm">
+    ${pageHeader("آلارم‌ها", "قوانین آلارم بر اساس شرط تگ ارزیابی می‌شوند؛ فعال‌شدن و رفع‌شدن با دریافت نمونه ثبت می‌شود.", button("قانون آلارم جدید", "new-alarm", { icon: "+" }))}
+    <div class="stats-grid stats-grid-3">
+      ${statCard("آلارم فعال", active.length.toLocaleString("fa-IR"), "مورد", "red")}
+      ${statCard("آلارم تأییدشده ولی هنوز فعال", active.filter(row => row.status === "تأییدشده").length.toLocaleString("fa-IR"), "مورد", "orange")}
+      ${statCard("قانون تعریف‌شده", definitions.length.toLocaleString("fa-IR"), "قانون", "blue")}
+    </div>
+    ${panel("آلارم‌های فعال", active.length ? dataTable(columns, active) : emptyState("در حال حاضر هیچ شرط آلارم فعالی برقرار نیست."))}
+    ${panel("تاریخچه آلارم‌های رفع‌شده", history.length ? dataTable(columns, history) : emptyState("هنوز آلارمی رفع‌شده ثبت نشده است."))}
+    ${panel("قوانین تعریف‌شده", rows.length ? dataTable([
+      { key: "name", label: "قانون" },
+      { key: "tag", label: "شناسه تگ" },
+      { key: "operator", label: "شرط" },
+      { key: "threshold", label: "آستانه" },
+      { key: "severity", label: "شدت" },
+      { key: "status", label: "وضعیت قانون" },
+      { key: "trigger_count", label: "دفعات فعال‌شدن", render: row => Number(row.trigger_count || 0).toLocaleString("fa-IR") },
+    ], rows, { actions: true }) : emptyState("هنوز قانون آلارمی تعریف نشده است."))}
+    <p class="muted-note">قانون‌ها فقط برای تگ عددی قابل ارزیابی هستند. پس از تأیید اپراتور، آلارم تا رفع شرط فعال باقی می‌ماند؛ با برگشت مقدار به محدوده، رویداد رفع‌شدن ثبت می‌شود.</p>
+  </div>`;
 }
 
 function trendsPage() {
