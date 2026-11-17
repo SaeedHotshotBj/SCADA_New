@@ -71,27 +71,47 @@ def bootstrap(user: dict = Depends(get_current_user)):
     data={}
     with connect() as db:
         for collection in collections:
-            rows=db.execute(
-                "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection=? ORDER BY created_at DESC",
-                (collection,),
-            ).fetchall()
+            if collection == "factories" and user["role"] != "Organization Admin":
+                rows = db.execute(
+                    "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection=? AND id=?",
+                    (collection, user["factory_id"]),
+                ).fetchall()
+            elif user["role"] != "Organization Admin":
+                rows = db.execute(
+                    "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection=? AND (factory_id=? OR factory_id IS NULL) ORDER BY created_at DESC",
+                    (collection, user["factory_id"]),
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection=? ORDER BY created_at DESC",
+                    (collection,),
+                ).fetchall()
             data[collection]=[
                 {"id":row["id"],**(json_load(row["payload"],{}) or {}),
                  **({"factory_id":row["factory_id"]} if row["factory_id"] else {}),
                  "created_at":row["created_at"],"updated_at":row["updated_at"]}
                 for row in rows
             ]
-        if user["role"] in {"Organization Admin", "Factory Admin"}:
-            users = db.execute("SELECT id,email,name,role,status,created_at,updated_at FROM users ORDER BY created_at").fetchall()
+        if user["role"] == "Organization Admin":
+            users = db.execute("SELECT id,email,name,role,status,factory_id,created_at,updated_at FROM users ORDER BY created_at").fetchall()
+            data["users"] = [dict(row) for row in users]
+        elif user["role"] == "Factory Admin":
+            users = db.execute("SELECT id,email,name,role,status,factory_id,created_at,updated_at FROM users WHERE factory_id=? ORDER BY created_at", (user["factory_id"],)).fetchall()
             data["users"] = [dict(row) for row in users]
         else:
             data["users"] = [{
                 "id": user["id"], "email": user["email"], "name": user["name"],
                 "role": user["role"], "status": user["status"],
             }]
-        edge_rows=db.execute(
-            "SELECT id,factory_id,name,status,metadata,last_seen,created_at,updated_at FROM edge_devices ORDER BY created_at DESC"
-        ).fetchall()
+        if user["role"] == "Organization Admin":
+            edge_rows = db.execute(
+                "SELECT id,factory_id,name,status,metadata,last_seen,created_at,updated_at FROM edge_devices ORDER BY created_at DESC"
+            ).fetchall()
+        else:
+            edge_rows = db.execute(
+                "SELECT id,factory_id,name,status,metadata,last_seen,created_at,updated_at FROM edge_devices WHERE factory_id=? ORDER BY created_at DESC",
+                (user["factory_id"],),
+            ).fetchall()
         plc_counts = {}
         for plc in data["plcs"]:
             factory_id = plc.get("factory_id")
