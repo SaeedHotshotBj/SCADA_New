@@ -2,9 +2,9 @@ name: SCADA_New backend and frontend checks
 
 on:
   push:
-    branches: ["backend-api"]
+    branches: ["backend-api", "backend-integrated"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "rebuild-from-video"]
   workflow_dispatch:
 
 jobs:
