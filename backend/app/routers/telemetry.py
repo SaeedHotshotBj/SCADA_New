@@ -62,7 +62,7 @@ def latest(user: dict = Depends(get_current_user)):
                       "unit":t.get("unit",""),"type":t.get("type"),"quality":t.get("last_quality") or "DEMO",
                       "source":t.get("last_source") or "demo-seed-or-simulator","sampled_at":t["updated_at"]} for t in tags],
             "edges":[dict(e) for e in edges],
-            "note":"مقادیر دارای quality=DEMO هستند و داده‌ی PLC واقعی محسوب نمی‌شوند."}
+            "note":"کیفیت و منبع هر نمونه به‌صورت جداگانه برچسب‌گذاری می‌شود؛ DEMO داده‌ی سخت‌افزاری نیست."}
 
 
 @router.get("/history")
@@ -72,7 +72,7 @@ def history(tag_id: str, hours: int = Query(24, ge=1, le=744),
     since=(datetime.now(timezone.utc)-timedelta(hours=hours)).isoformat(timespec="seconds")
     with connect() as db:
         tag = db.execute("SELECT factory_id FROM resources WHERE collection='tags' AND id=?", (tag_id,)).fetchone()
-        if tag is None or (user["role"] != "Organization Admin" and tag["factory_id"] != user.get("factory_id")):
+        if tag is None or (user["role"] != "Organization Admin" and tag["factory_id"] not in (None, user.get("factory_id"))):
             raise HTTPException(404, "تگ پیدا نشد.")
         rows=db.execute(
             "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples WHERE tag_id=? AND sampled_at>=? ORDER BY sampled_at DESC LIMIT ?",
@@ -88,7 +88,7 @@ def write_tag(tag_id: str, body: TagWrite, user: dict = Depends(get_current_user
         raise HTTPException(403, "نقش کاربری اجازه‌ی نوشتن مقدار تگ را ندارد.")
     with connect() as db:
         row=db.execute("SELECT payload,factory_id FROM resources WHERE collection='tags' AND id=?",(tag_id,)).fetchone()
-        if not row or (user["role"] != "Organization Admin" and row["factory_id"] != user.get("factory_id")):
+        if not row or (user["role"] != "Organization Admin" and row["factory_id"] not in (None, user.get("factory_id"))):
             raise HTTPException(404,"تگ پیدا نشد.")
         tag=json_load(row["payload"],{}) or {}
         if tag.get("access") != "read_write":
@@ -194,6 +194,9 @@ async def demo_simulator_loop(stop_event: asyncio.Event) -> None:
                 for tag in tags:
                     if tag.get("access") != "read" or tag.get("type") not in {"float32","int16","uint16","int32","uint32"}:
                         continue
+                    # Never overwrite a tag that has already been claimed by a real Edge source.
+                    if str(tag.get("last_source") or "").startswith("edge:"):
+                        continue
                     old=_numeric_value(tag.get("value"))
                     if old is None:
                         continue
@@ -201,6 +204,8 @@ async def demo_simulator_loop(stop_event: asyncio.Event) -> None:
                     value=round(max(0.0,old+random.uniform(-delta,delta)),4)
                     payload={k:v for k,v in tag.items() if k not in {"id","factory_id","updated_at"}}
                     payload["value"]=value
+                    payload["last_quality"]="DEMO"
+                    payload["last_source"]="demo-simulator"
                     db.execute("UPDATE resources SET payload=?,updated_at=? WHERE collection='tags' AND id=?",
                                (json_dump(payload),now,tag["id"]))
                     db.execute(
