@@ -28,6 +28,7 @@ function boardPage() {
   const released = orders.filter(order => order.status === "آزادشده").length;
   const weekStart = new Date();
   weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() + 7 * store.weekOffset());
   const weekDates = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
   const header = weekDates.map(date => `<b>${date.toLocaleDateString("fa-IR", { weekday: "short", day: "numeric" })}</b>`).join("");
   const machineRows = machines.map((machine, index) => {
@@ -45,7 +46,7 @@ function boardPage() {
       ${statCard("در حال تولید", running.toLocaleString("fa-IR"), "سفارش", "orange")}
       ${statCard("دارای تخصیص و تاریخ", scheduled.length.toLocaleString("fa-IR"), "سفارش", "purple")}
     </div>
-    <div class="planning-toolbar"><div class="range-pills"><button class="active" data-action="select-range">هفته</button><button data-action="select-range">ماه</button><button data-action="select-range">شیفت</button></div><div class="toolbar">${button("‹ هفته قبل", "move-week", { variant: "light", small: true, })}${button("هفته بعد ›", "move-week", { variant: "light", small: true })}</div></div>
+    <div class="planning-toolbar"><div class="range-pills"><button class="active" data-action="select-range">هفته</button><button data-action="select-range">ماه</button><button data-action="select-range">شیفت</button></div><div class="toolbar"><button class="btn btn-light btn-sm" data-action="move-week" data-delta="-1">‹ هفته قبل</button><button class="btn btn-light btn-sm" data-action="move-week" data-delta="1">هفته بعد ›</button></div></div>
     ${panel("برنامه ماشین‌ها", machines.length ? `<div class="gantt-wrap"><div class="gantt-grid"><div class="gantt-head"><span>ماشین / روز</span>${header}</div>${machineRows}</div></div>` : emptyState("ابتدا در بخش ماشین‌ها، ماشین تعریف کنید."))}
     ${panel("سفارش‌های ثبت‌شده و تخصیص‌یافته", orders.length ? dataTable([
       { key: "code", label: "شماره سفارش" },
