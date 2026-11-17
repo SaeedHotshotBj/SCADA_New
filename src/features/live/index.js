@@ -117,7 +117,7 @@ function classicHmiPage() {
 
 function alarmsPage() {
   const rows = store.list("alarms");
-  const active = rows.filter(row => row.condition_active && row.status !== "رفع‌شده");
+  const active = rows.filter(row => row.condition_active && !["رفع‌شده", "غیرفعال"].includes(row.status));
   const history = rows.filter(row => ["رفع‌شده", "تأییدشده"].includes(row.status) && !row.condition_active);
   const definitions = rows.filter(row => row.operator !== undefined && row.threshold !== undefined);
   const columns = [
