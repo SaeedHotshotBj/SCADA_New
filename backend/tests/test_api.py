@@ -57,6 +57,15 @@ def test_validated_resources_and_tag_write():
 def test_production_workflow_qc_batch_and_report_transitions():
     with TestClient(app) as client:
         client.post("/api/auth/login", json={"email":"admin@demo-cable.local","password":"demo1234"})
+        product = client.post("/api/resources/products", json={
+            "code": "PROD-RUN-TEST", "name": "کابل تست", "unit": "m", "status": "فعال"
+        })
+        assert product.status_code == 201
+        order = client.post("/api/resources/orders", json={
+            "code": "PO-TEST", "product": "کابل تست", "quantity": 100,
+            "unit": "m", "machine": "بانچر", "status": "آزادشده"
+        })
+        assert order.status_code == 201
         run = client.post("/api/resources/productionRuns", json={
             "order":"PO-TEST","machine":"بانچر","product":"کابل تست","target":100
         })
