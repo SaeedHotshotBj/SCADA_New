@@ -181,6 +181,7 @@ export async function handleAction(action, element) {
     case "start-run": case "stop-run": {
       const card = element.closest("[data-run-card]");
       let runId = element.dataset.id || element.dataset.runId || card?.dataset.runId;
+      const selectedMachine = card?.dataset.machine || document.querySelector('[name="operator-machine"]')?.value || "";
       if (!runId && card?.dataset.orderId) {
         runId = store.list("productionRuns").find(item => item.order_id === card.dataset.orderId && item.status !== "تکمیل‌شده")?.id;
       }
@@ -196,15 +197,15 @@ export async function handleAction(action, element) {
         toast("این اجرای تولید در حال حاضر فعال نیست.", "warning");
         break;
       }
-      if (!runId && action === "start-run" && !card?.dataset.orderId && card?.dataset.machine) {
-        openStartRunModal(card.dataset.machine);
+      if (!runId && action === "start-run" && !card?.dataset.orderId && selectedMachine) {
+        openStartRunModal(selectedMachine);
         break;
       }
       if (!runId && action === "start-run" && card?.dataset.orderId) {
         const order = store.list("orders").find(item => item.id === card.dataset.orderId);
         if (!order) throw new Error("سفارش انتخاب‌شده پیدا نشد.");
         const created = await store.add("productionRuns", {
-          order: order.code, order_id: order.id, machine: card.dataset.machine || "نامشخص",
+          order: order.code, order_id: order.id, machine: selectedMachine || "نامشخص",
           product: order.product, target: Number(order.quantity), unit: order.unit,
           status: "آماده"
         });
