@@ -5,14 +5,25 @@ const machines = ["کشش مفتول راد", "مولتی‌وایر", "بانچ
 
 function boardPage() {
   const orders = store.list("orders");
-  return `<div class="planning-page">${pageHeader("تابلوی برنامه‌ریزی تولید", "نمای کلی سفارش‌های برنامه‌ریزی‌شده و تخصیص ظرفیت ماشین‌ها", `${button("سفارش جدید", "new-order", { icon: "+" })}${button("امروز", "refresh-demo", { variant: "light" })}`)}
-    <div class="stats-grid stats-grid-4">${statCard("سفارش‌های برنامه‌ریزی‌شده", orders.length, "سفارش", "blue")}${statCard("در حال تولید", orders.filter(x => x.status === "در حال تولید").length, "سفارش", "green")}${statCard("ظرفیت برنامه", "۷۸", "%", "orange")}${statCard("تداخل برنامه", "۱", "مورد", "red")}</div>
-    <div class="planning-toolbar"><div class="range-pills"><button class="active" data-action="select-range">هفته</button><button data-action="select-range">ماه</button><button data-action="select-range">شیفت</button></div><div class="toolbar">${button("‹ هفته قبل", "open-modal-info", { variant: "light", small: true })}${button("هفته بعد ›", "open-modal-info", { variant: "light", small: true })}</div></div>
-    ${panel("برنامه ماشین‌ها", `<div class="gantt-wrap"><div class="gantt-grid"><div class="gantt-head"><span>ماشین / روز</span>${["شنبه ۱۶", "یکشنبه ۱۷", "دوشنبه ۱۸", "سه‌شنبه ۱۹", "چهارشنبه ۲۰", "پنجشنبه ۲۱", "جمعه ۲۲"].map(day => `<b>${day}</b>`).join("")}</div>${machines.map((machine, i) => `<div class="gantt-row"><b>${machine}</b>${Array.from({ length: 7 }, (_, d) => { const active = (i + d) % 4 !== 0; return `<div class="gantt-cell">${active && d < 5 ? `<button class="gantt-task gantt-${(i + d) % 4}" data-action="open-modal-info">${["PO-012 · کابل NYY", "PO-011 · سیم افشان", "تعمیر و نگهداری", "PO-010 · سیم ۱×۱۰"][(i + d) % 4]}</button>` : ""}</div>`; }).join("")}</div>`).join("")}</div></div>`)}
-    ${panel("سفارش‌های تخصیص‌یافته", dataTable([{ key: "code", label: "شماره سفارش" }, { key: "product", label: "محصول" }, { key: "machine", label: "ماشین" }, { key: "status", label: "وضعیت", render: row => pill(row.status, "info") }, { key: "progress", label: "پیشرفت", render: row => `<div class="progress-cell"><span>${row.progress || 0}٪</span><i><b style="width:${row.progress || 0}%"></b></i></div>` }], orders.map((row, i) => ({ ...row, machine: machines[i % machines.length] }))))}
+  const machineRows = store.list("machines");
+  const machineNames = machineRows.length ? machineRows.map(row => row.name) : [];
+  const today = new Date();
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - ((today.getDay() + 1) % 7));
+  const dateKey = value => { const d = new Date(value); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+  const days = Array.from({ length: 7 }, (_, index) => { const d = new Date(weekStart); d.setDate(weekStart.getDate()+index); return { date: dateKey(d), label: d.toLocaleDateString("fa-IR", { weekday: "short", day: "numeric" }) }; });
+  const scheduled = orders.filter(row => row.machine && row.planned_start && row.planned_end && row.planned_start <= row.planned_end);
+  const conflicts = scheduled.reduce((count, row, index) => count + scheduled.slice(index+1).filter(other => other.machine === row.machine && row.planned_start <= other.planned_end && other.planned_start <= row.planned_end).length, 0);
+  const scheduledCells = scheduled.reduce((sum, row) => sum + days.filter(day => day.date >= row.planned_start && day.date <= row.planned_end).length, 0);
+  const capacity = machineNames.length ? Math.round(scheduledCells * 100 / (machineNames.length * 7)) : 0;
+  return `<div class="planning-page" data-collection-name="orders" data-edit-action="new-order">${pageHeader("تابلوی برنامه‌ریزی تولید", "برنامه فقط از سفارش‌هایی نمایش داده می‌شود که ماشین و تاریخ شروع/پایان برنامه‌ریزی برای آن‌ها ثبت شده باشد.", `${button("سفارش جدید", "new-order", { icon: "+" })}${button("به‌روزرسانی", "refresh-demo", { variant: "light" })}`)}
+    <div class="stats-grid stats-grid-4">${statCard("کل سفارش‌ها", orders.length, "سفارش", "blue")}${statCard("در حال تولید", orders.filter(x => x.status === "در حال تولید").length, "سفارش", "green")}${statCard("ظرفیت برنامه ثبت‌شده", `${capacity}`, "%", "orange")}${statCard("تداخل بازه‌ها", conflicts, "مورد", conflicts ? "red" : "green")}</div>
+    <div class="planning-toolbar"><div class="range-pills"><span class="active">هفته جاری · ${days[0].label} تا ${days[6].label}</span></div><div class="toolbar"><span class="muted-note">بازه نمایش: ${days[0].date} تا ${days[6].date}</span></div></div>
+    ${panel("برنامه ماشین‌ها", machineNames.length ? `<div class="gantt-wrap"><div class="gantt-grid"><div class="gantt-head"><span>ماشین / روز</span>${days.map(day => `<b>${day.label}</b>`).join("")}</div>${machineNames.map(machine => `<div class="gantt-row"><b>${machine}</b>${days.map(day => { const matches = scheduled.filter(order => order.machine === machine && order.planned_start <= day.date && order.planned_end >= day.date); return `<div class="gantt-cell">${matches.map(order => `<button class="gantt-task" data-action="edit-record" data-id="${order.id}">${order.code} · ${order.product}</button>`).join("")}</div>`; }).join("")}</div>`).join("")}</div></div>` : emptyState("ابتدا ماشین تعریف کنید تا برنامه‌ریزی قابل نمایش باشد."))}
+    ${panel("سفارش‌ها و تخصیص ماشین", orders.length ? dataTable([{ key: "code", label: "شماره سفارش" }, { key: "product", label: "محصول" }, { key: "machine", label: "ماشین" }, { key: "planned_start", label: "شروع برنامه" }, { key: "planned_end", label: "پایان برنامه" }, { key: "status", label: "وضعیت", render: row => pill(row.status, "info") }, { key: "progress", label: "پیشرفت ثبت‌شده", render: row => `${Number(row.progress || 0).toLocaleString("fa-IR")}%` }, { key: "edit", label: "ویرایش", render: row => `<button class="btn btn-light btn-sm" data-action="edit-record" data-id="${row.id}">ویرایش سفارش</button>` }], orders) : emptyState("سفارشی ثبت نشده است."))}
+    <div class="insight insight-info">سفارش بدون ماشین و بازه برنامه‌ریزی در Gantt نمایش داده نمی‌شود؛ هیچ شیفت یا تداخل فرضی ساخته نشده است.</div>
   </div>`;
 }
-
 function calendarPage() {
   const calendars = store.list("machineCalendars");
   const current = calendars[0];
