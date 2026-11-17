@@ -22,12 +22,19 @@ class RunRequest(BaseModel):
     parameters: dict[str, Any] = Field(default_factory=dict)
 
 
-def _get_resource(db, collection: str, record_id: str):
+def _get_resource(db, collection: str, record_id: str, user: dict | None = None):
     row = db.execute(
-        "SELECT payload FROM resources WHERE collection=? AND id=?",
+        "SELECT payload,factory_id FROM resources WHERE collection=? AND id=?",
         (collection, record_id),
     ).fetchone()
-    return json_load(row["payload"], {}) if row else None
+    if row is None:
+        return None
+    if user and user.get("role") != "Organization Admin":
+        if collection == "factories" and record_id != user.get("factory_id"):
+            return None
+        if collection != "factories" and row["factory_id"] not in (None, user.get("factory_id")):
+            return None
+    return json_load(row["payload"], {})
 
 
 def _save_resource(db, collection: str, record_id: str, payload: dict):
@@ -42,7 +49,7 @@ def start_production_run(run_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه‌ی شروع تولید ندارد.")
     with connect() as db:
-        row = _get_resource(db, "productionRuns", run_id)
+        row = _get_resource(db, "productionRuns", run_id, user)
         if row is None:
             raise HTTPException(404, "اجرای تولید پیدا نشد.")
         if row.get("status") == "در حال تولید":
@@ -60,7 +67,7 @@ def stop_production_run(run_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه‌ی توقف تولید را ندارد.")
     with connect() as db:
-        row = _get_resource(db,"productionRuns",run_id)
+        row = _get_resource(db, "productionRuns", run_id, user)
         if row is None:
             raise HTTPException(404,"اجرای تولید پیدا نشد.")
         if row.get("status") != "در حال تولید":
@@ -76,7 +83,7 @@ def start_batch(batch_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه‌ی شروع بچ را ندارد.")
     with connect() as db:
-        row = _get_resource(db,"batches",batch_id)
+        row = _get_resource(db, "batches", batch_id, user)
         if row is None:
             raise HTTPException(404,"بچ پیدا نشد.")
         if row.get("status") == "در حال توزین":
@@ -94,7 +101,7 @@ def stop_batch(batch_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه‌ی توقف بچ را ندارد.")
     with connect() as db:
-        row = _get_resource(db,"batches",batch_id)
+        row = _get_resource(db, "batches", batch_id, user)
         if row is None:
             raise HTTPException(404,"بچ پیدا نشد.")
         if row.get("status") != "در حال توزین":
@@ -113,7 +120,7 @@ def approve_workflow_task(task_id: str, body: DecisionRequest | None = None,
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Production Planner", "Quality Control"}:
         raise HTTPException(403, "نقش کاربری اجازه‌ی تأیید این وظیفه را ندارد.")
     with connect() as db:
-        row = _get_resource(db,"workflowTasks",task_id)
+        row = _get_resource(db, "workflowTasks", task_id, user)
         if row is None:
             raise HTTPException(404,"وظیفه گردش‌کار پیدا نشد.")
         if row.get("status") != "در انتظار":
@@ -132,7 +139,7 @@ def decide_qc(qc_id: str, body: DecisionRequest, user: dict = Depends(get_curren
     if body.decision not in {"قبول","مشروط","رد"}:
         raise HTTPException(422,"تصمیم کنترل کیفیت باید قبول، مشروط یا رد باشد.")
     with connect() as db:
-        row = _get_resource(db,"qc",qc_id)
+        row = _get_resource(db, "qc", qc_id, user)
         if row is None:
             raise HTTPException(404,"رکورد کنترل کیفیت پیدا نشد.")
         row.update({"decision":body.decision,"status":"بررسی‌شده","inspector":user["name"],
@@ -147,7 +154,7 @@ def run_report(report_id: str, body: RunRequest, user: dict = Depends(get_curren
     if user["role"] not in {"Organization Admin", "Factory Admin", "Engineer", "Production Manager", "Production Planner"}:
         raise HTTPException(403, "نقش کاربری اجازه‌ی اجرای گزارش را ندارد.")
     with connect() as db:
-        report = _get_resource(db,"reports",report_id)
+        report = _get_resource(db, "reports", report_id, user)
         if report is None:
             raise HTTPException(404,"قالب گزارش پیدا نشد.")
         execution_id = "rep-" + uuid.uuid4().hex[:14]
@@ -279,7 +286,7 @@ def record_production_quantity(run_id: str, body: ProductionQuantityRequest,
     if not math.isfinite(body.quantity) or not math.isfinite(body.scrap_quantity):
         raise HTTPException(422, "مقادیر تولید باید عدد محدود باشند.")
     with connect() as db:
-        row = _get_resource(db, "productionRuns", run_id)
+        row = _get_resource(db, "productionRuns", run_id, user)
         if row is None:
             raise HTTPException(404, "اجرای تولید پیدا نشد.")
         if row.get("status") != "در حال تولید":
@@ -314,7 +321,7 @@ def complete_production_run(run_id: str, user: dict = Depends(get_current_user))
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه تکمیل تولید را ندارد.")
     with connect() as db:
-        row = _get_resource(db, "productionRuns", run_id)
+        row = _get_resource(db, "productionRuns", run_id, user)
         if row is None:
             raise HTTPException(404, "اجرای تولید پیدا نشد.")
         if row.get("status") != "در حال تولید":
@@ -353,7 +360,7 @@ def record_batch_weighments(batch_id: str, body: BatchWeighmentsRequest,
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه ثبت توزین را ندارد.")
     with connect() as db:
-        batch = _get_resource(db, "batches", batch_id)
+        batch = _get_resource(db, "batches", batch_id, user)
         if batch is None:
             raise HTTPException(404, "بچ پیدا نشد.")
         if batch.get("status") != "در حال توزین":
@@ -404,7 +411,7 @@ def complete_batch(batch_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin", "Factory Admin", "Production Manager", "Operator"}:
         raise HTTPException(403, "نقش کاربری اجازه تکمیل بچ را ندارد.")
     with connect() as db:
-        batch = _get_resource(db, "batches", batch_id)
+        batch = _get_resource(db, "batches", batch_id, user)
         if batch is None:
             raise HTTPException(404, "بچ پیدا نشد.")
         if batch.get("status") != "در حال توزین":
@@ -440,7 +447,7 @@ def decide_workflow_task(task_id: str, body: DecisionRequest,
         raise HTTPException(422, "تصمیم باید approve یا reject باشد.")
     accepted = decision in {"approve", "تأیید"}
     with connect() as db:
-        row = _get_resource(db, "workflowTasks", task_id)
+        row = _get_resource(db, "workflowTasks", task_id, user)
         if row is None:
             raise HTTPException(404, "وظیفه گردش‌کار پیدا نشد.")
         if row.get("status") != "در انتظار":
@@ -472,7 +479,7 @@ def record_qc_measurement(qc_id: str, body: QCMeasurementRequest,
     passed = (body.minimum is None or body.actual >= body.minimum) and (body.maximum is None or body.actual <= body.maximum)
     result = "PASS" if passed else "FAIL"
     with connect() as db:
-        row = _get_resource(db, "qc", qc_id)
+        row = _get_resource(db, "qc", qc_id, user)
         if row is None:
             raise HTTPException(404, "رکورد کنترل کیفیت پیدا نشد.")
         cur = db.execute(
