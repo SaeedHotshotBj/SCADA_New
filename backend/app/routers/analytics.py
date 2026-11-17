@@ -31,12 +31,20 @@ def _records(db, collection: str) -> list[dict]:
 
 
 @router.get("/summary")
-def summary(user: dict = Depends(get_current_user)):
-    """Return measured application counters. It deliberately does not invent OEE,
-    production output, energy or scrap values when no source records exist."""
+def summary(
+    days: int = Query(7, ge=1, le=365),
+    user: dict = Depends(get_current_user),
+):
+    """Return database-derived counters for the selected period.
+
+    Current-state counts (active alarms/orders/batches) remain current-state
+    snapshots. Created/recorded counts and charts are filtered by the period.
+    Unmeasured industrial KPIs are explicitly returned as null.
+    """
     now = datetime.now(timezone.utc)
-    since = (now - timedelta(hours=24)).isoformat(timespec="seconds")
-    week_start = (now - timedelta(days=6)).date()
+    period_start = now - timedelta(days=days)
+    since = period_start.isoformat(timespec="seconds")
+    today = now.date()
     with connect() as db:
         counts = {
             row["collection"]: row["count"]
@@ -44,13 +52,13 @@ def summary(user: dict = Depends(get_current_user)):
                 "SELECT collection,COUNT(*) AS count FROM resources GROUP BY collection"
             ).fetchall()
         }
-        orders = _records(db, "orders")
-        runs = _records(db, "productionRuns")
-        qc = _records(db, "qc")
+        orders_all = _records(db, "orders")
+        runs_all = _records(db, "productionRuns")
+        qc_all = _records(db, "qc")
         alarms = _records(db, "alarms")
-        batches = _records(db, "batches")
+        batches_all = _records(db, "batches")
         machines = _records(db, "machines")
-        sample_count_24h = db.execute(
+        sample_count_period = db.execute(
             "SELECT COUNT(*) FROM telemetry_samples WHERE sampled_at>=?", (since,)
         ).fetchone()[0]
         latest_sample = db.execute(
@@ -60,25 +68,46 @@ def summary(user: dict = Depends(get_current_user)):
             "SELECT action,collection,record_id,created_at FROM audit_events ORDER BY created_at DESC LIMIT 10"
         ).fetchall()
 
-    run_status = Counter(str(item.get("status", "نامشخص")) for item in runs)
-    order_status = Counter(str(item.get("status", "نامشخص")) for item in orders)
-    qc_status = Counter(str(item.get("decision", "در انتظار")) for item in qc)
-    pending_qc = sum(1 for item in qc if item.get("status") != "بررسی‌شده")
+    def occurred_in_period(item: dict, fields: tuple[str, ...]) -> bool:
+        for field in fields:
+            raw = item.get(field)
+            if not raw:
+                continue
+            try:
+                stamp = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                if stamp.tzinfo is None:
+                    stamp = stamp.replace(tzinfo=timezone.utc)
+                return stamp.astimezone(timezone.utc) >= period_start
+            except (ValueError, TypeError):
+                continue
+        return False
+
+    orders_period = [item for item in orders_all if occurred_in_period(item, ("created_at", "updated_at"))]
+    runs_period = [item for item in runs_all if occurred_in_period(item, ("started_at", "created_at"))]
+    qc_period = [item for item in qc_all if occurred_in_period(item, ("created_at", "updated_at"))]
+    batches_period = [item for item in batches_all if occurred_in_period(item, ("created_at", "started_at"))]
+
+    run_status = Counter(str(item.get("status", "نامشخص")) for item in runs_period)
+    order_status = Counter(str(item.get("status", "نامشخص")) for item in orders_period)
+    qc_status = Counter(str(item.get("decision", "در انتظار")) for item in qc_period)
+    pending_qc = sum(1 for item in qc_all if item.get("status") != "بررسی‌شده")
     active_alarms = sum(
         1 for item in alarms
-        if item.get("status") not in {"تأییدشده", "غیرفعال", "رفع‌شده"}
+        if item.get("condition_active") and item.get("status") not in {"غیرفعال", "رفع‌شده"}
     )
-    active_batches = sum(1 for item in batches if item.get("status") == "در حال توزین")
+    active_batches = sum(1 for item in batches_all if item.get("status") == "در حال توزین")
+    active_orders = sum(1 for item in orders_all if item.get("status") in {"آزادشده", "در حال تولید"})
 
     production_by_day = []
-    for offset in range(7):
-        day = week_start + timedelta(days=offset)
+    for offset in range(days - 1, -1, -1):
+        day = (today - timedelta(days=offset))
         count = 0
-        for item in runs:
-            raw = item.get("started_at")
+        for item in runs_period:
+            raw = item.get("started_at") or item.get("created_at")
             if raw:
                 try:
-                    if datetime.fromisoformat(str(raw).replace("Z", "+00:00")).date() == day:
+                    stamp = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                    if stamp.date() == day:
                         count += 1
                 except ValueError:
                     continue
@@ -86,6 +115,8 @@ def summary(user: dict = Depends(get_current_user)):
 
     return {
         "generated_at": now.isoformat(timespec="seconds"),
+        "period_days": days,
+        "period_start": since,
         "data_quality": (
             "UNSAMPLED" if latest_sample is None
             else "DEMO" if latest_sample["quality"] == "DEMO"
@@ -96,18 +127,18 @@ def summary(user: dict = Depends(get_current_user)):
             "plc_count": counts.get("plcs", 0),
             "tag_count": counts.get("tags", 0),
             "machine_count": len(machines),
-            "order_count": len(orders),
-            "active_order_count": sum(1 for item in orders if item.get("status") in {"آزادشده", "در حال تولید"}),
-            "production_run_count": len(runs),
+            "order_count": len(orders_period),
+            "active_order_count": active_orders,
+            "production_run_count": len(runs_period),
             "running_count": run_status.get("در حال تولید", 0),
             "stopped_count": run_status.get("متوقف", 0),
             "completed_run_count": run_status.get("تکمیل‌شده", 0),
             "active_alarm_count": active_alarms,
-            "qc_record_count": len(qc),
+            "qc_record_count": len(qc_period),
             "pending_qc_count": pending_qc,
-            "batch_count": len(batches),
+            "batch_count": len(batches_period),
             "active_batch_count": active_batches,
-            "telemetry_samples_24h": sample_count_24h,
+            "telemetry_samples_period": sample_count_period,
         },
         "distributions": {
             "run_status": [{"name": key, "count": value} for key, value in sorted(run_status.items())],
@@ -125,7 +156,6 @@ def summary(user: dict = Depends(get_current_user)):
             "note": "این شاخص‌ها تا زمان ثبت داده‌ی واقعی و تعریف مبنای محاسبه، عمداً محاسبه نمی‌شوند.",
         },
     }
-
 
 @router.get("/storage")
 def storage_summary(user: dict = Depends(get_current_user)):
