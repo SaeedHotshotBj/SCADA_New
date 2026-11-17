@@ -104,8 +104,19 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
                     payload[field] = number
                 except (ValueError, TypeError):
                     raise HTTPException(status_code=422, detail=f"{field} باید عدد معتبر و غیرمنفی باشد.")
-    if collection == "alarms" and "deadband" in payload and payload["deadband"] < 0:
-        raise HTTPException(status_code=422, detail="deadband باید صفر یا عدد مثبت باشد.")
+    if collection == "alarms":
+        for field in ("threshold", "deadband"):
+            if field in payload:
+                try:
+                    number = float(payload[field])
+                    if number != number or abs(number) == float("inf"):
+                        raise ValueError
+                    if field == "deadband" and number < 0:
+                        raise ValueError
+                    payload[field] = number
+                except (TypeError, ValueError):
+                    message = "deadband باید عدد معتبر و غیرمنفی باشد." if field == "deadband" else "threshold باید عدد محدود و معتبر باشد."
+                    raise HTTPException(status_code=422, detail=message)
     return payload
 
 
