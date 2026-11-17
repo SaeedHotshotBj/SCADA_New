@@ -73,6 +73,7 @@ function clone(value) { return JSON.parse(JSON.stringify(value)); }
 let state = clone(seed);
 let serverConnected = false;
 let currentUser = null;
+let selectedWeekOffset = 0;
 
 function emit() {
   window.dispatchEvent(new CustomEvent("scada:state-changed"));
@@ -116,6 +117,11 @@ export const store = {
   snapshot: () => state,
   currentUser: () => currentUser,
   isConnected: () => serverConnected,
+  weekOffset: () => selectedWeekOffset,
+  setWeekOffset: value => {
+    selectedWeekOffset = Number.isFinite(Number(value)) ? Number(value) : 0;
+    emit();
+  },
   initialize: async () => {
     try {
       await api.me();
