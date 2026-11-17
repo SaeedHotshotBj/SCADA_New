@@ -19,8 +19,8 @@ function batchRunPage() {
   const isRunning = latest?.status === "در حال توزین";
   const target = Number(latest?.target ?? hoppers.reduce((sum, hopper) => sum + Number(hopper.target || 0), 0)) || null;
   const weightValue = weightTag && weightTag.value !== undefined ? Number(weightTag.value) : null;
-  const weightAvailable = Number.isFinite(weightValue) && weightQuality !== "UNSAMPLED";
   const weightQuality = weightTag?.quality || "UNSAMPLED";
+  const weightAvailable = Number.isFinite(weightValue) && weightQuality === "GOOD";
   return `<div class="batch-page">${pageHeader("توزین و اجرای بچ", "ثبت وضعیت بچ و مشاهده مقدار تگ لودسل تخصیص‌یافته", button("بچ جدید", "new-batch", { icon: "+" }))}
     <div class="batch-control-layout">
       <section class="panel">
