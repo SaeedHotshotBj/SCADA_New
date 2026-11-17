@@ -51,6 +51,75 @@ def _validate_value(kind: str, value: Any) -> Any:
     raise HTTPException(422, "نوع داده تگ پشتیبانی نمی‌شود.")
 
 
+
+def _alarm_condition(value: Any, operator: str, threshold: float, active: bool, deadband: float) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+        return False
+    value = float(value)
+    if operator == ">":
+        return value > threshold - (deadband if active else 0)
+    if operator == ">=":
+        return value >= threshold - (deadband if active else 0)
+    if operator == "<":
+        return value < threshold + (deadband if active else 0)
+    if operator == "<=":
+        return value <= threshold + (deadband if active else 0)
+    if operator == "==":
+        tolerance = deadband if active else 0
+        return abs(value - threshold) <= tolerance
+    if operator == "!=":
+        tolerance = deadband if active else 0
+        return abs(value - threshold) > tolerance
+    return False
+
+
+def _evaluate_alarm_rules(db, tag_row, tag: dict, value: Any, quality: str) -> int:
+    if quality != "GOOD":
+        return 0
+    rows = db.execute(
+        """SELECT id,payload FROM resources WHERE collection='alarms'
+           AND (factory_id=? OR factory_id IS NULL)""",
+        (tag_row["factory_id"],),
+    ).fetchall()
+    created = 0
+    for row in rows:
+        rule = json_load(row["payload"], {}) or {}
+        if rule.get("status", "فعال") != "فعال":
+            continue
+        if rule.get("tag") not in {tag_row["id"], tag.get("name")}:
+            continue
+        try:
+            threshold = float(rule.get("threshold"))
+            deadband = max(0.0, float(rule.get("deadband") or 0))
+        except (TypeError, ValueError):
+            continue
+        operator = str(rule.get("operator") or "")
+        existing = db.execute(
+            """SELECT id,state FROM alarm_events WHERE alarm_id=?
+               AND state IN ('ACTIVE','ACKNOWLEDGED') ORDER BY triggered_at DESC LIMIT 1""",
+            (row["id"],),
+        ).fetchone()
+        is_active = _alarm_condition(value, operator, threshold, existing is not None, deadband)
+        if is_active and existing is None:
+            db.execute(
+                """INSERT INTO alarm_events(alarm_id,tag_id,value_json,severity,state,message,triggered_at)
+                   VALUES(?,?,?,?,?,?,?)""",
+                (row["id"], tag_row["id"], json_dump(value), str(rule.get("severity") or "متوسط"),
+                 "ACTIVE", str(rule.get("message") or rule.get("name") or "Alarm"), utc_now()),
+            )
+            created += 1
+        elif is_active and existing is not None:
+            db.execute(
+                "UPDATE alarm_events SET value_json=? WHERE id=?",
+                (json_dump(value), existing["id"]),
+            )
+        elif not is_active and existing is not None:
+            db.execute(
+                "UPDATE alarm_events SET state='RETURNED' WHERE id=?",
+                (existing["id"],),
+            )
+    return created
+
 @router.post("/ingest", status_code=202)
 def ingest_samples(body: EdgeIngestRequest, x_edge_token: str | None = Header(default=None)):
     if not x_edge_token:
@@ -94,6 +163,7 @@ def ingest_samples(body: EdgeIngestRequest, x_edge_token: str | None = Header(de
                 (tag_row["factory_id"], sample.tag_id, json_dump(value), sample.quality,
                  "edge:" + edge["id"], sampled_at.astimezone(timezone.utc).isoformat(timespec="seconds")),
             )
+            _evaluate_alarm_rules(db, tag_row, tag, value, sample.quality)
             accepted += 1
         db.execute(
             "UPDATE edge_devices SET status='ONLINE',last_seen=?,updated_at=? WHERE id=?",
