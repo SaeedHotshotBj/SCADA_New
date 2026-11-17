@@ -74,6 +74,8 @@ let state = clone(seed);
 let serverConnected = false;
 let currentUser = null;
 let selectedWeekOffset = 0;
+let selectedTrendId = null;
+let selectedTrendHours = 24;
 
 function emit() {
   window.dispatchEvent(new CustomEvent("scada:state-changed"));
@@ -121,6 +123,15 @@ export const store = {
   setWeekOffset: value => {
     selectedWeekOffset = Number.isFinite(Number(value)) ? Number(value) : 0;
     emit();
+  },
+  trendId: () => selectedTrendId,
+  setTrendId: value => {
+    selectedTrendId = value || null;
+  },
+  trendHours: () => selectedTrendHours,
+  setTrendHours: value => {
+    const hours = Number(value);
+    if ([1, 6, 24].includes(hours)) selectedTrendHours = hours;
   },
   initialize: async () => {
     try {
