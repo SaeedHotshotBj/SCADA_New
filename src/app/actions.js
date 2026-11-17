@@ -249,6 +249,9 @@ export async function handleAction(action, element) {
       group?.querySelectorAll("button").forEach(button => button.classList.toggle("active", button === element));
       toast(`بازه ${element.textContent.trim()} انتخاب شد.`, "info"); break;
     }
+    case "select-bi-range":
+      await store.setAnalyticsDays(element.dataset.days);
+      break;
     case "select-trend": {
       store.setTrendId(element.dataset.id);
       await loadSelectedTrendHistory();
