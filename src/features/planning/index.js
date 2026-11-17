@@ -43,7 +43,6 @@ function calendarPage() {
       <div class="panel-actions"><button class="btn btn-primary" type="submit">ذخیره تقویم</button></div>
     </form>
     ${panel("تقویم‌های ذخیره‌شده", calendars.length ? dataTable([{ key: "machine", label: "ماشین" }, { key: "year", label: "سال" }, { key: "month", label: "ماه" }, { key: "days", label: "روزهای تعریف‌شده", render: row => (row.days || []).filter(day => day.enabled).length }], calendars) : emptyState("هنوز تقویمی ذخیره نشده است."))}
-    </form>
   </div>`;
 }
 
