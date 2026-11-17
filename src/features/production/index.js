@@ -60,10 +60,11 @@ function pricesPage() {
   </div>`;
 }
 function productionReportPage() {
-  const data = store.snapshot().productionAnalytics || {};
-  const rows = data.items || [];
+  const snapshot = store.snapshot();
+  const data = snapshot.productionAnalytics || {};
+  const rows = Array.isArray(snapshot.productionReportRows) ? snapshot.productionReportRows : (data.items || []);
   const byDay = data.by_day || [];
-  const summary = data.summary || {};
+  const summary = (snapshot.productionReportSummary || [])[0] || data.summary || {};
   const filters = `<form id="production-report-filter" class="report-builder">
     <label class="field"><span>از تاریخ</span><input type="date" name="start_date"></label>
     <label class="field"><span>تا تاریخ</span><input type="date" name="end_date"></label>
