@@ -135,10 +135,29 @@ def storage_summary(user: dict = Depends(get_current_user)):
         tag_count = db.execute("SELECT COUNT(*) FROM resources WHERE collection='tags'").fetchone()[0]
         oldest = db.execute("SELECT MIN(sampled_at) FROM telemetry_samples").fetchone()[0]
         newest = db.execute("SELECT MAX(sampled_at) FROM telemetry_samples").fetchone()[0]
+        groups = db.execute(
+            "SELECT tag_id,COUNT(*) AS sample_count,MIN(sampled_at) AS first_sample,"
+            "MAX(sampled_at) AS last_sample FROM telemetry_samples GROUP BY tag_id ORDER BY sample_count DESC"
+        ).fetchall()
+        tag_rows = db.execute(
+            "SELECT id,payload FROM resources WHERE collection='tags'"
+        ).fetchall()
+    tag_meta = {row["id"]: (json_load(row["payload"], {}) or {}) for row in tag_rows}
+    by_tag = [
+        {
+            "tag_id": row["tag_id"],
+            "tag_name": tag_meta.get(row["tag_id"], {}).get("name", row["tag_id"]),
+            "type": tag_meta.get(row["tag_id"], {}).get("type", "—"),
+            "unit": tag_meta.get(row["tag_id"], {}).get("unit", ""),
+            "sample_count": row["sample_count"],
+            "first_sample": row["first_sample"],
+            "last_sample": row["last_sample"],
+        }
+        for row in groups
+    ]
     total_bytes = database_size + wal_size + shm_size
     return {
         "engine": "SQLite",
-        "database_path": str(DB_PATH),
         "database_bytes": database_size,
         "wal_bytes": wal_size,
         "shm_bytes": shm_size,
@@ -148,6 +167,7 @@ def storage_summary(user: dict = Depends(get_current_user)):
         "oldest_sample_at": oldest,
         "newest_sample_at": newest,
         "retention_days": 30,
+        "telemetry_by_tag": by_tag,
         "telemetry_mode": "DEMO_OR_EDGE",
     }
 
