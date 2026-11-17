@@ -36,10 +36,12 @@ function runPage() {
       { key: "product", label: "محصول" },
       { key: "machine", label: "ماشین" },
       { key: "target", label: "هدف ثبت‌شده" },
+      { key: "quantity_actual", label: "تولید ثبت‌شده", render: row => row.quantity_actual === undefined ? "—" : Number(row.quantity_actual).toLocaleString("fa-IR") },
+      { key: "scrap_quantity", label: "ضایعات ثبت‌شده", render: row => row.scrap_quantity === undefined ? "—" : Number(row.scrap_quantity).toLocaleString("fa-IR") },
       { key: "unit", label: "واحد" },
       { key: "started_at", label: "شروع", render: row => row.started_at ? new Date(row.started_at).toLocaleString("fa-IR") : "—" },
       { key: "status", label: "وضعیت", render: row => pill(row.status || "ثبت‌شده", row.status === "در حال تولید" ? "success" : row.status === "متوقف" ? "warning" : "muted") },
-      { key: "actions", label: "عملیات", render: row => row.status === "در حال تولید" ? `<button class="btn btn-light btn-sm" data-action="stop-run" data-id="${row.id}">توقف وضعیت</button>` : row.status === "تکمیل‌شده" ? "—" : `<button class="btn btn-primary btn-sm" data-action="start-run" data-id="${row.id}">شروع وضعیت</button>` },
+      { key: "actions", label: "عملیات", render: row => row.status === "در حال تولید" ? `<button class="btn btn-light btn-sm" data-action="record-production-quantity" data-id="${row.id}">ثبت مقدار</button> <button class="btn btn-light btn-sm" data-action="stop-run" data-id="${row.id}">توقف وضعیت</button> <button class="btn btn-primary btn-sm" data-action="complete-run" data-id="${row.id}">تکمیل</button>` : row.status === "تکمیل‌شده" ? "—" : `<button class="btn btn-primary btn-sm" data-action="start-run" data-id="${row.id}">شروع وضعیت</button>` },
     ], runs) : emptyState("هنوز اجرای تولیدی ثبت نشده است. از «شروع اجرای جدید» یک اجرا ثبت کنید."))}
     <p class="muted-note">شروع و توقف در این نسخه وضعیت اجرای نرم‌افزاری را در پایگاه داده تغییر می‌دهد و فرمانی به موتور یا ماشین واقعی ارسال نمی‌کند.</p>
   </div>`;
