@@ -20,5 +20,5 @@ function tagsPage() {
 export function renderEquipment(path) {
   if (path === "/equipment/tags") return tagsPage();
   if (path === "/equipment/plcs") return plcsPage();
-  return `<div>${pageHeader("تجهیزات", "مدیریت PLC ها و تگ‌های کارخانه")}${tabs(["PLC ها", "تگ‌ها"])}${panel("انتخاب بخش", `${button("مدیریت PLC ها", "open-modal-info")}${button("مدیریت تگ‌ها", "open-modal-info")}`)}</div>`;
+  return `<div>${pageHeader("تجهیزات", "مدیریت PLC ها و تگ‌های کارخانه")}${tabs(["PLC ها", "تگ‌ها"])}<div class="panel-actions"><a class="btn btn-primary" href="#/equipment/plcs">مدیریت PLC ها</a><a class="btn btn-light" href="#/equipment/tags">مدیریت تگ‌ها</a></div></div>`;
 }
