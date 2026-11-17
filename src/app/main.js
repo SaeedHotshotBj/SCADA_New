@@ -82,18 +82,18 @@ function syncLiveConnection() {
   const path = currentPath();
   const needsLive = path === "/live/data" || path === "/live/trends";
   if (path === "/live/trends" && store.isConnected()) {
-    const configuredTrend = store.list("trends")[0];
+    const configuredTrend = store.list("trends").find(item => item.id === store.trendId()) || store.list("trends")[0];
     const configuredNames = String(configuredTrend?.tags || "").split(/[،,]/).map(name => name.trim()).filter(Boolean);
     const sourceTag = store.list("tags").find(tag =>
       configuredNames.includes(tag.name) && tag.access === "read" &&
       ["float32","int16","uint16","int32","uint32"].includes(tag.type)
-    ) || store.list("tags").find(tag =>
-      tag.access === "read" && ["float32","int16","uint16","int32","uint32"].includes(tag.type)
     );
     if (sourceTag) {
-      api.telemetryHistory(sourceTag.id, 24)
+      api.telemetryHistory(sourceTag.id, store.trendHours())
         .then(result => store.replaceCollection("trendHistory", result.items || []))
         .catch(error => console.error("Trend history load failed", error));
+    } else {
+      store.replaceCollection("trendHistory", []);
     }
   } else if (path !== "/live/trends") {
     store.replaceCollection("trendHistory", []);
