@@ -20,7 +20,8 @@ const schemas = {
   "new-product": { title: "محصول جدید", collection: "products", fields: [["code", "کد محصول", "text"], ["name", "نام محصول", "text"], ["unit", "واحد اصلی", "select", ["m", "kg", "عدد"]], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
   "new-price": { title: "قیمت یا تعرفه جدید", collection: "prices", fields: [["kind", "نوع", "select", ["مواد اولیه", "تعرفه انرژی"]], ["code", "کد", "text"], ["name", "نام", "text"], ["price", "مبلغ واحد", "number"], ["currency", "واحد پول", "select", ["ریال", "تومان"]], ["unit", "واحد اندازه‌گیری", "select", ["kg", "m", "kWh", "عدد"]], ["valid_from", "تاریخ اعتبار", "text"], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
   "new-machine": { title: "ماشین جدید", collection: "machines", fields: [["name", "نام ماشین", "text"], ["code", "کد تجهیز", "text"], ["status", "وضعیت", "select", ["متصل", "آماده‌به‌کار", "غیرفعال"]]] },
-  "new-hmi-page": { title: "صفحه HMI جدید", collection: "hmiPages", fields: [["name", "نام صفحه", "text"], ["machine", "ماشین", "text"], ["description", "توضیحات", "text"], ["components", "تعداد قطعات", "number"], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] }
+  "new-hmi-page": { title: "صفحه HMI جدید", collection: "hmiPages", fields: [["name", "نام صفحه", "text"], ["machine", "ماشین", "text"], ["description", "توضیحات", "text"], ["components", "تعداد قطعات", "number"], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
+  "new-batch-config": { title: "تنظیم خط توزین", collection: "batchConfigs", fields: [["code", "کد تنظیمات", "text"], ["name", "نام تنظیمات", "text"], ["line", "خط تولید", "text"], ["samples", "تعداد نمونه", "number"], ["tolerance_percent", "حد مجاز خطا (%)", "number"], ["stabilization_seconds", "زمان پایدارسازی (ثانیه)", "number"]] }
 };
 
 function toast(message, type = "success") {
@@ -106,7 +107,7 @@ function openQcReviewModal(qcId) {
 
 export async function handleAction(action, element) {
   switch (action) {
-    case "new-user": case "new-factory": case "new-plc": case "new-tag": case "new-alarm": case "new-trend": case "new-report": case "new-process": case "new-template": case "new-order": case "new-unit": case "new-qc": case "new-batch": case "new-run": case "new-product": case "new-price": case "new-machine": case "new-hmi-page":
+    case "new-user": case "new-factory": case "new-plc": case "new-tag": case "new-alarm": case "new-trend": case "new-report": case "new-process": case "new-template": case "new-order": case "new-unit": case "new-qc": case "new-batch": case "new-run": case "new-product": case "new-price": case "new-machine": case "new-hmi-page": case "new-batch-config":
       openModal(action); break;
     case "edit-record": {
       const collection = document.querySelector("[data-collection-name]")?.dataset.collectionName;
@@ -189,7 +190,7 @@ export async function handleAction(action, element) {
     case "review-qc": openQcReviewModal(element.dataset.id); break;
     case "apply-filter": applyTableFilters(element); break;
     case "start-batch": {
-      const batchId = element.dataset.id || store.list("batches")[0]?.id;
+      const batchId = element.dataset.id || store.list("batches").find(item => item.status !== "تکمیل‌شده" && item.status !== "لغوشده")?.id;
       if (!batchId) { toast("ابتدا از دکمه «بچ جدید» یک بچ ثبت کنید.", "warning"); break; }
       await api.startBatch(batchId); await store.refresh();
       const status = document.querySelector("[data-batch-status]");
@@ -204,8 +205,25 @@ export async function handleAction(action, element) {
       if (status) status.textContent = "متوقف‌شده";
       toast("بچ در سرور متوقف شد؛ عملیات توزین سخت‌افزاری انجام نشد.", "info"); break;
     }
+    case "complete-batch": {
+      const batchId = element.dataset.id || store.list("batches").find(item => item.status === "در حال توزین")?.id;
+      if (!batchId) { toast("بچ فعالی برای تکمیل وجود ندارد.", "warning"); break; }
+      await api.completeBatch(batchId);
+      await store.refresh();
+      toast("بچ پس از بررسی تلرانس‌ها تکمیل شد.");
+      break;
+    }
     case "print-label": window.print(); break;
-    case "run-report": { const result = await api.runReport(element.dataset.id); toast(`گزارش اجرا شد: ${result.id}`); break; }
+    case "run-report": {
+      const group = element.closest(".report-builder, .filter-bar");
+      const parameters = group ? Object.fromEntries([...group.querySelectorAll("input, select")].filter(field => field.name && field.value).map(field => [field.name, field.value])) : {};
+      const reportId = element.dataset.id || store.list("reports").find(item => item.status !== "غیرفعال")?.id;
+      if (!reportId) { toast("ابتدا یک قالب گزارش فعال ثبت کنید.", "warning"); break; }
+      const result = await api.runReport(reportId, parameters);
+      await store.refresh();
+      toast(`گزارش از داده‌های ذخیره‌شده اجرا شد: ${result.id}`);
+      break;
+    }
     case "write-tag": { const tag = store.list("tags").find(item => item.id === element.dataset.id); if (!tag) break; const raw = prompt(`مقدار جدید برای ${tag.name} (${tag.type})`, String(tag.value ?? "")); if (raw === null) break; let value = raw; if (tag.type === "bool") { const normalized = raw.trim().toLowerCase(); if (!["true","false","1","0"].includes(normalized)) throw new Error("Boolean باید true / false یا 1 / 0 باشد."); value = normalized === "true" || normalized === "1"; } else if (["int16","uint16","int32","uint32"].includes(tag.type)) { if (!/^-?\\d+$/.test(raw.trim())) throw new Error("مقدار این تگ باید عدد صحیح باشد."); value = Number.parseInt(raw, 10); } else if (tag.type === "float32") { value = Number(raw); if (!Number.isFinite(value)) throw new Error("مقدار این تگ باید عدد معتبر باشد."); } await api.writeTag(tag.id, value); await store.refresh(); toast("مقدار در دیتابیس شبیه‌سازی تغییر کرد؛ PLC واقعی نوشته نشد.", "info"); break; }
     case "open-modal-info": toast("این عملیات هنوز در نسخه متصل تعریف نشده است.", "info"); break;
     default: toast("این فرمان در نسخه نمایشی تعریف نشده است.", "info");
