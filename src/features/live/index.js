@@ -72,15 +72,16 @@ function hmiRuntimePage(pageId) {
   </div>`;
 }
 
-const machineTabs = ["نمای کلی", "کشش مفتول راد", "مولتی‌وایر", "بانچر", "اکسترودر عایق", "کابل‌کشی", "اکسترودر روشن", "قرقره‌پیچ", "انرژی", "آلارم‌ها"];
-
 function classicHmiPage() {
   const tags = store.list("tags");
+  const plcs = store.list("plcs");
   const analytics = store.snapshot().analytics || {};
   const kpis = analytics.kpis || {};
-  const cards = tags.map(tag => `<article class="machine-card">
+  const cards = tags.map(tag => {
+    const plc = plcs.find(item => item.id === tag.plc);
+    return `<article class="machine-card" data-plc-id="${escapeHtml(tag.plc || "")}">
     <h3>${tag.name}</h3>
-    <small>${tag.plc || "بدون PLC"} · ${tag.address || "بدون آدرس"}</small>
+    <small>${escapeHtml(plc?.name || "بدون PLC")} · ${escapeHtml(tag.address || "بدون آدرس")}</small>
     <div class="motor-status">${tag.type === "bool" ? "B" : "T"}</div>
     <span class="machine-running">${tag.quality === "GOOD" ? "● داده Edge" : tag.quality === "DEMO" ? "● شبیه‌سازی" : "● بدون نمونه جدید"}</span>
     <div class="machine-metrics">
@@ -88,7 +89,8 @@ function classicHmiPage() {
       <label>کیفیت<strong>${tag.quality || "UNSAMPLED"}</strong></label>
     </div>
     <small>آخرین نمونه: ${tag.sampled_at ? new Date(tag.sampled_at).toLocaleTimeString("fa-IR") : "—"}</small>
-  </article>`).join("");
+  </article>`;
+  }).join("");
   const alarms = store.list("alarms").filter(item => !["تأییدشده","غیرفعال","رفع‌شده"].includes(item.status));
   return `<div class="classic-page">
     <div class="classic-toolbar"><span>${pill("دریافت از API", "success")} <small>${new Date().toLocaleString("fa-IR")}</small></span>
@@ -109,7 +111,7 @@ function classicHmiPage() {
         <section class="dark-display"><span>آلارم‌های فعال</span><b>${alarms.length ? alarms.length.toLocaleString("fa-IR") + " آلارم فعال" : "آلارم فعالی ثبت نشده"}</b></section>
       </div>
     </div>
-    <div class="classic-tabs">${machineTabs.map((name, i) => `<button class="${i === 0 ? "active" : ""}" data-action="select-range">${name}</button>`).join("")}</div>
+    <div class="classic-tabs"><button class="active" data-action="filter-tag-plc" data-plc="all">همه تگ‌ها</button>${plcs.map(plc => `<button data-action="filter-tag-plc" data-plc="${escapeHtml(plc.id)}">${escapeHtml(plc.name)}</button>`).join("")}</div>
   </div>`;
 }
 
