@@ -13,11 +13,11 @@ const schemas = {
   "new-process": { title: "فرآیند جدید", collection: "processes", fields: [["name", "نام فرآیند", "text"], ["code", "کد فرآیند", "text"], ["fields", "تعداد فیلد", "number"]] },
   "new-template": { title: "قالب گردشکار جدید", collection: "templates", fields: [["name", "نام قالب", "text"], ["steps", "مراحل (با ویرگول جدا کنید)", "text"], ["status", "وضعیت", "select", ["پیش‌فرض", "فعال"]]] },
   "new-task": { title: "وظیفه گردش‌کار جدید", collection: "workflowTasks", fields: [["title", "عنوان وظیفه", "text"], ["flow", "نام گردش‌کار", "text"], ["from", "ارجاع از", "text"], ["priority", "اولویت", "select", ["عادی", "بالا", "فوری"]], ["status", "وضعیت", "select", ["در انتظار", "تکمیل‌شده"]]] },
-  "new-order": { title: "سفارش تولید جدید", collection: "orders", fields: [["code", "شماره سفارش", "text"], ["product", "محصول", "text"], ["quantity", "مقدار", "number"], ["unit", "واحد", "select", ["m", "kg", "عدد"]], ["machine", "ماشین تخصیص‌یافته", "text"], ["planned_date", "تاریخ برنامه‌ریزی", "date"], ["status", "وضعیت", "select", ["در انتظار", "آزادشده", "در حال تولید"]]] },
+  "new-order": { title: "سفارش تولید جدید", collection: "orders", fields: [["code", "شماره سفارش", "text"], ["product", "محصول", "select", []], ["quantity", "مقدار", "number"], ["unit", "واحد", "select", ["m", "kg", "عدد"]], ["machine", "ماشین تخصیص‌یافته", "select", []], ["planned_date", "تاریخ برنامه‌ریزی", "date"], ["status", "وضعیت", "select", ["در انتظار", "آزادشده", "در حال تولید"]]] },
   "new-unit": { title: "واحد تولید جدید", collection: "units", fields: [["code", "کد واحد", "text"], ["quantity", "مقدار", "number"], ["unit", "واحد", "select", ["m", "kg", "عدد"]], ["status", "وضعیت", "select", ["باز", "بسته"]]] },
-  "new-qc": { title: "ثبت کنترل کیفیت", collection: "qc", fields: [["code", "شماره کنترل", "text"], ["product", "محصول", "text"], ["machine", "ماشین", "text"], ["decision", "تصمیم", "select", ["قبول", "مشروط", "رد"]]] },
+  "new-qc": { title: "ثبت کنترل کیفیت", collection: "qc", fields: [["code", "شماره کنترل", "text"], ["product", "محصول", "select", []], ["machine", "ماشین", "select", []], ["decision", "تصمیم", "select", ["قبول", "مشروط", "رد"]]] },
   "new-batch": { title: "ثبت بچ جدید", collection: "batches", fields: [["code", "کد بچ", "text"], ["formula", "فرمول", "text"], ["target", "وزن هدف (kg)", "number"], ["material", "ماده", "text"]] },
-  "new-run": { title: "شروع اجرای تولید", collection: "productionRuns", fields: [["order", "شماره سفارش", "text"], ["machine", "ماشین", "text"], ["product", "محصول", "text"], ["target", "هدف تولید", "number"]] },
+  "new-run": { title: "شروع اجرای تولید", collection: "productionRuns", fields: [["order", "شماره سفارش", "select", []], ["machine", "ماشین", "select", []], ["product", "محصول", "select", []], ["target", "هدف تولید", "number"]] },
   "new-product": { title: "محصول جدید", collection: "products", fields: [["code", "کد محصول", "text"], ["name", "نام محصول", "text"], ["unit", "واحد اصلی", "select", ["m", "kg", "عدد"]], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
   "new-price": { title: "قیمت یا تعرفه جدید", collection: "prices", fields: [["kind", "نوع", "select", ["مواد اولیه", "تعرفه انرژی"]], ["code", "کد", "text"], ["name", "نام", "text"], ["price", "مبلغ واحد", "number"], ["currency", "واحد پول", "select", ["ریال", "تومان"]], ["unit", "واحد اندازه‌گیری", "select", ["kg", "m", "kWh", "عدد"]], ["valid_from", "تاریخ اعتبار", "text"], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
   "new-machine": { title: "ماشین جدید", collection: "machines", fields: [["name", "نام ماشین", "text"], ["code", "کد تجهیز", "text"], ["status", "وضعیت نرم‌افزاری", "select", ["تعریف‌شده", "آماده‌به‌کار", "غیرفعال"]]] },
@@ -46,9 +46,13 @@ function openModal(action, record = null) {
           ? store.list("tags").map(tag => ({ value: tag.id, label: tag.name }))
           : name === "factory_id" && schema.collection === "plcs"
             ? store.list("factories").map(factory => ({ value: factory.id, label: factory.name }))
-            : name === "machine" && schema.collection === "hmiPages"
+            : name === "machine" && ["hmiPages","orders","productionRuns","qc"].includes(schema.collection)
               ? store.list("machines").map(machine => ({ value: machine.name, label: machine.name }))
-              : (options || []).map(option => ({ value: option, label: option }));
+              : name === "product" && ["orders","productionRuns","qc"].includes(schema.collection)
+                ? store.list("products").map(product => ({ value: product.name, label: product.name }))
+                : name === "order" && schema.collection === "productionRuns"
+                  ? store.list("orders").map(order => ({ value: order.code, label: `${order.code} · ${order.product}` }))
+                  : (options || []).map(option => ({ value: option, label: option }));
       return `<label class="field"><span>${escapeHtml(label)}</span><select name="${name}" required>${sourceOptions.map(option => `<option value="${escapeHtml(option.value)}" ${String(option.value) === String(value) ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label>`;
     }
     return `<label class="field"><span>${escapeHtml(label)}</span><input name="${name}" type="${type}" value="${escapeHtml(value)}" ${type === "number" ? "min=0 step=any" : ""} required /></label>`;
