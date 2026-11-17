@@ -5,19 +5,37 @@ const lines = ["کشش مفتول راد", "مولتی‌وایر", "بانچر"
 
 function runPage() {
   const runs = store.list("productionRuns");
-  return `<div class="production-page">${pageHeader("اجرای تولید", "ثبت اجرای سفارش و پیگیری وضعیت عملیات روی ماشین‌ها", button("شروع اجرای جدید", "new-run", { icon: "+" }))}
-    <div class="stats-grid stats-grid-4">${statCard("اجراهای امروز", "۱۲", "اجرا", "blue")}${statCard("در حال اجرا", "۴", "ماشین", "green")}${statCard("متوقف", "۲", "ماشین", "red")}${statCard("تکمیل‌شده", "۶", "سفارش", "orange")}</div>
-    ${panel("وضعیت ماشین‌ها", `<div class="machine-status-grid">${lines.map((machine, i) => `<article class="machine-status-card" data-run-card data-machine="${machine}"><div class="machine-status-top"><b>${machine}</b>${pill(i % 3 === 1 ? "متوقف" : "در حال تولید", i % 3 === 1 ? "warning" : "success")}</div><small>LINE-${String(i + 1).padStart(2, "0")}</small><div class="machine-status-value"><span>سرعت فعلی</span><b>${[31.7, 599.7, 120.1, 300, 60.2, 120][i]} <small>m/min</small></b></div><div class="machine-status-value"><span>توان</span><b>${[67.8, 220.4, 115.4, 191.2, 89.9, 63][i]} <small>kW</small></b></div><div class="machine-status-actions"><button class="btn btn-light btn-sm" data-action="start-run">شروع</button><button class="btn btn-light btn-sm" data-action="stop-run">توقف</button></div><small data-run-status>وضعیت نمایشی</small></article>`).join("")}</div>`)}
-    ${panel("تاریخچه اجرای تولید", dataTable([{ key: "order", label: "سفارش" }, { key: "product", label: "محصول" }, { key: "machine", label: "ماشین" }, { key: "target", label: "هدف" }, { key: "started_at", label: "شروع", render: row => row.started_at || "—" }, { key: "quantity_actual", label: "تولیدشده", render: row => `${Number(row.quantity_actual || 0).toLocaleString("fa-IR")} ${row.unit || ""}` }, { key: "scrap_quantity", label: "ضایعات", render: row => Number(row.scrap_quantity || 0).toLocaleString("fa-IR") }, { key: "status", label: "وضعیت", render: row => pill(row.status || "آماده", row.status === "در حال تولید" ? "success" : "warning") }, { key: "actions", label: "عملیات", render: row => row.status === "در حال تولید" ? `<button class="btn btn-light btn-sm" data-action="record-production-quantity" data-id="${row.id}">ثبت مقدار</button> <button class="btn btn-light btn-sm" data-action="complete-run" data-id="${row.id}">تکمیل</button>` : "—" }], runs))}
+  const machines = store.list("machines");
+  const active = runs.filter(run => run.status === "در حال تولید");
+  const completed = runs.filter(run => run.status === "تکمیل‌شده");
+  const cards = machines.map(machine => {
+    const current = active.find(run => run.machine === machine.name);
+    const run = current || runs.find(item => item.machine === machine.name);
+    return `<article class="machine-status-card" data-run-card data-machine="${machine.name}" data-run-id="${current?.id || ""}"><div class="machine-status-top"><b>${machine.name}</b>${pill(current ? "در حال تولید" : machine.status || "بدون اجرای فعال", current ? "success" : "warning")}</div><small>${machine.code || "—"}</small><div class="machine-status-value"><span>اجرای فعال</span><b>${current?.order || "بدون سفارش"}</b></div><div class="machine-status-value"><span>مقدار ثبت‌شده</span><b>${Number(current?.quantity_actual || run?.quantity_actual || 0).toLocaleString("fa-IR")} <small>${run?.unit || ""}</small></b></div><div class="machine-status-actions"><button class="btn btn-light btn-sm" data-action="start-run" ${current ? "disabled" : ""}>شروع</button><button class="btn btn-light btn-sm" data-action="stop-run" ${current ? "" : "disabled"}>توقف</button></div><small data-run-status>${current ? "وضعیت از Backend" : "بدون اجرای فعال"}</small></article>`;
+  }).join("");
+  return `<div class="production-page">${pageHeader("اجرای تولید", "شروع، توقف، ثبت مقدار تولید و تکمیل اجرای سفارش در Backend", `${button("اجرای جدید", "new-run", { icon: "+" })}${button("ماشین جدید", "new-machine", { variant: "light" })}`)}
+    <div class="stats-grid stats-grid-4">${statCard("کل اجراها", runs.length, "اجرا", "blue")}${statCard("در حال تولید", active.length, "اجرا", "green")}${statCard("متوقف / آماده", runs.filter(run => ["متوقف", "آماده"].includes(run.status)).length, "اجرا", "orange")}${statCard("تکمیل‌شده", completed.length, "اجرا", "purple")}</div>
+    ${panel("وضعیت ماشین‌های ثبت‌شده", cards || emptyState("هنوز ماشینی در Backend ثبت نشده است."))}
+    ${panel("تاریخچه اجرای تولید", runs.length ? dataTable([
+      { key: "order", label: "سفارش" }, { key: "product", label: "محصول" }, { key: "machine", label: "ماشین" },
+      { key: "target", label: "هدف" }, { key: "quantity_actual", label: "مقدار تولید" },
+      { key: "scrap_quantity", label: "ضایعات" }, { key: "status", label: "وضعیت", render: row => pill(row.status || "آماده", row.status === "در حال تولید" ? "success" : row.status === "تکمیل‌شده" ? "info" : "warning") },
+      { key: "actions", label: "عملیات", render: row => row.status === "در حال تولید"
+        ? `<button class="btn btn-light btn-sm" data-action="record-production-quantity" data-id="${row.id}">ثبت مقدار</button> <button class="btn btn-light btn-sm" data-action="stop-run" data-id="${row.id}">توقف</button> <button class="btn btn-primary btn-sm" data-action="complete-run" data-id="${row.id}">تکمیل</button>`
+        : row.status === "تکمیل‌شده" ? "—" : `<button class="btn btn-light btn-sm" data-action="start-run" data-id="${row.id}">شروع مجدد</button>` }
+    ], runs) : emptyState("هنوز اجرای تولیدی ثبت نشده است."))}
   </div>`;
 }
-
 function machinesPage() {
-  return `<div>${pageHeader("ماشین‌ها و خطوط تولید", "نمایش ساختار خطوط، ماشین‌ها و وضعیت دسترسی تجهیزات")}
-    <div class="machine-directory">${lines.map((machine, i) => `<article class="directory-card"><div class="directory-icon">${["⚙", "◉", "▤", "♨", "⇄", "▣"][i]}</div><div><h3>${machine}</h3><p>کد تجهیز: ${["RBD-01", "MWD-01", "BUN-01", "EXI-01", "LAY-01", "CPK-01"][i]}</p></div><div class="directory-meta">${pill(i === 4 ? "آماده‌به‌کار" : "متصل", "success")}<small>PLC · کنترل‌کننده خط</small></div><button class="btn btn-light btn-sm" data-action="open-modal-info">جزئیات</button></article>`).join("")}</div>
+  const rows = store.list("machines");
+  return `<div data-collection-name="machines" data-edit-action="new-machine">${pageHeader("ماشین‌ها و خطوط تولید", "تعریف ماشین‌ها و مشخصات خطوط؛ وضعیت آنلاین فقط از درایور سخت‌افزاری معتبر می‌شود.", button("ماشین جدید", "new-machine", { icon: "+" }))}
+    ${rows.length ? panel("فهرست ماشین‌ها", dataTable([
+      { key: "name", label: "ماشین" }, { key: "code", label: "کد تجهیز" },
+      { key: "status", label: "وضعیت تعریف", render: row => pill(row.status || "ثبت‌شده", "info") },
+      { key: "actions", label: "عملیات", render: row => `<button class="btn btn-light btn-sm" data-action="edit-record" data-id="${row.id}">ویرایش</button> <button class="btn btn-light btn-sm" data-action="delete-record" data-collection="machines" data-id="${row.id}">حذف</button>` }
+    ], rows)) : emptyState("ماشینی تعریف نشده است.")}
   </div>`;
 }
-
 function configPage() {
   const products = [
     { code: "CB-001", name: "کابل قدرت NYY 4×16mm²", unit: "m", fields: "قرارداد، مشتری، قرقره" },
@@ -33,22 +51,34 @@ function configPage() {
 }
 
 function pricesPage() {
-  return `<div>${pageHeader("قیمت‌ها و تعرفه‌ها", "مدیریت قیمت مواد اولیه، بهای مصرفی و تعرفه انرژی")}${tabs(["مواد اولیه", "قیمت مواد", "تعرفه انرژی"])}
-    <div class="two-col-grid">${panel("مواد اولیه", dataTable([{ key: "code", label: "کد" }, { key: "name", label: "ماده" }, { key: "unit", label: "واحد" }, { key: "status", label: "وضعیت" }], [{ code: "CU-01", name: "مفتول مس", unit: "kg", status: pill("فعال", "success") }, { code: "PVC-01", name: "گرانول PVC", unit: "kg", status: pill("فعال", "success") }, { code: "XLPE-01", name: "گرانول XLPE", unit: "kg", status: pill("فعال", "success") }]))}${panel("آخرین قیمت مواد", dataTable([{ key: "name", label: "ماده" }, { key: "price", label: "قیمت واحد" }, { key: "currency", label: "واحد پول" }, { key: "date", label: "تاریخ اعتبار" }], [{ name: "مفتول مس", price: "۹۸۰٬۰۰۰", currency: "ریال / kg", date: "۱۴۰۵/۰۸/۰۱" }, { name: "گرانول PVC", price: "۲۸۰٬۰۰۰", currency: "ریال / kg", date: "۱۴۰۵/۰۸/۰۱" }]))}</div>
-    ${panel("تعرفه انرژی", dataTable([{ key: "type", label: "نوع انرژی" }, { key: "period", label: "بازه مصرف" }, { key: "rate", label: "تعرفه" }, { key: "unit", label: "واحد" }], [{ type: "برق", period: "کم‌باری", rate: "۱٬۲۰۰", unit: "ریال / kWh" }, { type: "برق", period: "میان‌باری", rate: "۲٬۴۰۰", unit: "ریال / kWh" }, { type: "برق", period: "اوج بار", rate: "۴٬۸۰۰", unit: "ریال / kWh" }]))}
+  const prices = store.list("prices");
+  const products = store.list("products");
+  return `<div data-collection-name="prices" data-edit-action="new-price">${pageHeader("قیمت‌ها و تعرفه‌ها", "مدیریت قیمت مواد اولیه و تعرفه انرژی در پایگاه داده", button("قیمت جدید", "new-price", { icon: "+" }))}${tabs(["مواد اولیه و قیمت", "تعرفه انرژی"])}
+    <div class="two-col-grid">${panel("محصولات / مواد ثبت‌شده", products.length ? dataTable([{ key: "code", label: "کد" }, { key: "name", label: "نام" }, { key: "unit", label: "واحد" }, { key: "status", label: "وضعیت" }], products) : emptyState("محصول یا ماده‌ای ثبت نشده است."))}
+      ${panel("قیمت‌ها و تعرفه‌ها", prices.length ? dataTable([{ key: "kind", label: "نوع" }, { key: "code", label: "کد" }, { key: "name", label: "نام" }, { key: "price", label: "قیمت" }, { key: "currency", label: "واحد پول" }, { key: "unit", label: "واحد اندازه‌گیری" }, { key: "valid_from", label: "اعتبار از" }], prices) : emptyState("قیمت یا تعرفه‌ای ثبت نشده است."))}
+    </div>
   </div>`;
 }
-
 function productionReportPage() {
-  const rows = store.list("productionRuns");
-  return `<div>${pageHeader("گزارش تولید", "گزارش‌گیری از مقدار تولید بر اساس خط، محصول، سفارش و بازه زمانی", button("خروجی CSV", "export-csv", { variant: "light" }))}
-    <div class="report-builder">${dateFilter()}<label class="field"><span>وضعیت</span><select><option>همه وضعیت‌ها</option><option>تکمیل‌شده</option><option>در حال تولید</option></select></label><label class="field"><span>خط تولید</span><select><option>همه خطوط</option>${lines.map(x => `<option>${x}</option>`).join("")}</select></label><label class="field"><span>گروه‌بندی</span><select><option>روزانه</option><option>سفارش</option><option>محصول</option><option>ماشین</option></select></label><button class="btn btn-primary" data-action="apply-filter">ساخت گزارش</button></div>
-    <div class="stats-grid stats-grid-3">${statCard("مقدار تولید", "۱۳٫۴", "میلیون m", "blue")}${statCard("مقدار ضایعات", "۶۸٫۸", "هزار kg", "orange")}${statCard("تعداد اجرای تولید", rows.length || "۱۲", "اجرا", "green")}</div>
-    ${lineChart("روند مقدار تولید", undefined, "#1699c8", [18, 22, 19, 26, 24, 31, 35])}
-    ${panel("جزئیات تولید", dataTable([{ key: "order", label: "سفارش" }, { key: "product", label: "محصول" }, { key: "machine", label: "خط" }, { key: "quantity", label: "مقدار تولید" }, { key: "scrap", label: "ضایعات" }, { key: "date", label: "تاریخ", render: () => "۱۴۰۵/۰۸/۲۵" }], rows))}
+  const data = store.snapshot().productionAnalytics || {};
+  const rows = data.items || [];
+  const byDay = data.by_day || [];
+  const summary = data.summary || {};
+  const filters = `<form id="production-report-filter" class="report-builder">
+    <label class="field"><span>از تاریخ</span><input type="date" name="start_date"></label>
+    <label class="field"><span>تا تاریخ</span><input type="date" name="end_date"></label>
+    <label class="field"><span>وضعیت</span><select name="status"><option value="">همه وضعیت‌ها</option><option>در حال تولید</option><option>متوقف</option><option>تکمیل‌شده</option></select></label>
+    <label class="field"><span>خط تولید</span><input name="machine" placeholder="نام دقیق ماشین"></label>
+    <label class="field"><span>محصول</span><input name="product" placeholder="نام دقیق محصول"></label>
+    <button class="btn btn-primary" type="submit">اعمال فیلتر از سرور</button>
+  </form>`;
+  return `<div>${pageHeader("گزارش تولید", "گزارش از اجرای تولید، مقدار واقعی، ضایعات و روند روزانه در Backend", button("خروجی CSV", "export-csv", { variant: "light" }))}
+    ${filters}
+    <div class="stats-grid stats-grid-3">${statCard("تعداد اجرا", Number(summary.run_count || rows.length).toLocaleString("fa-IR"), "اجرا", "blue")}${statCard("مقدار تولید ثبت‌شده", Number(summary.quantity_actual || 0).toLocaleString("fa-IR"), "واحد", "green")}${statCard("ضایعات ثبت‌شده", Number(summary.scrap_quantity || 0).toLocaleString("fa-IR"), "واحد", "orange")}</div>
+    ${lineChart("روند مقدار تولید روزانه", undefined, "#1699c8", byDay.length ? byDay.map(item => Number(item.quantity || 0)) : [0])}
+    ${panel("جزئیات اجرای تولید", rows.length ? dataTable([{ key: "order", label: "سفارش" }, { key: "product", label: "محصول" }, { key: "machine", label: "خط" }, { key: "target", label: "هدف" }, { key: "quantity_actual", label: "مقدار تولید" }, { key: "scrap_quantity", label: "ضایعات" }, { key: "status", label: "وضعیت" }, { key: "started_at", label: "تاریخ شروع" }], rows) : emptyState("در بازه انتخاب‌شده اجرای تولیدی ثبت نشده است."))}
   </div>`;
 }
-
 export function renderProduction(path) {
   switch (path) {
     case "/production/machines": return machinesPage();
