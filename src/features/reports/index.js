@@ -3,33 +3,30 @@ import { button, dataTable, pageHeader, panel, pill, tabs, dateFilter, statCard,
 
 function reportsPage() {
   const rows = store.list("reports");
+  const executions = store.list("reportExecutions");
+  const latest = executions[0];
   return `<div class="collection-page" data-collection-name="reports" data-edit-action="new-report">
-    ${pageHeader("گزارش‌ها", "مدیریت گزارش‌های زمان‌بندی‌شده، انتخاب تگ‌ها و دریافت خروجی", button("گزارش جدید", "new-report", { icon: "+" }))}
-    <div class="stats-grid stats-grid-3">${statCard("قالب‌های گزارش", rows.length, "قالب", "blue")}${statCard("گزارش فعال", rows.filter(x => x.status !== "غیرفعال").length, "قالب", "green")}${statCard("آخرین اجرا", "امروز", "", "orange")}</div>
+    ${pageHeader("گزارش‌ها", "قالب‌های گزارش و اجرای گزارش از اطلاعات ذخیره‌شده در Backend", button("گزارش جدید", "new-report", { icon: "+" }))}
+    <div class="stats-grid stats-grid-3">${statCard("قالب‌های گزارش", rows.length, "قالب", "blue")}${statCard("قالب فعال", rows.filter(x => x.status !== "غیرفعال").length, "قالب", "green")}${statCard("اجرای دریافت‌شده در این نشست", executions.length, "اجرا", "orange")}</div>
     ${tabs(["گزارش‌ها", "خروجی‌های آماده", "زمان‌بندی"])}
-    ${panel("فهرست گزارش‌ها", dataTable([
+    ${panel("فهرست گزارش‌ها", rows.length ? dataTable([
       { key: "name", label: "نام گزارش" }, { key: "type", label: "دوره اجرا" }, { key: "tags", label: "تعداد تگ" },
       { key: "status", label: "وضعیت", render: row => pill(row.status || "فعال", row.status === "غیرفعال" ? "muted" : "success") },
       { key: "last_run_at", label: "آخرین اجرا", render: row => row.last_run_at || "—" },
-      { key: "format", label: "قالب خروجی", render: () => "JSON / CSV" },
+      { key: "format", label: "خروجی", render: () => "JSON" },
       { key: "run", label: "اجرا", render: row => `<button class="btn btn-primary btn-sm" data-action="run-report" data-id="${row.id}">اجرای گزارش</button>` }
-    ], rows, { actions: true }))}
-    <div class="panel-actions">${button("دریافت CSV", "export-csv", { variant: "light" })}${button("اجرای گزارش", "run-report", { variant: "primary" })}</div>
+    ], rows, { actions: true }) : emptyState("قالب گزارشی ثبت نشده است."))}
+    ${panel("آخرین خروجی‌های همین نشست", executions.length ? dataTable([{ key: "report_id", label: "شناسه قالب" }, { key: "id", label: "شناسه اجرا" }, { key: "status", label: "وضعیت", render: row => pill(row.status, "success") }, { key: "created_at", label: "زمان اجرا" }, { key: "download", label: "دریافت", render: row => `<button class="btn btn-light btn-sm" data-action="download-report-execution" data-id="${row.id}">دانلود JSON</button>` }], executions) : emptyState("هنوز گزارشی در این نشست اجرا نشده است."))}
+    <div class="panel-actions">${button("دریافت CSV از جدول جاری", "export-csv", { variant: "light" })}</div>
   </div>`;
 }
 
 function processesPage() {
   const rows = store.list("processes");
   return `<div class="collection-page" data-collection-name="processes" data-edit-action="new-process">
-    ${pageHeader("فرآیندها و سوابق", "تعریف فرآیندهای عملیاتی و مشاهده رکوردهای ثبت‌شده", button("فرآیند جدید", "new-process", { icon: "+" }))}
-    ${tabs(["سوابق", "تعاریف فرآیند"])}
-    <div class="filter-bar">${dateFilter()}<label class="field"><span>وضعیت</span><select><option>همه وضعیت‌ها</option><option>تکمیل‌شده</option><option>در انتظار</option></select></label><label class="field"><span>فرآیند</span><select><option>همه فرآیندها</option>${rows.map(row => `<option>${row.name}</option>`).join("")}</select></label><button class="btn btn-primary btn-sm" data-action="apply-filter">اعمال فیلتر</button></div>
-    ${panel("فهرست سوابق فرآیند", dataTable([
-      { key: "code", label: "کد" }, { key: "name", label: "نام فرآیند" },
-      { key: "operator", label: "اپراتور", render: () => "اپراتور نمونه" }, { key: "created", label: "زمان ثبت", render: () => "امروز · ۱۰:۴۵" },
-      { key: "status", label: "وضعیت", render: row => pill(row.status || "تکمیل‌شده", "success") }
-    ], rows.map(row => ({ ...row, status: row.status === "فعال" ? "تکمیل‌شده" : row.status }))))}
-    ${panel("تعاریف فرآیند", dataTable([{ key: "name", label: "فرآیند" }, { key: "code", label: "کد" }, { key: "fields", label: "تعداد فیلد" }, { key: "status", label: "وضعیت" }], rows, { actions: true }))}
+    ${pageHeader("فرآیندها و سوابق", "تعریف فرآیندهای عملیاتی و مشاهده تعاریف ذخیره‌شده", button("فرآیند جدید", "new-process", { icon: "+" }))}
+    ${panel("تعاریف فرآیند", rows.length ? dataTable([{ key: "name", label: "فرآیند" }, { key: "code", label: "کد" }, { key: "fields", label: "تعداد فیلد" }, { key: "status", label: "وضعیت" }], rows, { actions: true }) : emptyState("فرآیندی ثبت نشده است."))}
+    <div class="insight insight-info">این صفحه فعلاً تعریف فرآیندها را نگهداری می‌کند؛ اجرای گردش‌کار از کارتابل گردش‌کار انجام می‌شود.</div>
   </div>`;
 }
 
