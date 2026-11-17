@@ -31,8 +31,16 @@ def _numeric_value(value: Any) -> float | None:
         return None
 
 
-def _tag_rows(db):
-    rows = db.execute("SELECT id,factory_id,payload,updated_at FROM resources WHERE collection='tags'").fetchall()
+def _tag_rows(db, factory_id: str | None = None, *, restrict: bool = False):
+    if restrict and not factory_id:
+        return []
+    if factory_id:
+        rows = db.execute(
+            "SELECT id,factory_id,payload,updated_at FROM resources WHERE collection='tags' AND (factory_id=? OR factory_id IS NULL)",
+            (factory_id,),
+        ).fetchall()
+    else:
+        rows = db.execute("SELECT id,factory_id,payload,updated_at FROM resources WHERE collection='tags'").fetchall()
     output=[]
     for row in rows:
         payload=json_load(row["payload"],{}) or {}
@@ -43,8 +51,13 @@ def _tag_rows(db):
 @router.get("/latest")
 def latest(user: dict = Depends(get_current_user)):
     with connect() as db:
-        tags = _tag_rows(db)
-        edges = db.execute("SELECT id,name,status,last_seen FROM edge_devices ORDER BY created_at").fetchall()
+        is_org = user["role"] == "Organization Admin"
+        tags = _tag_rows(db, user.get("factory_id"), restrict=not is_org)
+        if is_org:
+            edges = db.execute("SELECT id,name,status,last_seen FROM edge_devices ORDER BY created_at").fetchall()
+        else:
+            edges = db.execute("SELECT id,name,status,last_seen FROM edge_devices WHERE factory_id=? ORDER BY created_at",
+                               (user.get("factory_id") or "",)).fetchall()
     return {"items":[{"tag_id":t["id"],"name":t.get("name"),"value":t.get("value"),
                       "unit":t.get("unit",""),"type":t.get("type"),"quality":"DEMO",
                       "source":"demo-seed-or-simulator","sampled_at":t["updated_at"]} for t in tags],
@@ -58,6 +71,9 @@ def history(tag_id: str, hours: int = Query(24, ge=1, le=744),
             user: dict = Depends(get_current_user)):
     since=(datetime.now(timezone.utc)-timedelta(hours=hours)).isoformat(timespec="seconds")
     with connect() as db:
+        tag = db.execute("SELECT factory_id FROM resources WHERE collection='tags' AND id=?", (tag_id,)).fetchone()
+        if tag is None or (user["role"] != "Organization Admin" and tag["factory_id"] != user.get("factory_id")):
+            raise HTTPException(404, "تگ پیدا نشد.")
         rows=db.execute(
             "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples WHERE tag_id=? AND sampled_at>=? ORDER BY sampled_at DESC LIMIT ?",
             (tag_id,since,limit),
@@ -72,7 +88,7 @@ def write_tag(tag_id: str, body: TagWrite, user: dict = Depends(get_current_user
         raise HTTPException(403, "نقش کاربری اجازه‌ی نوشتن مقدار تگ را ندارد.")
     with connect() as db:
         row=db.execute("SELECT payload,factory_id FROM resources WHERE collection='tags' AND id=?",(tag_id,)).fetchone()
-        if not row:
+        if not row or (user["role"] != "Organization Admin" and row["factory_id"] != user.get("factory_id")):
             raise HTTPException(404,"تگ پیدا نشد.")
         tag=json_load(row["payload"],{}) or {}
         if tag.get("access") != "read_write":
@@ -146,17 +162,17 @@ async def demo_simulator_loop(stop_event: asyncio.Event) -> None:
             continue
 
 
-async def websocket_identity(websocket: WebSocket) -> bool:
+async def websocket_identity(websocket: WebSocket) -> dict | None:
     token=websocket.cookies.get("scada_session")
     if not token:
         return False
     now=utc_now()
     with connect() as db:
         row=db.execute(
-            "SELECT 1 FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.status='فعال'",
+            "SELECT u.id,u.role,u.factory_id FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.status='فعال'",
             (token_hash(token),now),
         ).fetchone()
-    return row is not None
+    return dict(row) if row is not None else None
 
 
 @router.websocket("/ws/live")
@@ -168,7 +184,11 @@ async def live_socket(websocket: WebSocket):
     try:
         while True:
             with connect() as db:
-                tags=_tag_rows(db)
+                identity = await websocket_identity(websocket)
+                if identity is None:
+                    await websocket.close(code=4401)
+                    return
+                tags = _tag_rows(db, identity.get("factory_id"), restrict=identity["role"] != "Organization Admin")
             await websocket.send_json({
                 "type":"telemetry.snapshot",
                 "quality":"DEMO",
