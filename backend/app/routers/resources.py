@@ -107,7 +107,7 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
 
 
 def _public_user(row) -> dict:
-    return {k: row[k] for k in ("id", "email", "name", "role", "status", "created_at", "updated_at")}
+    return {k: row[k] for k in ("id", "email", "name", "role", "status", "factory_id", "created_at", "updated_at")}
 
 
 
@@ -132,7 +132,7 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
 def list_records(collection: str, db, limit: int, offset: int, factory_id: str | None) -> list[dict]:
     if collection == "users":
         rows = db.execute(
-            "SELECT id,email,name,role,status,created_at,updated_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            "SELECT id,email,name,role,status,factory_id,created_at,updated_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?",
             (limit, offset),
         ).fetchall()
         return [_public_user(row) for row in rows]
@@ -156,12 +156,34 @@ def list_collection(collection: str, limit: int = Query(500, ge=1, le=1000),
     if collection not in COLLECTIONS and collection != "users":
         raise HTTPException(status_code=404, detail="مجموعه‌ی درخواستی تعریف نشده است.")
     with connect() as db:
-        if collection == "users" and user["role"] not in ADMIN_ROLES:
-            rows = db.execute(
-                "SELECT id,email,name,role,status,created_at,updated_at FROM users WHERE id=?",
-                (user["id"],),
-            ).fetchall()
-            return {"items": [_public_user(row) for row in rows], "limit": limit, "offset": 0}
+        if collection == "users":
+            if user["role"] == "Organization Admin":
+                rows = db.execute(
+                    "SELECT id,email,name,role,status,factory_id,created_at,updated_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                    (limit, offset),
+                ).fetchall()
+            elif user["role"] == "Factory Admin" and user.get("factory_id"):
+                rows = db.execute(
+                    """SELECT id,email,name,role,status,factory_id,created_at,updated_at FROM users
+                       WHERE factory_id=? OR id=? ORDER BY created_at DESC LIMIT ? OFFSET ?""",
+                    (user["factory_id"], user["id"], limit, offset),
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    "SELECT id,email,name,role,status,factory_id,created_at,updated_at FROM users WHERE id=?",
+                    (user["id"],),
+                ).fetchall()
+            return {"items": [_public_user(row) for row in rows], "limit": limit, "offset": offset}
+        if user["role"] != "Organization Admin":
+            factory_id = user.get("factory_id")
+            if collection == "factories":
+                rows = db.execute(
+                    "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection='factories' AND id=?",
+                    (factory_id or "",),
+                ).fetchall()
+                items = [{"id": row["id"], **(json_load(row["payload"], {}) or {}),
+                          "created_at": row["created_at"], "updated_at": row["updated_at"]} for row in rows]
+                return {"items": items, "limit": limit, "offset": offset}
         return {"items": list_records(collection, db, limit, offset, factory_id), "limit": limit, "offset": offset}
 
 
@@ -173,10 +195,40 @@ def create_record(collection: str, body: ResourceInput, user: dict = Depends(get
     if collection == "users":
         if user["role"] not in ADMIN_ROLES:
             raise HTTPException(status_code=403, detail="مدیریت کاربران فقط برای مدیر سامانه یا کارخانه مجاز است.")
-        if payload.get("role") == "Organization Admin" and user["role"] != "Organization Admin":
-            raise HTTPException(status_code=403, detail="ایجاد مدیر سازمان فقط برای مدیر سازمان مجاز است.")
+        if user["role"] == "Factory Admin" and payload.get("role") in ADMIN_ROLES:
+            raise HTTPException(status_code=403, detail="مدیر کارخانه نمی‌تواند حساب مدیر دیگری ایجاد کند.")
+        if payload.get("role") != "Organization Admin" and user["role"] == "Factory Admin":
+            payload["factory_id"] = user.get("factory_id")
+        if payload.get("role") != "Organization Admin" and user["role"] == "Organization Admin" and not payload.get("factory_id"):
+            # The UI can omit a factory for convenience; assign the first active factory explicitly.
+            with connect() as db:
+                default_factory = db.execute(
+                    "SELECT id FROM resources WHERE collection='factories' ORDER BY created_at LIMIT 1"
+                ).fetchone()
+            if default_factory:
+                payload["factory_id"] = default_factory["id"]
+        if payload.get("role") != "Organization Admin" and not payload.get("factory_id"):
+            raise HTTPException(status_code=422, detail="برای این نقش باید یک کارخانه تعیین شود.")
+        if payload.get("factory_id"):
+            with connect() as db:
+                exists = db.execute(
+                    "SELECT 1 FROM resources WHERE collection='factories' AND id=?",
+                    (payload["factory_id"],),
+                ).fetchone()
+            if not exists:
+                raise HTTPException(status_code=422, detail="کارخانه انتخاب‌شده پیدا نشد.")
     elif user["role"] not in ROLES - {"Operator"}:
         raise HTTPException(status_code=403, detail="نقش کاربری اجازه‌ی ایجاد رکورد ندارد.")
+    elif collection == "factories" and user["role"] != "Organization Admin":
+        raise HTTPException(status_code=403, detail="ایجاد کارخانه فقط برای مدیر سازمان مجاز است.")
+    elif user["role"] != "Organization Admin":
+        assigned_factory = user.get("factory_id")
+        if not assigned_factory:
+            raise HTTPException(status_code=403, detail="حساب کاربری به کارخانه تخصیص داده نشده است.")
+        requested_factory = payload.get("factory_id")
+        if requested_factory and requested_factory != assigned_factory:
+            raise HTTPException(status_code=403, detail="اجازه ثبت اطلاعات برای کارخانه دیگر را ندارید.")
+        payload["factory_id"] = assigned_factory
     record_id = "r-" + uuid.uuid4().hex[:16]
     now = utc_now()
     temporary_password = None
@@ -184,12 +236,12 @@ def create_record(collection: str, body: ResourceInput, user: dict = Depends(get
         if collection == "users":
             temporary_password = "".join(secrets.choice(string.ascii_letters + string.digits + "!@#") for _ in range(16))
             db.execute(
-                """INSERT INTO users(id,email,name,role,status,password_hash,must_change_password,created_at,updated_at)
-                   VALUES(?,?,?,?,?,?,?,?,?)""",
+                """INSERT INTO users(id,email,name,role,status,password_hash,must_change_password,factory_id,created_at,updated_at)
+                   VALUES(?,?,?,?,?,?,?,?,?,?)""",
                 (record_id, payload["email"], payload["name"], payload["role"], payload.get("status", "فعال"),
-                 hash_password(temporary_password), 1, now, now),
+                 hash_password(temporary_password), 1, payload.get("factory_id"), now, now),
             )
-            row = db.execute("SELECT id,email,name,role,status,created_at,updated_at FROM users WHERE id=?", (record_id,)).fetchone()
+            row = db.execute("SELECT id,email,name,role,status,factory_id,created_at,updated_at FROM users WHERE id=?", (record_id,)).fetchone()
             result = _public_user(row)
         else:
             validate_references(collection, payload, db)
@@ -213,11 +265,19 @@ def get_record(collection: str, record_id: str, user: dict = Depends(get_current
         raise HTTPException(status_code=404, detail="کاربر پیدا نشد.")
     with connect() as db:
         if collection == "users":
-            row = db.execute("SELECT id,email,name,role,status,created_at,updated_at FROM users WHERE id=?", (record_id,)).fetchone()
+            row = db.execute("SELECT id,email,name,role,status,factory_id,created_at,updated_at FROM users WHERE id=?", (record_id,)).fetchone()
+            if row and user["role"] == "Factory Admin" and row["factory_id"] != user.get("factory_id"):
+                row = None
             result = _public_user(row) if row else None
         else:
             row = db.execute("SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection=? AND id=?", (collection, record_id)).fetchone()
-            result = ({"id":row["id"], **json_load(row["payload"], {}), "created_at":row["created_at"], "updated_at":row["updated_at"]} if row else None)
+            if row and user["role"] != "Organization Admin":
+                if collection == "factories" and row["id"] != user.get("factory_id"):
+                    row = None
+                elif row["factory_id"] not in (None, user.get("factory_id")):
+                    row = None
+            result = ({"id":row["id"], **json_load(row["payload"], {}), "factory_id":row["factory_id"],
+                       "created_at":row["created_at"], "updated_at":row["updated_at"]} if row else None)
     if result is None:
         raise HTTPException(status_code=404, detail="رکورد پیدا نشد.")
     return result
