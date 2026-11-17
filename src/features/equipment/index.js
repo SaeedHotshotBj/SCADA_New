@@ -10,7 +10,7 @@ function plcsPage() {
     { key: "unit", label: "Unit" },
     { key: "poll", label: "Poll" },
     { key: "active", label: "فعال" },
-    { key: "status", label: "وضعیت", render: row => pill(row.status || "تعریف‌شده", row.status === "SIMULATOR" ? "warning" : "muted") },
+    { key: "status", label: "وضعیت", render: () => pill("تعریف‌شده — بدون درایور", "warning") },
   ];
   return `<div data-collection-name="plcs" data-edit-action="new-plc">${pageHeader("PLC ها", "تعریف مشخصات کنترلرها؛ وضعیت ارتباط سخت‌افزاری فقط پس از نصب و تأیید آداپتور معتبر می‌شود.", button("PLC جدید", "new-plc", { icon: "+" }))}
     ${panel("فهرست PLC ها", dataTable(columns, rows, { actions: true }))}
