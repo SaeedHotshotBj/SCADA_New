@@ -9,7 +9,7 @@ function liveDataPage() {
     { key: "time", label: "زمان", render: row => row.updated_at ? new Date(row.updated_at).toLocaleTimeString("fa-IR") : "—" },
     { key: "write", label: "نوشتن", render: row => row.access === "read_write" ? `<button class="btn btn-light btn-sm" data-action="write-tag" data-id="${row.id}">Write</button>` : "—" }
   ];
-  return `<div>${pageHeader("مقادیر زنده تگ", "داده‌های زنده از PLC از طریق WebSocket؛ مقادیر این صفحه نمونه هستند.", pill("متصل · WEBSOCKET", "success"))}${panel("مقادیر لحظه‌ای", dataTable(columns, rows))}</div>`;
+  return `<div>${pageHeader("مقادیر زنده تگ", "آخرین مقدار، کیفیت و منبع از Backend؛ DEMO از داده دریافتی Edge جداست.", pill(store.isConnected() ? "Backend متصل" : "Backend قطع", store.isConnected() ? "success" : "danger"))}${panel("مقادیر لحظه‌ای", rows.length ? dataTable(columns, rows) : emptyState("تگی ثبت نشده است."))}</div>`;
 }
 
 function hmiPagesPage() {
@@ -20,9 +20,33 @@ function hmiPagesPage() {
 const machineTabs = ["نمای کلی", "کشش مفتول راد", "مولتی‌وایر", "بانچر", "اکسترودر عایق", "کابل‌کشی", "اکسترودر روشن", "قرقره‌پیچ", "انرژی", "آلارم‌ها"];
 
 function classicHmiPage() {
-  return `<div class="classic-page"><div class="classic-toolbar"><span>${pill("ارتباط زنده نمایشی", "success")} <small>۱۱:۱۰:۰۱ · ${new Date().toLocaleDateString("fa-IR")}</small></span><div>${button("بازنشانی نما", "refresh-demo", { variant: "light", small: true })}${button("بزرگ‌نمایی", "open-modal-info", { variant: "light", small: true })}</div></div><div class="classic-board"><header><h1>کابل‌سازی نمونه — سامانه‌ی پایش و کنترل تولید</h1><b class="digital-clock">11:10:01</b><p>نمای کلی خط تولید — کارخانه نمونه</p></header><div class="machine-cards">${["کشش درشت", "مولتی‌وایر", "بانچر", "اکسترودر عایق", "کابل‌کشی", "اکسترودر روشن", "قرقره‌پیچ"].map((name, index) => `<article class="machine-card"><h3>${name}</h3><small>${["RBD-01", "MWD-01", "BUN-01", "EXI-01", "LAY-01", "EXO-01", "CPK-01"][index]}</small><div class="motor-status">M</div><span class="machine-running">● در کار</span><div class="machine-metrics"><label>سرعت<strong>${[31.7, 599.7, 120.1, 300, 60.2, 0, 120][index]} <small>m/min</small></strong></label><label>توان<strong>${[67.8, 220.4, 115.4, 191.2, 89.9, 30.9, 63][index]} <small>kW</small></strong></label></div><button class="btn btn-light btn-sm" data-action="open-modal-info">جزئیات ›</button></article>`).join("")}</div><div class="process-strip"><span>جریان مواد</span><div></div><span>خط تولید نمونه</span></div><div class="classic-bottom-grid"><section class="panel"><h3>مقادیر کلی خط</h3><div class="classic-kpis">${["توان کل|809 kW", "انرژی مصرفی|178098 kWh", "فشار هوای فشرده|7.28 bar", "دمای آب چیلر|13.4 °C", "قرقره‌های تکمیل‌شده|802 عدد", "وزن قرقره جاری|630.4 kg"].map(item => { const [k, v] = item.split("|"); return `<div><small>${k}</small><b>${v}</b></div>`; }).join("")}</div></section><section class="dark-display"><span>آلارم‌های فعال</span><b>آلارم فعالی وجود ندارد</b></section></div></div><div class="classic-tabs">${machineTabs.map((name, i) => `<button class="${i === 0 ? "active" : ""}" data-action="select-range">${name}</button>`).join("")}</div></div>`;
+  const machines = store.list("machines");
+  const tags = store.list("tags");
+  const alarms = store.list("alarmEvents").filter(event => event.state === "ACTIVE");
+  const units = store.list("units");
+  const valueFor = (machine, suffixes) => {
+    const code = String(machine.code || "").split("-")[0];
+    const prefix = machine.tag_prefix || (code === "BUN" ? "BN" : code);
+    const tag = tags.find(item => suffixes.some(suffix => item.name === `${prefix}.${suffix}` || item.name.endsWith(`.${suffix}`) && item.machine === machine.id));
+    return tag ? { value: tag.value, unit: tag.unit || "", quality: tag.last_quality || "DEMO", name: tag.name } : null;
+  };
+  const display = item => item && item.value !== null && item.value !== undefined ? `${Number(item.value).toLocaleString("fa-IR", { maximumFractionDigits: 2 })} ${item.unit}` : "—";
+  const powerTags = tags.filter(tag => /power/i.test(tag.name || "") && typeof tag.value === "number");
+  const energyTags = tags.filter(tag => (tag.unit === "kWh" || tag.unit === "MWh") && typeof tag.value === "number");
+  const totalPower = powerTags.length ? powerTags.reduce((sum, tag) => sum + tag.value, 0) : null;
+  const totalEnergy = energyTags.length ? energyTags.reduce((sum, tag) => sum + tag.value, 0) : null;
+  const machineCards = machines.map(machine => {
+    const speed = valueFor(machine, ["Speed"]);
+    const current = valueFor(machine, ["Current"]);
+    const tension = valueFor(machine, ["Tension"]);
+    const energy = valueFor(machine, ["Energy"]);
+    const hasTelemetry = [speed, current, tension, energy].some(Boolean);
+    const run = store.list("productionRuns").find(item => item.machine === machine.name && item.status === "در حال تولید");
+    return `<article class="machine-card"><h3>${machine.name}</h3><small>${machine.code || "—"}</small><div class="motor-status">M</div><span class="machine-running">${run ? "● اجرای تولید فعال" : "وضعیت سخت‌افزار نامشخص"}</span><div class="machine-metrics"><label>سرعت<strong>${display(speed)}</strong></label><label>جریان<strong>${display(current)}</strong></label><label>کشش<strong>${display(tension)}</strong></label><label>انرژی<strong>${display(energy)}</strong></label></div><small>${hasTelemetry ? "کیفیت داده: " + [speed,current,tension,energy].filter(Boolean).map(item => item.quality).join(" / ") : "برای این ماشین تگ و نمونه ثبت نشده است."}</small><a class="btn btn-light btn-sm" href="#/live/data">مشاهده تگ‌ها ›</a></article>`;
+  }).join("");
+  const alarmText = alarms.length ? `${alarms.length.toLocaleString("fa-IR")} رخداد فعال` : "رخداد فعال ثبت نشده است";
+  return `<div class="classic-page"><div class="classic-toolbar"><span>${pill(tags.some(tag => tag.last_quality === "GOOD") ? "داده GOOD از Edge" : "داده DEMO / بدون سخت‌افزار", tags.some(tag => tag.last_quality === "GOOD") ? "success" : "warning")} <small>${new Date().toLocaleString("fa-IR")}</small></span><div>${button("به‌روزرسانی", "refresh-demo", { variant: "light", small: true })}<button class="btn btn-light btn-sm" data-action="toggle-hmi-fullscreen">بزرگ‌نمایی</button></div></div><div class="classic-board"><header><h1>سامانه پایش و مدیریت تولید</h1><p>وضعیت از داده‌های ذخیره‌شده و Telemetry دریافتی؛ حالت DEMO از سخت‌افزار واقعی تفکیک شده است.</p></header><div class="machine-cards">${machineCards || emptyState("ماشینی برای نمایش تعریف نشده است.")}</div><div class="process-strip"><span>منبع داده</span><div></div><span>${tags.length.toLocaleString("fa-IR")} تگ تعریف‌شده</span></div><div class="classic-bottom-grid"><section class="panel"><h3>مقادیر کلی ثبت‌شده</h3><div class="classic-kpis"><div><small>توان کل دارای تگ</small><b>${totalPower == null ? "—" : totalPower.toLocaleString("fa-IR") + " kW"}</b></div><div><small>انرژی دارای تگ</small><b>${totalEnergy == null ? "—" : totalEnergy.toLocaleString("fa-IR") + " kWh"}</b></div><div><small>قرقره‌های بسته‌شده در داده برنامه</small><b>${units.filter(unit => unit.status === "بسته").length.toLocaleString("fa-IR")}</b></div><div><small>تگ‌های دارای نمونه</small><b>${tags.filter(tag => tag.value !== null && tag.value !== undefined).length.toLocaleString("fa-IR")}</b></div></div></section><section class="dark-display"><span>آلارم‌های فعال</span><b>${alarmText}</b></section></div></div></div>`;
 }
-
 function alarmsPage() {
   const rules = store.list("alarms");
   const events = store.list("alarmEvents");
