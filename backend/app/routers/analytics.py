@@ -88,7 +88,7 @@ def overview(user: dict = Depends(get_current_user)):
     active_alarms = sum(1 for row in alarms if row.get("status") not in {"تأییدشده", "غیرفعال", "بسته"})
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "mode": "DEMO" if sample_count and any(row.get("quality") == "DEMO" for row in []) else "APPLICATION_DATA",
+        "mode": "APPLICATION_DATA",
         "data_quality_note": "این شاخص‌ها فقط از رکوردهای ذخیره‌شده در برنامه محاسبه شده‌اند؛ داده PLC واقعی تنها پس از اتصال Edge مجاز است.",
         "metrics": {
             "factory_count": len(factories),
