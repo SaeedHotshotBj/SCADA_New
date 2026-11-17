@@ -289,6 +289,7 @@ export async function handleAction(action, element) {
       if (!reportId) { toast("ابتدا یک قالب گزارش فعال ثبت کنید.", "warning"); break; }
       const result = await api.runReport(reportId, parameters);
       await store.refresh();
+      store.replaceCollection("reportExecutions", [result, ...store.list("reportExecutions")].slice(0, 20));
       downloadJson(`scada-report-${result.id}.json`, result.result || result);
       toast(`گزارش ذخیره‌شده تولید و فایل JSON آن دریافت شد: ${result.id}`);
       break;
