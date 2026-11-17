@@ -64,7 +64,7 @@ function batchSetupPage() {
     { bin: "Hopper 03", material: "افزودنی", ratio: 20, target: 100 }
   ];
   return `<div>${pageHeader("تنظیمات توزین بچ", "ذخیره پیکربندی خط، لودسل، تلرانس و سهم مواد در پایگاه داده", button("بازگشت به اجرای بچ", "refresh-demo", { variant: "light" }))}
-    <form class="panel" data-local-form="batch-config">
+    <form class="panel" data-local-form="batch-config" data-id="${current?.id || ""}">
       <div class="panel-body">
         <div class="form-grid">
           <label class="field"><span>کد تنظیمات</span><input name="code" value="${current?.code || "BATCH-01"}" required></label>
