@@ -40,6 +40,9 @@ export const api = {
   changePassword: body => request("/api/auth/change-password", { method: "POST", body }),
   me: () => request("/api/auth/me"),
   bootstrap: () => request("/api/bootstrap"),
+  analyticsSummary: () => request("/api/analytics/summary"),
+  analyticsStorage: () => request("/api/analytics/storage"),
+  auditHistory: (limit = 100) => request(`/api/analytics/audit?limit=${encodeURIComponent(limit)}`),
   list: collection => request(`/api/resources/${encodeURIComponent(collection)}`),
   create: (collection, body) => request(`/api/resources/${encodeURIComponent(collection)}`, { method: "POST", body }),
   update: (collection, id, body) => request(`/api/resources/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`, { method: "PATCH", body }),
@@ -56,4 +59,7 @@ export const api = {
   listEdges: () => request("/api/edge"),
   telemetryLatest: () => request("/api/telemetry/latest"),
   telemetryHistory: (tagId, hours = 24) => request(`/api/telemetry/history?tag_id=${encodeURIComponent(tagId)}&hours=${encodeURIComponent(hours)}`),
+  ingestEdgeTelemetry: (token, samples) => request("/api/telemetry/edge/ingest", {
+    method: "POST", headers: { "X-Edge-Token": token }, body: { samples },
+  }),
 };
