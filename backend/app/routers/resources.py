@@ -214,7 +214,8 @@ def create_record(collection: str, body: ResourceInput, user: dict = Depends(get
                 "INSERT INTO resources(collection,id,factory_id,payload,created_at,updated_at) VALUES(?,?,?,?,?,?)",
                 (collection, record_id, factory_id, json_dump(payload), now, now),
             )
-            result = {"id": record_id, **payload, "created_at": now, "updated_at": now}
+            result = {"id": record_id, **payload, **({"factory_id": factory_id} if factory_id else {}),
+                      "created_at": now, "updated_at": now}
         audit(db, user["id"], "resource.create", collection, record_id)
     if temporary_password:
         result["temporary_password"] = temporary_password
@@ -233,7 +234,9 @@ def get_record(collection: str, record_id: str, user: dict = Depends(get_current
             result = _public_user(row) if row else None
         else:
             row = db.execute("SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection=? AND id=?", (collection, record_id)).fetchone()
-            result = ({"id":row["id"], **json_load(row["payload"], {}), "created_at":row["created_at"], "updated_at":row["updated_at"]} if row else None)
+            result = ({"id":row["id"], **json_load(row["payload"], {}),
+                       **({"factory_id": row["factory_id"]} if row["factory_id"] else {}),
+                       "created_at":row["created_at"], "updated_at":row["updated_at"]} if row else None)
     if result is None:
         raise HTTPException(status_code=404, detail="رکورد پیدا نشد.")
     return result
@@ -261,7 +264,8 @@ def update_record(collection: str, record_id: str, body: ResourceInput, user: di
             merged = {"email":row["email"],"name":row["name"],"role":row["role"],"status":row["status"],**allowed}
             db.execute("UPDATE users SET email=?,name=?,role=?,status=?,updated_at=? WHERE id=?",
                        (merged["email"],merged["name"],merged["role"],merged["status"],now,record_id))
-            result = {"id":record_id, **merged, "updated_at":now}
+            result = {"id":record_id, **merged, **({"factory_id": factory_id} if factory_id else {}),
+                      "updated_at":now}
         else:
             row = db.execute("SELECT * FROM resources WHERE collection=? AND id=?", (collection,record_id)).fetchone()
             if not row:
