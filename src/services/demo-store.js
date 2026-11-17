@@ -76,6 +76,7 @@ let currentUser = null;
 let selectedWeekOffset = 0;
 let selectedTrendId = null;
 let selectedTrendHours = 24;
+let selectedAnalyticsDays = 7;
 
 function emit() {
   window.dispatchEvent(new CustomEvent("scada:state-changed"));
@@ -84,7 +85,7 @@ function emit() {
 async function hydrate() {
   const [snapshot, analytics, storage, audit, telemetry] = await Promise.all([
     api.bootstrap(),
-    api.analyticsSummary(),
+    api.analyticsSummary(selectedAnalyticsDays),
     api.analyticsStorage(),
     api.auditHistory(50),
     api.telemetryLatest(),
@@ -122,6 +123,15 @@ export const store = {
   weekOffset: () => selectedWeekOffset,
   setWeekOffset: value => {
     selectedWeekOffset = Number.isFinite(Number(value)) ? Number(value) : 0;
+    emit();
+  },
+  analyticsDays: () => selectedAnalyticsDays,
+  setAnalyticsDays: async value => {
+    const days = Number(value);
+    if (![1, 7, 30, 90, 365].includes(days)) throw new Error("بازه داشبورد معتبر نیست.");
+    const analytics = await api.analyticsSummary(days);
+    selectedAnalyticsDays = days;
+    state.analytics = analytics;
     emit();
   },
   trendId: () => selectedTrendId,
