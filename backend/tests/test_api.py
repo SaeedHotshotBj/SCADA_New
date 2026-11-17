@@ -272,6 +272,10 @@ def test_analytics_summary_storage_and_audit_are_database_backed():
         assert "oee" in body["derived_metrics"]
         assert body["derived_metrics"]["oee"] is None
         assert isinstance(body["production_by_day"], list)
+        short_period = client.get("/api/analytics/summary?days=1")
+        assert short_period.status_code == 200
+        assert short_period.json()["period_days"] == 1
+        assert "telemetry_samples_period" in short_period.json()["kpis"]
 
         storage = client.get("/api/analytics/storage")
         assert storage.status_code == 200
