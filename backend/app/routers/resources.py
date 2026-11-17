@@ -19,6 +19,7 @@ COLLECTIONS = {
     "factories", "plcs", "tags", "alarms", "trends", "reports", "processes",
     "templates", "orders", "units", "qc", "batches", "productionRuns",
     "workflowTasks", "products", "machines", "prices", "hmiPages", "machineCalendars", "batchConfigs", "controlPlans",
+    "productFields", "downtimeReasons", "inputTypes", "stopLines", "outputTypes", "documentSequences", "productionRules",
 }
 ROLES = {"Organization Admin", "Factory Admin", "Engineer", "Operator",
          "Production Planner", "Quality Control", "Production Manager"}
@@ -74,6 +75,13 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
         "machineCalendars": ("machine", "year", "month", "days"),
         "batchConfigs": ("code", "name", "loadcell", "formula", "hoppers"),
         "controlPlans": ("product", "process", "sampling_interval", "sample_count", "parameters"),
+        "productFields": ("product_code", "name", "field_type"),
+        "downtimeReasons": ("code", "reason", "group"),
+        "inputTypes": ("code", "name", "unit"),
+        "stopLines": ("code", "name"),
+        "outputTypes": ("code", "name", "unit"),
+        "documentSequences": ("document", "prefix", "year_pattern", "sequence_length"),
+        "productionRules": ("code", "name", "rule"),
     }
     if creating:
         for field in required.get(collection, ()):
@@ -93,6 +101,7 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
         "batches": ("target",), "productionRuns": ("target",),
         "prices": ("price",), "batchConfigs": ("samples", "tolerance_percent", "stabilization_seconds"),
         "controlPlans": ("sample_count",), "hmiPages": ("components",),
+        "documentSequences": ("sequence_length",),
     }
     if collection in numeric_fields:
         for field in numeric_fields[collection]:
