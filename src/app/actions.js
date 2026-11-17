@@ -125,14 +125,6 @@ function downloadJson(filename, payload) {
   URL.revokeObjectURL(url);
 }
 
-function openProductionQuantityModal(runId) {
-  const run = store.list("productionRuns").find(item => item.id === runId);
-  if (!run) { toast("اجرای تولید پیدا نشد.", "warning"); return; }
-  if (run.status !== "در حال تولید") { toast("ثبت مقدار فقط برای اجرای فعال مجاز است.", "warning"); return; }
-  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="ثبت مقدار تولید"><header class="modal-header"><h2>ثبت مقدار تولید · ${escapeHtml(run.order || run.id)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="production-quantity-form" data-id="${escapeHtml(runId)}"><div class="modal-fields"><label class="field"><span>مقدار تولید جدید (${escapeHtml(run.unit || "")})</span><input name="quantity" type="number" min="0.000001" step="any" required></label><label class="field"><span>مقدار ضایعات (${escapeHtml(run.unit || "")})</span><input name="scrap_quantity" type="number" min="0" step="any" value="0" required></label><label class="field"><span>یادداشت</span><input name="note" maxlength="1000"></label></div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ثبت در Backend</button></footer></form></section></div>`;
-  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
-}
-
 export async function handleAction(action, element) {
   switch (action) {
     case "new-user": case "new-factory": case "new-plc": case "new-tag": case "new-alarm": case "new-trend": case "new-report": case "new-process": case "new-template": case "new-order": case "new-unit": case "new-qc": case "new-run": case "new-product": case "new-price": case "new-machine": case "new-hmi-page": case "new-batch-config":
