@@ -12,7 +12,7 @@ const schemas = {
   "new-report": { title: "گزارش جدید", collection: "reports", fields: [["name", "نام گزارش", "text"], ["type", "دوره", "select", ["ساعتی", "روزانه", "هفتگی", "ماهانه"]], ["tags", "تعداد تگ", "number"]] },
   "new-process": { title: "فرآیند جدید", collection: "processes", fields: [["name", "نام فرآیند", "text"], ["code", "کد فرآیند", "text"], ["fields", "تعداد فیلد", "number"]] },
   "new-template": { title: "قالب گردشکار جدید", collection: "templates", fields: [["name", "نام قالب", "text"], ["steps", "مراحل (با ویرگول جدا کنید)", "text"], ["status", "وضعیت", "select", ["پیش‌فرض", "فعال"]]] },
-  "new-order": { title: "سفارش تولید جدید", collection: "orders", fields: [["code", "شماره سفارش", "text"], ["product", "محصول", "text"], ["quantity", "مقدار", "number"], ["unit", "واحد", "select", ["m", "kg", "عدد"]], ["status", "وضعیت", "select", ["در انتظار", "آزادشده", "در حال تولید"]]] },
+  "new-order": { title: "سفارش تولید جدید", collection: "orders", fields: [["code", "شماره سفارش", "text"], ["product", "محصول", "text"], ["quantity", "مقدار", "number"], ["unit", "واحد", "select", ["m", "kg", "عدد"]], ["machine", "ماشین تخصیص‌یافته", "select", []], ["planned_start", "شروع برنامه‌ریزی", "text"], ["planned_end", "پایان برنامه‌ریزی", "text"], ["status", "وضعیت", "select", ["در انتظار", "آزادشده", "در حال تولید"]]] },
   "new-unit": { title: "واحد تولید جدید", collection: "units", fields: [["code", "کد واحد", "text"], ["quantity", "مقدار", "number"], ["unit", "واحد", "select", ["m", "kg", "عدد"]], ["status", "وضعیت", "select", ["باز", "بسته"]]] },
   "new-qc": { title: "ثبت کنترل کیفیت", collection: "qc", fields: [["code", "شماره کنترل", "text"], ["product", "محصول", "text"], ["machine", "ماشین", "text"], ["decision", "تصمیم", "select", ["قبول", "مشروط", "رد"]]] },
   "new-batch": { title: "ثبت بچ جدید", collection: "batches", fields: [["code", "کد بچ", "text"], ["formula", "فرمول", "select", []], ["target", "وزن هدف (kg)", "number"], ["material", "ماده", "text"]] },
@@ -43,7 +43,9 @@ function openModal(action, record = null) {
           ? store.list("batchConfigs").map(config => ({ value: config.name || config.formula || config.code, label: config.name || config.formula || config.code }))
           : name === "tag" && schema.collection === "alarms"
             ? store.list("tags").map(tag => ({ value: tag.id, label: tag.name }))
-            : (options || []).map(option => ({ value: option, label: option }));
+            : name === "machine" && schema.collection === "orders"
+              ? store.list("machines").map(machine => ({ value: machine.name, label: machine.name }))
+              : (options || []).map(option => ({ value: option, label: option }));
       return `<label class="field"><span>${escapeHtml(label)}</span><select name="${name}" required>${sourceOptions.map(option => `<option value="${escapeHtml(option.value)}" ${String(option.value) === String(value) ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label>`;
     }
     return `<label class="field"><span>${escapeHtml(label)}</span><input name="${name}" type="${type}" value="${escapeHtml(value)}" ${type === "number" ? "min=0 step=any" : ""} required /></label>`;
