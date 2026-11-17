@@ -30,7 +30,7 @@ def seed_database() -> None:
                 {"id":"f3","name":"کارخانه نمونه","code":"FACTORY-03","status":"غیرفعال","edge":"—","plcs":0},
             ],
             "plcs": [
-                {"id":"p1","name":"PLC شبیه‌ساز کارخانه کابل","protocol":"simulator","address":"127.0.0.1:1502","unit":"60","poll":"500 ms","active":"بله","status":"CONNECTED","factory_id":"f1"}
+                {"id":"p1","name":"PLC شبیه‌ساز کارخانه کابل","protocol":"simulator","address":"127.0.0.1:1502","unit":"60","poll":"500 ms","active":"بله","status":"SIMULATOR","factory_id":"f1"}
             ],
             "tags": [
                 {"id":"t1","name":"BN.Cmd.Start","plc":"p1","type":"bool","address":"00014","access":"read_write","unit":"","value":False,"factory_id":"f1"},
@@ -91,7 +91,7 @@ def seed_database() -> None:
                 {"id":"prod3","code":"WR-004","name":"سیم افشان H07V-K 4mm²","unit":"m","status":"فعال"},
             ],
             "machines": [
-                {"id":"m1","name":"کشش مفتول راد","code":"RBD-01","status":"متصل"},
+                {"id":"m1","name":"کشش مفتول راد","code":"RBD-01","status":"تعریف‌شده"},
                 {"id":"m2","name":"مولتی‌وایر","code":"MWD-01","status":"متصل"},
                 {"id":"m3","name":"بانچر","code":"BUN-01","status":"متصل"},
                 {"id":"m4","name":"اکسترودر عایق","code":"EXI-01","status":"متصل"},
