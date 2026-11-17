@@ -271,3 +271,52 @@ def test_factory_configuration_dictionaries_are_persisted_and_bootstrapped():
             "document": "BAD", "prefix": "BAD", "year_pattern": "{YEAR}", "sequence_length": -1
         })
         assert invalid.status_code == 422
+
+
+def test_factory_scope_protects_operations_events_and_report_execution_history():
+    with TestClient(app) as client:
+        _login(client)
+        foreign_run = client.post("/api/resources/productionRuns", json={
+            "order": "PO-FOREIGN-001", "machine": "خط دیگر",
+            "product": "محصول دیگر", "target": 100, "unit": "m", "factory_id": "f2"
+        })
+        assert foreign_run.status_code == 201, foreign_run.text
+        foreign_run_id = foreign_run.json()["id"]
+        foreign_report = client.post("/api/resources/reports", json={
+            "name": "گزارش کارخانه دیگر", "type": "روزانه", "factory_id": "f2"
+        })
+        assert foreign_report.status_code == 201, foreign_report.text
+        foreign_report_id = foreign_report.json()["id"]
+
+        created_user = client.post("/api/resources/users", json={
+            "name": "مدیر تولید کارخانه اول", "email": "factory-scope@example.local",
+            "role": "Production Manager", "status": "فعال", "factory_id": "f1"
+        })
+        assert created_user.status_code == 201, created_user.text
+        password = created_user.json()["temporary_password"]
+        assert client.post("/api/auth/logout").status_code == 200
+        login = client.post("/api/auth/login", json={
+            "email": "factory-scope@example.local", "password": password
+        })
+        assert login.status_code == 200, login.text
+
+        assert client.post(f"/api/operations/production-runs/{foreign_run_id}/start").status_code == 404
+        assert client.get(f"/api/operations/production-runs/{foreign_run_id}/events").status_code == 404
+        assert client.post(f"/api/operations/reports/{foreign_report_id}/run",
+                           json={"parameters": {}}).status_code == 404
+        assert client.get(f"/api/operations/reports/{foreign_report_id}/executions").status_code == 404
+
+
+def test_edge_without_factory_assignment_cannot_ingest_any_factory_tag():
+    with TestClient(app) as client:
+        _login(client)
+        edge = client.post("/api/edge/register", json={
+            "name": "EDGE-UNASSIGNED-TEST", "note": "must be assigned before ingest"
+        })
+        assert edge.status_code == 201, edge.text
+        token = edge.json()["edge_token"]
+        response = client.post("/api/edge/ingest", headers={"X-Edge-Token": token}, json={
+            "samples": [{"tag_id": "t6", "value": 888.0, "quality": "GOOD"}]
+        })
+        assert response.status_code == 403
+        assert "کارخانه" in response.json()["detail"]
