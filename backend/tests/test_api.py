@@ -584,9 +584,9 @@ def test_demo_simulator_never_overwrites_a_tag_owned_by_edge():
             await task
 
         asyncio.run(one_simulator_cycle())
-        history = client.get("/api/telemetry/history", params={"tag_id": "t6", "hours": 24})
-        assert history.status_code == 200
-        latest = history.json()["items"][-1]
+        latest_response = client.get("/api/telemetry/latest")
+        assert latest_response.status_code == 200
+        latest = next(item for item in latest_response.json()["items"] if item["tag_id"] == "t6")
         assert latest["value"] == 123.45
         assert latest["quality"] == "GOOD"
         assert latest["source"].startswith("edge:")
