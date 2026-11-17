@@ -355,6 +355,16 @@ export async function handleSubmit(event) {
     form.reset();
     return true;
   }
+  if (event.target.id === "production-report-filter") {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(event.target).entries());
+    const filters = Object.fromEntries(Object.entries(values).filter(([, value]) => String(value).trim() !== ""));
+    const result = await api.analyticsProduction(filters);
+    store.replaceCollection("productionReportRows", result.items || []);
+    store.replaceCollection("productionReportSummary", [result.summary || {}]);
+    toast(`${(result.items || []).length} ردیف گزارش از Backend دریافت شد.`);
+    return true;
+  }
   if (event.target.id === "production-quantity-form") {
     event.preventDefault();
     const form = event.target;
