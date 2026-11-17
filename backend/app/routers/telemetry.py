@@ -125,6 +125,64 @@ def write_tag(tag_id: str, body: TagWrite, user: dict = Depends(get_current_user
             "warning":"مقدار فقط در پایگاه داده‌ی دمو تغییر کرد؛ به PLC واقعی نوشته نشد."}
 
 
+@router.get("/alarms/events")
+def alarm_events(user: dict = Depends(get_current_user)):
+    with connect() as db:
+        if user["role"] == "Organization Admin":
+            rows = db.execute(
+                """SELECT e.*,a.payload AS alarm_payload,t.payload AS tag_payload
+                   FROM alarm_events e
+                   LEFT JOIN resources a ON a.collection='alarms' AND a.id=e.alarm_id
+                   LEFT JOIN resources t ON t.collection='tags' AND t.id=e.tag_id
+                   ORDER BY e.triggered_at DESC LIMIT 500"""
+            ).fetchall()
+        else:
+            rows = db.execute(
+                """SELECT e.*,a.payload AS alarm_payload,t.payload AS tag_payload
+                   FROM alarm_events e
+                   LEFT JOIN resources a ON a.collection='alarms' AND a.id=e.alarm_id
+                   LEFT JOIN resources t ON t.collection='tags' AND t.id=e.tag_id
+                   WHERE t.factory_id=? OR t.factory_id IS NULL
+                   ORDER BY e.triggered_at DESC LIMIT 500""",
+                (user.get("factory_id"),),
+            ).fetchall()
+    return {"items": [
+        {
+            "id": row["id"], "alarm_id": row["alarm_id"], "tag_id": row["tag_id"],
+            "alarm_name": (json_load(row["alarm_payload"], {}) or {}).get("name", "آلارم"),
+            "tag_name": (json_load(row["tag_payload"], {}) or {}).get("name", ""),
+            "value": json_load(row["value_json"]), "severity": row["severity"],
+            "state": row["state"], "message": row["message"],
+            "triggered_at": row["triggered_at"], "acknowledged_by": row["acknowledged_by"],
+            "acknowledged_at": row["acknowledged_at"],
+        } for row in rows
+    ]}
+
+
+@router.post("/alarms/events/{event_id}/acknowledge")
+def acknowledge_alarm_event(event_id: int, user: dict = Depends(get_current_user)):
+    if user["role"] not in {"Organization Admin", "Factory Admin", "Engineer", "Production Manager", "Operator", "Quality Control"}:
+        raise HTTPException(403, "نقش کاربری اجازه تأیید آلارم را ندارد.")
+    with connect() as db:
+        row = db.execute(
+            """SELECT e.id,e.state,t.factory_id FROM alarm_events e
+               LEFT JOIN resources t ON t.collection='tags' AND t.id=e.tag_id
+               WHERE e.id=?""",
+            (event_id,),
+        ).fetchone()
+        if row is None or (user["role"] != "Organization Admin" and row["factory_id"] != user.get("factory_id")):
+            raise HTTPException(404, "رخداد آلارم پیدا نشد.")
+        if row["state"] != "ACTIVE":
+            raise HTTPException(409, "فقط رخداد فعال و تأییدنشده قابل تأیید است.")
+        timestamp = utc_now()
+        db.execute(
+            "UPDATE alarm_events SET state='ACKNOWLEDGED',acknowledged_by=?,acknowledged_at=? WHERE id=?",
+            (user["id"], timestamp, event_id),
+        )
+    return {"id": event_id, "state": "ACKNOWLEDGED", "acknowledged_by": user["id"], "acknowledged_at": timestamp}
+
+
+
 async def demo_simulator_loop(stop_event: asyncio.Event) -> None:
     """Generate explicitly labelled demonstration samples; never talks to PLC hardware."""
     random.seed(1024)
