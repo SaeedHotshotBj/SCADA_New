@@ -48,9 +48,14 @@ export function renderBi() {
       "▥"
     )}
     <div class="dashboard-filters">
-      <div class="range-pills">${["امروز", "۷ روز اخیر", "۳۰ روز اخیر", "۳ ماه اخیر", "ماه جاری", "ماه گذشته", "فصل جاری", "سال جاری"].map((x, i) => `<button data-action="select-range" class="${i === 1 ? "active" : ""}">${x}</button>`).join("")}</div>
-      ${dateFilter()}
-      <div class="range-pills"><button class="active" data-action="select-range">شاخص‌های ثبت‌شده در سرور</button></div>
+      <div class="range-pills">${[
+        {days:1,label:"۲۴ ساعت"},
+        {days:7,label:"۷ روز"},
+        {days:30,label:"۳۰ روز"},
+        {days:90,label:"۹۰ روز"},
+        {days:365,label:"یک سال"}
+      ].map(item => `<button data-action="select-bi-range" data-days="${item.days}" class="${analytics.period_days === item.days ? "active" : ""}">${item.label}</button>`).join("")}</div>
+      <span class="muted-note">بازه انتخاب‌شده: ${analytics.period_days || 7} روز · گزارش‌های جاری بر اساس داده‌های ثبت‌شده در همین بازه</span>
     </div>
 
     <div class="stats-grid stats-grid-4">
@@ -62,7 +67,7 @@ export function renderBi() {
     <div class="stats-grid stats-grid-4">
       ${statCard("ماشین تعریف‌شده", count(kpis.machine_count), "ماشین", "blue", "", "موجودیت‌های ثبت‌شده")}
       ${statCard("تگ تعریف‌شده", count(kpis.tag_count), "تگ", "purple", "", "موجودیت‌های ثبت‌شده")}
-      ${statCard("نمونه تلمتری ۲۴ ساعت", count(kpis.telemetry_samples_24h), "نمونه", "green", "", "شامل کیفیت DEMO یا GOOD")}
+      ${statCard("نمونه تلمتری در بازه", count(kpis.telemetry_samples_period), "نمونه", "green", "", "شامل کیفیت DEMO یا GOOD")}
       ${statCard("بچ در حال توزین", count(kpis.active_batch_count), "بچ", "orange", "", "وضعیت نرم‌افزاری")}
     </div>
 
