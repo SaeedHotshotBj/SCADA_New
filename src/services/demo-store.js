@@ -80,14 +80,18 @@ function emit() {
 
 async function hydrate() {
   const snapshot = await api.bootstrap();
-  const analytics = await api.analyticsOverview().catch(error => ({
-    error: error.message || "دریافت شاخص‌های تحلیلی انجام نشد."
-  }));
-  const edgeResult = await api.listEdges().catch(() => ({ items: [] }));
+  const [analytics, productionAnalytics, qualityAnalytics, edgeResult] = await Promise.all([
+    api.analyticsOverview().catch(error => ({ error: error.message || "دریافت شاخص‌های تحلیلی انجام نشد." })),
+    api.analyticsProduction({}).catch(error => ({ error: error.message || "دریافت تولید انجام نشد.", by_day: [], items: [] })),
+    api.analyticsQuality({}).catch(error => ({ error: error.message || "دریافت کیفیت انجام نشد.", items: [] })),
+    api.listEdges().catch(() => ({ items: [] })),
+  ]);
   state = {
     ...clone(seed),
     ...snapshot.data,
     analytics,
+    productionAnalytics,
+    qualityAnalytics,
     edges: edgeResult.items || [],
     trendHistory: state.trendHistory || [],
   };
