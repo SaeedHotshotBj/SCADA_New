@@ -30,6 +30,7 @@ ENUMS = {
     "tags.access": {"read", "read_write"},
     "users.role": ROLES,
     "users.status": {"فعال", "غیرفعال"},
+    "alarms.operator": {">", ">=", "<", "<=", "==", "!="},
     "factories.status": {"فعال", "غیرفعال"},
     "orders.status": {"در انتظار", "آزادشده", "در حال تولید", "تکمیل‌شده", "لغوشده"},
     "qc.decision": {"قبول", "مشروط", "رد"},
@@ -56,7 +57,7 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
         "factories": ("name", "code"),
         "plcs": ("name", "protocol", "address"),
         "tags": ("name", "plc", "type", "address", "access"),
-        "alarms": ("name", "severity"),
+        "alarms": ("name", "severity", "tag", "operator", "threshold"),
         "trends": ("name", "tags", "period"),
         "reports": ("name", "type"),
         "processes": ("name", "code"),
@@ -88,7 +89,7 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
             raise HTTPException(status_code=422, detail="ایمیل معتبر نیست.")
         payload["email"] = email
     numeric_fields = {
-        "orders": ("quantity", "progress"), "units": ("quantity",),
+        "orders": ("quantity", "progress"), "units": ("quantity",), "alarms": ("threshold",),
         "batches": ("target",), "productionRuns": ("target",),
         "prices": ("price",), "batchConfigs": ("samples", "tolerance_percent", "stabilization_seconds"),
         "controlPlans": ("sample_count",), "hmiPages": ("components",),
@@ -119,6 +120,13 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
         ).fetchone()
         if plc is None:
             raise HTTPException(status_code=422, detail="PLC انتخاب‌شده در سامانه ثبت نشده است.")
+    if collection == "alarms" and payload.get("tag"):
+        tag = db.execute(
+            "SELECT 1 FROM resources WHERE collection='tags' AND id=?",
+            (payload["tag"],),
+        ).fetchone()
+        if tag is None:
+            raise HTTPException(status_code=422, detail="تگ انتخاب‌شده برای آلارم در سامانه ثبت نشده است.")
     factory_id = payload.get("factory_id")
     if factory_id:
         factory = db.execute(
