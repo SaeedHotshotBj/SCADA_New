@@ -12,7 +12,7 @@ const schemas = {
   "new-report": { title: "گزارش جدید", collection: "reports", fields: [["name", "نام گزارش", "text"], ["type", "دوره", "select", ["ساعتی", "روزانه", "هفتگی", "ماهانه"]], ["tags", "تعداد تگ", "number"]] },
   "new-process": { title: "فرآیند جدید", collection: "processes", fields: [["name", "نام فرآیند", "text"], ["code", "کد فرآیند", "text"], ["fields", "تعداد فیلد", "number"]] },
   "new-template": { title: "قالب گردشکار جدید", collection: "templates", fields: [["name", "نام قالب", "text"], ["steps", "مراحل (با ویرگول جدا کنید)", "text"], ["status", "وضعیت", "select", ["پیش‌فرض", "فعال"]]] },
-  "new-order": { title: "سفارش تولید جدید", collection: "orders", fields: [["code", "شماره سفارش", "text"], ["product", "محصول", "text"], ["quantity", "مقدار", "number"], ["unit", "واحد", "select", ["m", "kg", "عدد"]], ["machine", "ماشین تخصیص‌یافته", "select", []], ["planned_start", "شروع برنامه‌ریزی", "text"], ["planned_end", "پایان برنامه‌ریزی", "text"], ["status", "وضعیت", "select", ["در انتظار", "آزادشده", "در حال تولید"]]] },
+  "new-order": { title: "سفارش تولید جدید", collection: "orders", fields: [["code", "شماره سفارش", "text"], ["product", "محصول", "text"], ["quantity", "مقدار", "number"], ["unit", "واحد", "select", ["m", "kg", "عدد"]], ["machine", "ماشین تخصیص‌یافته", "select", []], ["planned_start", "شروع برنامه‌ریزی", "date"], ["planned_end", "پایان برنامه‌ریزی", "date"], ["status", "وضعیت", "select", ["در انتظار", "آزادشده", "در حال تولید"]]] },
   "new-unit": { title: "واحد تولید جدید", collection: "units", fields: [["code", "کد واحد", "text"], ["quantity", "مقدار", "number"], ["unit", "واحد", "select", ["m", "kg", "عدد"]], ["status", "وضعیت", "select", ["باز", "بسته"]]] },
   "new-qc": { title: "ثبت کنترل کیفیت", collection: "qc", fields: [["code", "شماره کنترل", "text"], ["product", "محصول", "text"], ["machine", "ماشین", "text"], ["decision", "تصمیم", "select", ["قبول", "مشروط", "رد"]]] },
   "new-batch": { title: "ثبت بچ جدید", collection: "batches", fields: [["code", "کد بچ", "text"], ["formula", "فرمول", "select", []], ["target", "وزن هدف (kg)", "number"], ["material", "ماده", "text"]] },
@@ -308,6 +308,16 @@ export async function handleAction(action, element) {
       const execution = store.list("reportExecutions").find(row => row.id === element.dataset.id);
       if (!execution) { toast("خروجی در حافظه این نشست نیست؛ گزارش را دوباره اجرا کنید.", "warning"); break; }
       downloadJson(`scada-report-${execution.id}.json`, execution.result || execution);
+      break;
+    }
+    case "add-product-field":
+      openModal("new-product-field", { product_code: element.dataset.productCode });
+      break;
+    case "toggle-hmi-fullscreen": {
+      const target = element.closest(".classic-page") || document.querySelector(".classic-page");
+      if (!target) { toast("صفحه HMI فعالی پیدا نشد.", "warning"); break; }
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await target.requestFullscreen();
       break;
     }
     case "print-label": window.print(); break;
