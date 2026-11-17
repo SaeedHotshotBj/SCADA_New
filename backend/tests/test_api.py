@@ -433,3 +433,41 @@ def test_hmi_layout_validates_tag_bindings_and_write_access():
             "status": "فعال",
         })
         assert missing_tag.status_code == 422
+
+
+def test_resource_update_returns_factory_scope_and_user_update_is_safe():
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local", "password": "demo1234"
+        })
+        factory = client.post("/api/resources/factories", json={
+            "name": "Factory Update Test", "code": "FACTORY-UPD", "status": "فعال"
+        })
+        assert factory.status_code == 201
+        factory_id = factory.json()["id"]
+
+        plc = client.post("/api/resources/plcs", json={
+            "factory_id": factory_id, "name": "PLC update", "protocol": "simulator",
+            "address": "127.0.0.1:1601", "unit": "1"
+        })
+        assert plc.status_code == 201
+        updated_plc = client.patch(
+            f"/api/resources/plcs/{plc.json()['id']}",
+            json={"address": "127.0.0.1:1602"}
+        )
+        assert updated_plc.status_code == 200
+        assert updated_plc.json()["factory_id"] == factory_id
+        assert updated_plc.json()["address"] == "127.0.0.1:1602"
+
+        created_user = client.post("/api/resources/users", json={
+            "name": "User Update Test", "email": "user-update@example.local",
+            "role": "Engineer", "status": "فعال"
+        })
+        assert created_user.status_code == 201
+        user_id = created_user.json()["id"]
+        updated_user = client.patch(
+            f"/api/resources/users/{user_id}",
+            json={"name": "Updated Engineer"}
+        )
+        assert updated_user.status_code == 200
+        assert updated_user.json()["name"] == "Updated Engineer"
