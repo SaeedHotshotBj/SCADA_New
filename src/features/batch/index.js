@@ -1,5 +1,5 @@
 import { store } from "../../services/demo-store.js";
-import { button, dataTable, pageHeader, panel, pill, statCard, lineChart, emptyState } from "../../shared/ui.js";
+import { button, dataTable, pageHeader, panel, pill, statCard, emptyState } from "../../shared/ui.js";
 
 function currentConfig(batch) {
   const configs = store.list("batchConfigs");
@@ -134,7 +134,7 @@ function batchComparePage() {
       ${statCard("اختلاف", difference === null ? "—" : difference.toLocaleString("fa-IR"), difference === null ? "" : "kg", "orange")}
       ${statCard("انحراف", deviation === null ? "—" : deviation.toLocaleString("fa-IR", { maximumFractionDigits: 3 }), deviation === null ? "" : "%", "purple")}
     </div>
-    ${actual !== null ? lineChart("وزن لحظه‌ای ثبت‌شده در تگ", undefined, "#1699c8", [actual]) : panel("مقایسه وزن", emptyState("تا این لحظه مقدار واقعی با کیفیت GOOD از Edge برای تگ لودسل ثبت نشده است."))}
+    ${panel("آخرین قرائت معتبر لودسل", actual !== null ? `<div class="storage-list"><div><span>مقدار</span><b>${actual.toLocaleString("fa-IR", { maximumFractionDigits: 3 })} ${tag?.unit || ""}</b></div><div><span>زمان نمونه</span><b>${tag?.sampled_at ? new Date(tag.sampled_at).toLocaleString("fa-IR") : "—"}</b></div><div><span>منبع</span><b>${tag?.source || "—"}</b></div></div>` : emptyState("تا این لحظه مقدار واقعی با کیفیت GOOD از Edge برای تگ لودسل ثبت نشده است."))}
     ${panel("مقایسه بر اساس ماده و هاپر", rows.length ? dataTable([
       { key: "bin", label: "هاپر" },
       { key: "material", label: "ماده" },
