@@ -13,11 +13,24 @@ from ..dependencies import get_current_user
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 
 
-def _records(db, collection: str) -> list[dict[str, Any]]:
-    rows = db.execute(
-        "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection=?",
-        (collection,),
-    ).fetchall()
+def _records(db, collection: str, user: dict | None = None) -> list[dict[str, Any]]:
+    if user and user.get("role") != "Organization Admin":
+        if collection == "factories":
+            rows = db.execute(
+                "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection=? AND id=?",
+                (collection, user.get("factory_id") or ""),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                """SELECT id,factory_id,payload,created_at,updated_at FROM resources
+                   WHERE collection=? AND (factory_id=? OR factory_id IS NULL)""",
+                (collection, user.get("factory_id")),
+            ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection=?",
+            (collection,),
+        ).fetchall()
     result = []
     for row in rows:
         item = json_load(row["payload"], {}) or {}
@@ -65,20 +78,35 @@ def _period(start_date: str | None, end_date: str | None) -> tuple[datetime | No
 @router.get("/overview")
 def overview(user: dict = Depends(get_current_user)):
     with connect() as db:
-        factories = _records(db, "factories")
-        plcs = _records(db, "plcs")
-        tags = _records(db, "tags")
-        alarms = _records(db, "alarms")
-        orders = _records(db, "orders")
-        runs = _records(db, "productionRuns")
-        batches = _records(db, "batches")
-        qc = _records(db, "qc")
-        sample_count = db.execute("SELECT COUNT(*) FROM telemetry_samples").fetchone()[0]
-        last_sample = db.execute("SELECT MAX(sampled_at) FROM telemetry_samples").fetchone()[0]
-        edge_counts = {
-            row["status"]: row["count"]
-            for row in db.execute("SELECT status,COUNT(*) AS count FROM edge_devices GROUP BY status").fetchall()
-        }
+        factories = _records(db, "factories", user)
+        plcs = _records(db, "plcs", user)
+        tags = _records(db, "tags", user)
+        alarms = _records(db, "alarms", user)
+        orders = _records(db, "orders", user)
+        runs = _records(db, "productionRuns", user)
+        batches = _records(db, "batches", user)
+        qc = _records(db, "qc", user)
+        if user["role"] == "Organization Admin":
+            sample_count = db.execute("SELECT COUNT(*) FROM telemetry_samples").fetchone()[0]
+            last_sample = db.execute("SELECT MAX(sampled_at) FROM telemetry_samples").fetchone()[0]
+            edge_rows = db.execute("SELECT status,COUNT(*) AS count FROM edge_devices GROUP BY status").fetchall()
+        else:
+            sample_count = db.execute(
+                "SELECT COUNT(*) FROM telemetry_samples WHERE factory_id=?",
+                (user.get("factory_id") or "",),
+            ).fetchone()[0]
+            last_sample = db.execute(
+                "SELECT MAX(sampled_at) FROM telemetry_samples WHERE factory_id=?",
+                (user.get("factory_id") or "",),
+            ).fetchone()[0]
+            edge_rows = db.execute(
+                "SELECT status,COUNT(*) AS count FROM edge_devices WHERE factory_id=? GROUP BY status",
+                (user.get("factory_id") or "",),
+            ).fetchall()
+        demo_count = db.execute(
+            "SELECT COUNT(*) FROM telemetry_samples WHERE quality='DEMO'"
+        ).fetchone()[0]
+        edge_counts = {row["status"]: row["count"] for row in edge_rows}
 
     actual = [_number(run.get("quantity_actual")) for run in runs]
     actual = [value for value in actual if value is not None]
@@ -88,7 +116,7 @@ def overview(user: dict = Depends(get_current_user)):
     active_alarms = sum(1 for row in alarms if row.get("status") not in {"تأییدشده", "غیرفعال", "بسته"})
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "mode": "APPLICATION_DATA",
+        "mode": "DEMO" if demo_count else "APPLICATION_DATA",
         "data_quality_note": "این شاخص‌ها فقط از رکوردهای ذخیره‌شده در برنامه محاسبه شده‌اند؛ داده PLC واقعی تنها پس از اتصال Edge مجاز است.",
         "metrics": {
             "factory_count": len(factories),
@@ -126,7 +154,7 @@ def production(
 ):
     start, end = _period(start_date, end_date)
     with connect() as db:
-        rows = _records(db, "productionRuns")
+        rows = _records(db, "productionRuns", user)
     selected = [
         row for row in rows
         if _in_period(row, start, end)
@@ -163,7 +191,7 @@ def quality(
 ):
     start, end = _period(start_date, end_date)
     with connect() as db:
-        rows = _records(db, "qc")
+        rows = _records(db, "qc", user)
         measurements = db.execute(
             "SELECT qc_id,parameter,actual,minimum,maximum,result,created_at FROM qc_measurements ORDER BY created_at DESC LIMIT 2000"
         ).fetchall()
@@ -191,8 +219,8 @@ def energy(
     since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
     with connect() as db:
         if tag_id:
-            tag = db.execute("SELECT id,payload FROM resources WHERE collection='tags' AND id=?", (tag_id,)).fetchone()
-            if tag is None:
+            tag = db.execute("SELECT id,factory_id,payload FROM resources WHERE collection='tags' AND id=?", (tag_id,)).fetchone()
+            if tag is None or (user["role"] != "Organization Admin" and tag["factory_id"] != user.get("factory_id")):
                 raise HTTPException(404, "تگ پیدا نشد.")
             tag_ids = [tag_id]
         else:
