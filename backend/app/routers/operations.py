@@ -307,7 +307,7 @@ def get_report_execution(report_id: str, execution_id: str, user: dict = Depends
             "SELECT id,report_id,status,parameters,result,requested_by,created_at,completed_at FROM report_executions WHERE report_id=? AND id=?",
             (report_id, execution_id),
         ).fetchone()
-    if row is None:
+    if row is None or (user["role"] != "Organization Admin" and row["requested_by"] != user["id"]):
         raise HTTPException(404, "اجرای گزارش پیدا نشد.")
     return {"id":row["id"],"report_id":row["report_id"],"status":row["status"],
             "parameters":json_load(row["parameters"],{}),"result":json_load(row["result"],{}),
@@ -317,10 +317,16 @@ def get_report_execution(report_id: str, execution_id: str, user: dict = Depends
 @router.get("/reports/{report_id}/executions")
 def list_report_executions(report_id: str, user: dict = Depends(get_current_user)):
     with connect() as db:
-        rows = db.execute(
-            "SELECT id,report_id,status,parameters,result,requested_by,created_at,completed_at FROM report_executions WHERE report_id=? ORDER BY created_at DESC LIMIT 100",
-            (report_id,),
-        ).fetchall()
+        if user["role"] == "Organization Admin":
+            rows = db.execute(
+                "SELECT id,report_id,status,parameters,result,requested_by,created_at,completed_at FROM report_executions WHERE report_id=? ORDER BY created_at DESC LIMIT 100",
+                (report_id,),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT id,report_id,status,parameters,result,requested_by,created_at,completed_at FROM report_executions WHERE report_id=? AND requested_by=? ORDER BY created_at DESC LIMIT 100",
+                (report_id, user["id"]),
+            ).fetchall()
     return [{"id":r["id"],"report_id":r["report_id"],"status":r["status"],
              "parameters":json_load(r["parameters"],{}),"result":json_load(r["result"],{}),
              "requested_by":r["requested_by"],"created_at":r["created_at"],"completed_at":r["completed_at"]} for r in rows]
