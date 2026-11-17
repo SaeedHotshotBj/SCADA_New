@@ -4,7 +4,7 @@ import { button, dataTable, pageHeader, panel, pill, tabs, lineChart, statCard, 
 function liveDataPage() {
   const rows = store.list("tags");
   const columns = [
-    { key: "name", label: "تگ" }, { key: "value", label: "مقدار" },
+    { key: "name", label: "تگ" }, { key: "value", label: "مقدار", render: row => row.quality === "UNSAMPLED" ? "—" : row.value ?? "—" },
     { key: "unit", label: "واحد" }, { key: "quality", label: "کیفیت", render: row => pill(row.quality || "UNSAMPLED", row.quality === "GOOD" ? "success" : row.quality === "DEMO" ? "warning" : "muted") },
     { key: "time", label: "زمان", render: row => (row.sampled_at || row.updated_at) ? new Date(row.sampled_at || row.updated_at).toLocaleTimeString("fa-IR") : "—" },
     { key: "write", label: "نوشتن", render: row => row.access === "read_write" ? `<button class="btn btn-light btn-sm" data-action="write-tag" data-id="${row.id}">Write</button>` : "—" }
@@ -31,7 +31,7 @@ function classicHmiPage() {
     <div class="motor-status">${tag.type === "bool" ? "B" : "T"}</div>
     <span class="machine-running">${tag.quality === "GOOD" ? "● داده Edge" : tag.quality === "DEMO" ? "● شبیه‌سازی" : "● بدون نمونه جدید"}</span>
     <div class="machine-metrics">
-      <label>مقدار<strong>${tag.value ?? "—"} <small>${tag.unit || ""}</small></strong></label>
+      <label>مقدار<strong>${tag.quality === "UNSAMPLED" ? "—" : tag.value ?? "—"} <small>${tag.unit || ""}</small></strong></label>
       <label>کیفیت<strong>${tag.quality || "UNSAMPLED"}</strong></label>
     </div>
     <small>آخرین نمونه: ${tag.sampled_at ? new Date(tag.sampled_at).toLocaleTimeString("fa-IR") : "—"}</small>
