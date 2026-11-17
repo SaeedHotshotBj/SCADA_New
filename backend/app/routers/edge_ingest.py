@@ -152,7 +152,7 @@ def ingest_samples(body: EdgeIngestRequest, x_edge_token: str | None = Header(de
                 raise HTTPException(422, "زمان نمونه خارج از محدوده قابل قبول است.")
             tag["value"] = value
             tag["last_quality"] = sample.quality
-            tag["last_source"] = edge["id"]
+            tag["last_source"] = "edge:" + edge["id"]
             db.execute(
                 "UPDATE resources SET payload=?,updated_at=? WHERE collection='tags' AND id=?",
                 (json_dump(tag), utc_now(), sample.tag_id),
