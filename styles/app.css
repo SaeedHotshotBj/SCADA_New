@@ -437,3 +437,22 @@ tbody tr:last-child td { border-bottom: 0; }
   body { background: white; }
   .panel, .stat-card { box-shadow: none; break-inside: avoid; }
 }
+
+
+/* Data-bound HMI runtime widgets */
+.hmi-runtime-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0 18px;color:var(--muted);font-size:12px}
+.hmi-runtime-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:16px 0}
+.hmi-widget{min-width:0}
+.hmi-widget .panel-body{min-height:118px}
+.hmi-gauge-value{font-size:27px;font-weight:800;color:var(--navy);margin:8px 0 14px;overflow-wrap:anywhere}
+.hmi-gauge-value small{font-size:12px;font-weight:500;color:var(--muted)}
+.hmi-gauge-track{height:12px;border-radius:20px;background:#e9eff5;overflow:hidden}
+.hmi-gauge-track span{display:block;height:100%;border-radius:20px;background:linear-gradient(90deg,var(--cyan),var(--green))}
+.hmi-gauge-limits{display:flex;justify-content:space-between;margin-top:7px;color:var(--muted);font-size:11px}
+.hmi-status-value{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:20px;font-weight:700}
+.hmi-status-value small{font-size:12px;font-weight:400;color:var(--muted)}
+.hmi-widget .muted-note{margin:10px 0 0;font-size:11px;line-height:1.8}
+.hmi-preview .preview-info{display:flex;flex-direction:column;gap:5px;padding:10px;color:var(--navy);font-size:12px}
+.hmi-preview .preview-info small{color:var(--muted);font-size:10px}
+.hmi-card-footer>div{display:flex;gap:7px;flex-wrap:wrap}
+@media(max-width:640px){.hmi-runtime-grid{grid-template-columns:1fr}.hmi-runtime-toolbar{align-items:flex-start;flex-direction:column}}
