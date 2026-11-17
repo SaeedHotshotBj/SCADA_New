@@ -316,7 +316,11 @@ def update_record(collection: str, record_id: str, body: ResourceInput, user: di
             row = db.execute("SELECT * FROM resources WHERE collection=? AND id=?", (collection,record_id)).fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="رکورد پیدا نشد.")
-            merged = {**json_load(row["payload"],{}), **changes}
+            merged = {
+                **json_load(row["payload"], {}),
+                **({"factory_id": row["factory_id"]} if row["factory_id"] else {}),
+                **changes,
+            }
             validate_references(collection, merged, db)
             factory_id = merged.pop("factory_id", row["factory_id"])
             db.execute("UPDATE resources SET factory_id=?,payload=?,updated_at=? WHERE collection=? AND id=?",
