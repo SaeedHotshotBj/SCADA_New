@@ -311,8 +311,7 @@ def update_record(collection: str, record_id: str, body: ResourceInput, user: di
             merged = {"email":row["email"],"name":row["name"],"role":row["role"],"status":row["status"],**allowed}
             db.execute("UPDATE users SET email=?,name=?,role=?,status=?,updated_at=? WHERE id=?",
                        (merged["email"],merged["name"],merged["role"],merged["status"],now,record_id))
-            result = {"id":record_id, **merged, **({"factory_id": factory_id} if factory_id else {}),
-                      "updated_at":now}
+            result = {"id":record_id, **merged, "updated_at":now}
         else:
             row = db.execute("SELECT * FROM resources WHERE collection=? AND id=?", (collection,record_id)).fetchone()
             if not row:
@@ -322,7 +321,9 @@ def update_record(collection: str, record_id: str, body: ResourceInput, user: di
             factory_id = merged.pop("factory_id", row["factory_id"])
             db.execute("UPDATE resources SET factory_id=?,payload=?,updated_at=? WHERE collection=? AND id=?",
                        (factory_id,json_dump(merged),now,collection,record_id))
-            result = {"id":record_id, **merged, "updated_at":now}
+            result = {"id":record_id, **merged,
+                      **({"factory_id": factory_id} if factory_id else {}),
+                      "updated_at":now}
         audit(db,user["id"],"resource.update",collection,record_id,{"fields":list(changes)})
     return result
 
