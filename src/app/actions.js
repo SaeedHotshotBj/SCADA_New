@@ -168,7 +168,11 @@ export async function handleAction(action, element) {
       break;
     }
     case "ack-alarm": {
-      await store.update("alarms", element.dataset.id, { status: "تأییدشده", acknowledged_at: new Date().toISOString() }); toast("آلارم تأیید شد."); break;
+      await api.acknowledgeAlarm(element.dataset.id);
+      const result = await api.alarmEvents();
+      store.replaceCollection("alarmEvents", result.items || []);
+      toast("تأیید رخداد آلارم در Backend ثبت شد.");
+      break;
     }
     case "select-tab": {
       const group = element.closest(".tabs");
