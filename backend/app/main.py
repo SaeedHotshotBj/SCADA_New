@@ -10,7 +10,7 @@ from .config import ALLOW_ORIGINS, DEMO_TELEMETRY
 from .database import connect, initialize_schema, json_load
 from .dependencies import get_current_user
 from .seed import seed_database
-from .routers import auth, edges, operations, resources, telemetry
+from .routers import analytics, auth, edges, operations, resources, telemetry
 
 
 @asynccontextmanager
@@ -54,6 +54,7 @@ app.include_router(resources.router)
 app.include_router(operations.router)
 app.include_router(edges.router)
 app.include_router(telemetry.router)
+app.include_router(analytics.router)
 
 
 @app.get("/health")
