@@ -29,19 +29,28 @@ function pendingPage() {
 }
 
 function planPage() {
-  const specs = [
-    { parameter: "قطر عایق", nominal: "۲٫۴۰ mm", min: "۲٫۳۵", max: "۲٫۴۵", unit: "mm", method: "اندازه‌گیری" },
-    { parameter: "مقاومت هادی", nominal: "۱٫۸۳ Ω/km", min: "—", max: "۱٫۹۰", unit: "Ω/km", method: "آزمون الکتریکی" },
-    { parameter: "ضخامت عایق", nominal: "۰٫۸ mm", min: "۰٫۷۵", max: "۰٫۸۵", unit: "mm", method: "اندازه‌گیری" },
-    { parameter: "ظاهر محصول", nominal: "بدون عیب", min: "—", max: "—", unit: "—", method: "بازرسی چشمی" }
-  ];
-  return `<div>${pageHeader("طرح کنترل کیفیت", "تعریف پارامترهای کنترل، حدود مجاز و روش بازرسی برای محصول و مرحله تولید", button("ذخیره تغییرات", "open-modal-info"))}
-    <div class="filter-bar"><label class="field"><span>محصول</span><select><option>سیم 1×10 افشان</option><option>کابل قدرت NYY 4×16</option></select></label><label class="field"><span>مرحله فرآیند</span><select><option>اکستروژن عایق</option><option>کابل‌کشی</option><option>بسته‌بندی</option></select></label><label class="field"><span>نسخه طرح</span><select><option>نسخه ۱ · فعال</option><option>پیش‌نویس</option></select></label></div>
-    ${panel("پارامترهای قابل کنترل", dataTable([{ key: "parameter", label: "پارامتر" }, { key: "nominal", label: "مقدار اسمی" }, { key: "min", label: "حداقل مجاز" }, { key: "max", label: "حداکثر مجاز" }, { key: "unit", label: "واحد" }, { key: "method", label: "روش کنترل" }, { key: "edit", label: "تنظیم", render: () => `<button class="btn btn-light btn-sm" data-action="open-modal-info">ویرایش حدود</button>` }], specs))}
-    <div class="two-col-grid">${panel("تناوب نمونه‌برداری", `<div class="form-grid"><label class="field"><span>فاصله نمونه‌برداری</span><input value="هر ۳۰ دقیقه"></label><label class="field"><span>تعداد نمونه</span><input type="number" value="3"></label><label class="field"><span>مسئول کنترل</span><select><option>کارشناس کیفیت</option><option>اپراتور خط</option></select></label><label class="field"><span>الزام تأیید</span><select><option>بله</option><option>خیر</option></select></label></div>`)}${panel("قواعد تصمیم‌گیری", `<div class="rule-list"><p>${pill("قبول", "success")} تمام پارامترها داخل محدوده مجاز باشند.</p><p>${pill("مشروط", "warning")} انحراف جزئی با تأیید مسئول کیفیت قابل قبول باشد.</p><p>${pill("رد", "danger")} خروج از حدود بحرانی یا عدم انطباق ظاهری.</p></div>`)}</div>
-  </div>`;
+  const plans = store.list("controlPlans");
+  const parameterRows = plans.flatMap(plan => (plan.parameters || []).map(item => ({ product: plan.product, process: plan.process, version: plan.version, ...item })));
+  const editor = '<form class="panel" data-local-form="control-plan"><div class="panel-body"><div class="form-grid">' +
+    '<label class="field"><span>محصول</span><input name="product" value="کابل قدرت NYY 4×16mm²" required></label>' +
+    '<label class="field"><span>مرحله فرآیند</span><input name="process" value="اکستروژن عایق" required></label>' +
+    '<label class="field"><span>نسخه</span><input name="version" value="نسخه ۱" required></label>' +
+    '<label class="field"><span>تناوب نمونه‌برداری</span><input name="sampling_interval" value="هر ۳۰ دقیقه" required></label>' +
+    '<label class="field"><span>تعداد نمونه</span><input name="sample_count" type="number" min="1" value="3" required></label>' +
+    '<label class="field"><span>مسئول کنترل</span><input name="responsible" value="کارشناس کیفیت"></label>' +
+    '<label class="field"><span>الزام تأیید</span><select name="approval_required"><option value="true" selected>بله</option><option value="false">خیر</option></select></label></div></div>' +
+    '<div class="panel-body"><h3>پارامتر کنترل</h3><div class="form-grid">' +
+    '<label class="field"><span>پارامتر</span><input name="parameter_0_parameter" value="قطر عایق" required></label>' +
+    '<label class="field"><span>مقدار اسمی</span><input name="parameter_0_nominal" value="2.40"></label>' +
+    '<label class="field"><span>حداقل مجاز</span><input name="parameter_0_min" value="2.35"></label>' +
+    '<label class="field"><span>حداکثر مجاز</span><input name="parameter_0_max" value="2.45"></label>' +
+    '<label class="field"><span>واحد</span><input name="parameter_0_unit" value="mm"></label>' +
+    '<label class="field"><span>روش کنترل</span><input name="parameter_0_method" value="اندازه‌گیری"></label></div></div>' +
+    '<div class="panel-actions"><button class="btn btn-primary" type="submit">ذخیره طرح کنترل</button></div></form>';
+  return '<div>' + pageHeader("طرح کنترل کیفیت", "تعریف و ذخیره پارامترهای کنترل و حدود مجاز در پایگاه داده") + editor +
+    panel("طرح‌های ذخیره‌شده", plans.length ? dataTable([{ key: "product", label: "محصول" }, { key: "process", label: "فرآیند" }, { key: "version", label: "نسخه" }, { key: "sample_count", label: "تعداد نمونه" }, { key: "sampling_interval", label: "تناوب" }], plans) : emptyState("هنوز طرح کنترل کیفیت ذخیره نشده است.")) +
+    panel("پارامترهای ثبت‌شده", parameterRows.length ? dataTable([{ key: "parameter", label: "پارامتر" }, { key: "nominal", label: "اسمی" }, { key: "min", label: "حداقل" }, { key: "max", label: "حداکثر" }, { key: "unit", label: "واحد" }, { key: "method", label: "روش" }], parameterRows) : emptyState("پارامتری برای نمایش وجود ندارد.")) + '</div>';
 }
-
 export function renderQuality(path) {
   switch (path) {
     case "/quality/pending": return pendingPage();
