@@ -121,7 +121,34 @@ def _public_user(row) -> dict:
 
 
 
+def _resource_value_exists(db, collection: str, field: str, value: str) -> bool:
+    rows = db.execute(
+        "SELECT payload FROM resources WHERE collection=?",
+        (collection,),
+    ).fetchall()
+    return any((json_load(row["payload"], {}) or {}).get(field) == value for row in rows)
+
+
 def validate_references(collection: str, payload: dict[str, Any], db) -> None:
+    if collection in {"orders", "productionRuns", "qc", "controlPlans"}:
+        product_name = payload.get("product")
+        if product_name and not _resource_value_exists(db, "products", "name", product_name):
+            raise HTTPException(status_code=422, detail="محصول انتخاب‌شده در سامانه ثبت نشده است.")
+    if collection in {"orders", "productionRuns", "qc"}:
+        machine_name = payload.get("machine")
+        if machine_name and not _resource_value_exists(db, "machines", "name", machine_name):
+            raise HTTPException(status_code=422, detail="ماشین انتخاب‌شده در سامانه ثبت نشده است.")
+    if collection == "productionRuns":
+        order_code = payload.get("order")
+        if order_code and not _resource_value_exists(db, "orders", "code", order_code):
+            raise HTTPException(status_code=422, detail="سفارش انتخاب‌شده در سامانه ثبت نشده است.")
+    if collection == "batchConfigs" and payload.get("weight_tag_id"):
+        tag = db.execute(
+            "SELECT 1 FROM resources WHERE collection='tags' AND id=?",
+            (payload["weight_tag_id"],),
+        ).fetchone()
+        if tag is None:
+            raise HTTPException(status_code=422, detail="تگ لودسل انتخاب‌شده در سامانه ثبت نشده است.")
     if collection == "plcs" and not payload.get("factory_id"):
         raise HTTPException(status_code=422, detail="هر PLC باید به یک کارخانه تخصیص داده شود.")
     if collection == "tags" and payload.get("plc"):
