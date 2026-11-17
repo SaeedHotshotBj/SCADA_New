@@ -1,17 +1,68 @@
-import { button, dataTable, gradientBanner, lineChart, barChart, donutChart, panel, statCard, pill, dateFilter } from "../../shared/ui.js";
+import { button, dataTable, gradientBanner, lineChart, barChart, donutChart, panel, statCard, pill, dateFilter, emptyState } from "../../shared/ui.js";
 import { store } from "../../services/demo-store.js";
 import { todayFa } from "../../core/format.js";
 
+const numberFa = value => Number(value || 0).toLocaleString("fa-IR", { maximumFractionDigits: 2 });
+
 export function renderBi() {
-  const machines = ["بانچر (تابنده‌ی هادی)", "قرقره‌پیچ و بسته‌بندی", "اکسترودر عایق", "کشش مفتول مدیوم", "کشش چندرشته و آنیل", "کابل‌کشی"];
-  return `<div class="bi-page">${gradientBanner("داشبورد مدیریتی هوش تجاری", "کارخانه نمونه · دمو نمایشگاه · آخرین به‌روزرسانی لحظه‌ای", `${button("چیدمان داشبورد", "open-modal-info", { variant: "light" })}${button("تنظیمات", "open-modal-info", { variant: "light", icon: "⚙" })}${button("دانلود", "export-csv", { variant: "light", icon: "⇩" })}${button("تمام‌صفحه", "open-modal-info", { variant: "light", icon: "⛶" })}`, "▥")}
-  <div class="dashboard-filters"><div class="range-pills">${["امروز", "۷ روز اخیر", "۳۰ روز اخیر", "۳ ماه اخیر", "ماه جاری", "ماه گذشته", "فصل جاری", "سال جاری"].map((x, i) => `<button data-action="select-range" class="${i === 2 ? "active" : ""}">${x}</button>`).join("")}</div>${dateFilter()}<div class="range-pills">${["همه پیشرفت‌ها", "خلاصه و تحلیل", "تولید و بهره‌وری", "توقفات", "تأسیسات و کیفیت", "هزینه و انرژی", "سفارش و مشتری"].map((x, i) => `<button data-action="select-range" class="${i === 0 ? "active" : ""}">${x}</button>`).join("")}</div></div>
-  <div class="stats-grid stats-grid-4">${statCard("تولید کل", "۱۳٫۴", "میلیون m", "blue", "۲۰٪ ↑", "۲۴۵ تن تولید")}${statCard("OEE", "۵۲٫۵", "%", "green", "۶٪ ↓", "هدف ۷۶٪")}${statCard("توقف ناخواسته", "۱۰۶٫۸", "ساعت", "red", "۴٪ ↑", "۵۷۱ توقف")}${statCard("ضایعات", "۶۸٫۸", "هزار kg", "orange", "۲۷٪ ↓", "۴٫۲ kg در هر ۱۰۰۰ m")}</div>
-  <div class="stats-grid stats-grid-4">${statCard("بهای هر واحد", "۴۷۰٫۷", "هزار ریال", "pink", "۱٪ ↑", "به ازای هر m")}${statCard("مصرف انرژی", "۴۳۳٫۱", "هزار kWh", "orange", "۲۰٪ ↑", "به ازای هر m")}${statCard("زمان توقف", "—", "", "red", "", "بدون مقایسه")}${statCard("تحویل به‌موقع", "۱۰۰", "%", "green", "", "سفارش‌های بسته‌شده")}</div>
-  <div class="bi-grid">${panel("تحلیل هوشمند دوره", `<div class="insight insight-warning">تولید نسبت به دوره قبل حدود ۲٪ کاهش داشته است.</div><div class="insight insight-warning">OEE کل ۵۲٪ است و از هدف ۷۶٪ پایین‌تر است.</div><div class="insight insight-info">بیشترین علت توقف: تنظیم / تعویض قالب با ۲۳٪ از توقفات.</div><div class="insight insight-info">مصرف انرژی در محدوده قابل بررسی قرار دارد.</div>`)}${donutChart("اثربخشی کلی تجهیزات (OEE)", [52, 24, 16, 8])}</div>
-  <div class="two-col-grid">${lineChart("روند تولید روزانه", undefined, "#17b98a", [12, 18, 17, 20, 24, 22, 28])}${barChart("مقایسه OEE ماشین‌ها", machines.slice(0, 5), [89, 74, 82, 91, 69])}</div>
-  <div class="two-col-grid">${panel("ترکیب ضایعات", donutChart("", [46, 46, 8]).replace(/<section[\s\S]*?<\/section>/, `<div class="donut-content"><div class="donut-legend"><div>ضایعات مس <b>۴۶٪</b></div><div>ضایعات PVC <b>۴۶٪</b></div><div>کابل ضایعاتی <b>۸٪</b></div></div></div>`))}${barChart("روند ضایعات", ["روز ۱", "روز ۲", "روز ۳", "روز ۴", "روز ۵"], [44, 58, 63, 49, 71])}</div>
-  ${panel("کارنامه ماشین‌ها", dataTable([{ key: "name", label: "ماشین" }, { key: "oee", label: "OEE" }, { key: "production", label: "تولید (m)" }, { key: "hours", label: "ساعت کار" }, { key: "stop", label: "توقف" }, { key: "scrap", label: "ضایعات (kg)" }, { key: "cost", label: "هزینه" }], machines.map((name, i) => ({ name, oee: pill(["۸۶٪", "۷۱٪", "۷۲٪", "۶۹٪", "۸۲٪", "۸۴٪"][i], "success"), production: ["۱٫۲ میلیون", "۸۶۶٫۷ هزار", "۲٫۹ میلیون", "۵۱۸ هزار", "۳٫۴ میلیون", "۱٫۸ میلیون"][i], hours: 339 - i * 12, stop: "۲۷٫۷ ساعت", scrap: "۳٫۵۳۵", cost: "۱۸۹٫۷ میلیارد ریال" }))))}
-  <div class="two-col-grid">${lineChart("روند دسترسی‌پذیری", undefined, "#12b98d", [82, 94, 88, 91, 93, 89, 92])}${barChart("روند تولید بر اساس خط", ["بانچر", "قرقره‌پیچ", "اکسترودر", "کشش", "کابل‌کشی"], [80, 74, 94, 62, 86])}</div>
-  ${panel("آخرین توقفات ثبت‌شده", dataTable([{ key: "machine", label: "ماشین" }, { key: "reason", label: "علت توقف" }, { key: "duration", label: "مدت" }, { key: "date", label: "زمان" }, { key: "status", label: "وضعیت" }], ["اکسترودر عایق", "بانچر", "کشش مفتول", "قرقره‌پیچ"].map((machine, i) => ({ machine, reason: ["تنظیم / تعویض قالب", "کمبود مواد", "پارگی مفتول", "خرابی دستگاه"][i], duration: `${64 - i * 3} دقیقه`, date: todayFa(), status: pill("ثبت‌شده", "success") }))))}</div>`;
+  const snapshot = store.snapshot();
+  const metrics = snapshot.analytics?.metrics || {};
+  const production = snapshot.productionAnalytics || {};
+  const quality = snapshot.qualityAnalytics?.summary || {};
+  const runs = production.items || [];
+  const byDay = production.by_day || [];
+  const machineTotals = new Map();
+  for (const run of runs) {
+    const name = run.machine || "نامشخص";
+    machineTotals.set(name, (machineTotals.get(name) || 0) + Number(run.quantity_actual || 0));
+  }
+  const machines = [...machineTotals.entries()].sort((a, b) => b[1] - a[1]);
+  const days = byDay.slice(-7);
+  const hasProduction = runs.length > 0;
+  const hasQuality = Number(quality.total || 0) > 0;
+  const mode = snapshot.analytics?.mode || "APPLICATION_DATA";
+  const insight = snapshot.analytics?.error || production.error || quality.error;
+  const dataNote = mode === "DEMO"
+    ? "بخشی از داده‌ها شبیه‌سازی‌شده‌اند؛ آن‌ها را داده عملیاتی PLC در نظر نگیرید."
+    : "شاخص‌ها از رکوردهای ذخیره‌شده در Backend محاسبه شده‌اند؛ مقدار خالی به معنی نبود داده ثبت‌شده است.";
+  const productionValue = metrics.recorded_production_quantity;
+  const acceptance = quality.acceptance_percent;
+  return `<div class="bi-page">${gradientBanner("داشبورد مدیریتی هوش تجاری", "شاخص‌های استخراج‌شده از اطلاعات ذخیره‌شده · " + todayFa(), `${button("به‌روزرسانی", "refresh-demo", { variant: "light" })}`, "▥")}
+  <div class="dashboard-filters"><div class="range-pills">${["امروز", "۷ روز اخیر", "۳۰ روز اخیر"].map((x, i) => `<button data-action="select-range" class="${i === 1 ? "active" : ""}">${x}</button>`).join("")}</div>${dateFilter()}<span>${pill(mode === "DEMO" ? "داده آزمایشی" : "داده ذخیره‌شده", mode === "DEMO" ? "warning" : "success")}</span></div>
+  ${insight ? `<div class="insight insight-warning">${String(insight)}</div>` : ""}
+  <div class="insight insight-info">${dataNote}</div>
+  <div class="stats-grid stats-grid-4">
+    ${statCard("مقدار تولید ثبت‌شده", productionValue == null ? "—" : numberFa(productionValue), "واحد ثبت‌شده", "blue", "", "جمع مقدار ثبت‌شده در اجرای تولید")}
+    ${statCard("اجرای تولید", numberFa(metrics.production_run_count), "اجرا", "green", "", numberFa(metrics.running_production_run_count) + " در حال تولید")}
+    ${statCard("سفارش‌ها", numberFa(metrics.order_count), "سفارش", "orange", "", numberFa(metrics.running_order_count) + " در حال تولید")}
+    ${statCard("آلارم‌های تعریف‌شده", numberFa(metrics.alarm_definition_count), "تعریف", "red", "", "رخداد فعال بدون قاعده آلارم محاسبه نمی‌شود")}
+  </div>
+  <div class="stats-grid stats-grid-4">
+    ${statCard("بازرسی کیفیت", numberFa(quality.total), "رکورد", "blue", "", numberFa(quality.accepted) + " مورد قبول")}
+    ${statCard("درصد پذیرش QC", acceptance == null ? "—" : numberFa(acceptance), "%", "green", "", "بر اساس تصمیم‌های ذخیره‌شده")}
+    ${statCard("بچ‌ها", numberFa(metrics.batch_count), "بچ", "orange", "", numberFa(metrics.running_batch_count) + " در حال توزین")}
+    ${statCard("نمونه‌های Telemetry", numberFa(metrics.telemetry_sample_count), "نمونه", "purple", "", "آخرین نمونه: " + (snapshot.analytics?.last_telemetry_at || "—"))}
+  </div>
+  <div class="two-col-grid">
+    ${panel("وضعیت داده و اتصال", `<div class="storage-list">
+      <div><span>کارخانه‌های قابل مشاهده</span><b>${numberFa(metrics.factory_count)}</b></div>
+      <div><span>PLC های تعریف‌شده</span><b>${numberFa(metrics.plc_count)}</b></div>
+      <div><span>تگ‌های تعریف‌شده</span><b>${numberFa(metrics.tag_count)}</b></div>
+      <div><span>Edge ها</span><b>${numberFa(Object.values(metrics.edge_status_counts || {}).reduce((a,b)=>a+b,0))}</b></div>
+      <div><span>کیفیت داده</span><b>${mode === "DEMO" ? "DEMO / آزمایشی" : "Application data"}</b></div>
+    </div>`)}
+    ${donutChart("نتیجه کنترل کیفیت", [Number(quality.accepted || 0), Number(quality.conditional || 0), Number(quality.rejected || 0), Number(quality.pending || 0)])}
+  </div>
+  <div class="two-col-grid">
+    ${lineChart("مقدار تولید روزانه", days.length ? days.map(x => x.date) : ["بدون داده"], "#17b98a", days.length ? days.map(x => Number(x.quantity || 0)) : [0])}
+    ${barChart("تولید ثبت‌شده بر اساس ماشین", machines.length ? machines.map(x => x[0]) : ["بدون داده"], machines.length ? machines.map(x => Number(x[1] || 0)) : [0])}
+  </div>
+  ${panel("کارنامه ماشین‌ها بر اساس اجرای ثبت‌شده", hasProduction ? dataTable([
+    { key: "name", label: "ماشین" }, { key: "quantity", label: "مقدار تولید ثبت‌شده" }, { key: "runs", label: "تعداد اجرا" }
+  ], machines.map(([name, quantity]) => ({ name, quantity: numberFa(quantity), runs: runs.filter(row => (row.machine || "نامشخص") === name).length }))) : emptyState("هنوز اجرای تولید و مقدار تولیدی در Backend ثبت نشده است."))}
+  ${panel("آخرین اجراهای تولید", runs.length ? dataTable([
+    { key: "order", label: "سفارش" }, { key: "product", label: "محصول" }, { key: "machine", label: "ماشین" },
+    { key: "quantity_actual", label: "مقدار تولید" }, { key: "status", label: "وضعیت", render: row => pill(row.status || "—", row.status === "در حال تولید" ? "success" : "muted") }
+  ], runs.slice(0, 10)) : emptyState("داده‌ای برای نمایش وجود ندارد."))}
+  </div>`;
 }
