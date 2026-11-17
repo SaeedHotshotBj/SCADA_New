@@ -213,7 +213,7 @@ def test_user_management_is_admin_only_and_bootstrap_hides_other_users():
         })
         created = client.post("/api/resources/users", json={
             "name": "مهندس تست", "email": "engineer-ci@example.local",
-            "role": "Engineer", "status": "فعال"
+            "role": "Engineer", "status": "فعال", "factory_id": "f1"
         })
         assert created.status_code == 201
         temporary_password = created.json()["temporary_password"]
@@ -494,7 +494,7 @@ def test_resource_update_returns_factory_scope_and_user_update_is_safe():
 
         created_user = client.post("/api/resources/users", json={
             "name": "User Update Test", "email": "user-update@example.local",
-            "role": "Engineer", "status": "فعال"
+            "role": "Engineer", "status": "فعال", "factory_id": factory_id
         })
         assert created_user.status_code == 201
         user_id = created_user.json()["id"]
