@@ -157,4 +157,8 @@ export const store = {
     state[name] = Array.isArray(rows) ? rows : [];
     emit();
   },
+  setSnapshotValue(name, value) {
+    state[name] = value;
+    emit();
+  },
 };
