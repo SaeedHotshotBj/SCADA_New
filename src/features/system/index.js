@@ -6,7 +6,7 @@ function usersPage() {
   const columns = [
     { key: "email", label: "ایمیل" }, { key: "name", label: "نام" }, { key: "role", label: "نقش" },
     { key: "status", label: "وضعیت", render: row => pill(row.status, row.status === "فعال" ? "success" : "muted") },
-    { key: "access", label: "دسترسی منو" }
+    { key: "role", label: "نقش و سطح دسترسی" }
   ];
   return `<div class="collection-page" data-collection-name="users" data-edit-action="new-user">${pageHeader("کاربران سازمان", "مدیریت کاربران، نقش‌ها و سطح دسترسی", button("کاربر جدید", "new-user", { icon: "+" }))}${panel("فهرست کاربران", dataTable(columns, users, { actions: true }))}</div>`;
 }
@@ -18,7 +18,7 @@ function factoriesPage() {
     { key: "edge", label: "Edge" }, { key: "plcs", label: "تعداد PLC" },
     { key: "status", label: "وضعیت", render: row => pill(row.status, row.status === "فعال" ? "success" : "muted") }
   ];
-  return `<div class="collection-page" data-collection-name="factories" data-edit-action="new-factory">${pageHeader("کارخانه‌ها", "مدیریت کارخانه‌ها و اتصال آن‌ها به Edge", button("کارخانه جدید", "new-factory", { icon: "+" }))}<div class="stats-grid stats-grid-3">${statCard("تعداد کارخانه‌ها", rows.length, "واحد", "blue")}${statCard("کارخانه فعال", rows.filter(x => x.status === "فعال").length, "واحد", "green")}${statCard("PLC متصل", rows.reduce((sum, x) => sum + Number(x.plcs || 0), 0), "دستگاه", "orange")}</div>${panel("فهرست کارخانه‌ها", dataTable(columns, rows, { actions: true }))}</div>`;
+  return `<div class="collection-page" data-collection-name="factories" data-edit-action="new-factory">${pageHeader("کارخانه‌ها", "مدیریت کارخانه‌ها و اتصال آن‌ها به Edge", button("کارخانه جدید", "new-factory", { icon: "+" }))}<div class="stats-grid stats-grid-3">${statCard("تعداد کارخانه‌ها", rows.length, "واحد", "blue")}${statCard("کارخانه فعال", rows.filter(x => x.status === "فعال").length, "واحد", "green")}${statCard("PLC تعریف‌شده", rows.reduce((sum, x) => sum + Number(x.plcs || 0), 0), "دستگاه", "orange")}</div>${panel("فهرست کارخانه‌ها", dataTable(columns, rows, { actions: true }))}</div>`;
 }
 
 function edgeStatusPage() {
@@ -36,7 +36,7 @@ function edgeStatusPage() {
   return `<div class="edge-page">${gradientBanner("وضعیت Edge", "وضعیت واقعی Heartbeat های ثبت‌شده در Backend", button("به‌روزرسانی", "refresh-demo", { variant: "light" }), "▣")}
     <div class="stats-grid stats-grid-4">${statCard("Edge ثبت‌شده", edges.length, "دستگاه", "blue")}${statCard("آنلاین", online, "دستگاه", "green")}${statCard("در انتظار اتصال", edges.filter(edge => edge.status === "PENDING" || edge.status === "DEMO").length, "دستگاه", "orange")}${statCard("قطع / لغوشده", edges.filter(edge => edge.status === "REVOKED" || edge.status === "OFFLINE").length, "دستگاه", "red")}</div>
     ${panel("وضعیت ارتباط Edge", edges.length ? dataTable(columns, edges) : emptyState("هنوز Edge ثبت نشده است. از بخش ثبت Edge یک دستگاه تعریف کنید."))}
-    ${panel("وضعیت ارتباط PLC", `<p class="muted-note">وضعیت PLC فقط زمانی واقعی خواهد بود که یک آداپتور پروتکل مشخص و تأییدشده به Backend متصل شود. در این نسخه هیچ اتصال سخت‌افزاری ادعا نمی‌شود.</p>`)}
+    ${panel("وضعیت ارتباط PLC", `<p class="muted-note">تعریف PLC در سامانه به معنی اتصال سخت‌افزاری نیست. تا زمانی که درایور و نقشه آدرس معتبر نصب و راه‌اندازی نشده باشد، وضعیت PLC به‌عنوان اتصال واقعی گزارش نمی‌شود.</p>`)}
   </div>`;
 }
 function edgeRegisterPage() {
