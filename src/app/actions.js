@@ -333,7 +333,7 @@ export async function handleAction(action, element) {
       break;
     }
     case "hmi-write-tag":
-    case "write-tag": { const tag = store.list("tags").find(item => item.id === element.dataset.id); if (!tag) break; const raw = prompt(`مقدار جدید برای ${tag.name} (${tag.type})`, String(tag.value ?? "")); if (raw === null) break; let value = raw; if (tag.type === "bool") { const normalized = raw.trim().toLowerCase(); if (!["true","false","1","0"].includes(normalized)) throw new Error("Boolean باید true / false یا 1 / 0 باشد."); value = normalized === "true" || normalized === "1"; } else if (["int16","uint16","int32","uint32"].includes(tag.type)) { if (!/^-?\\d+$/.test(raw.trim())) throw new Error("مقدار این تگ باید عدد صحیح باشد."); value = Number.parseInt(raw, 10); } else if (tag.type === "float32") { value = Number(raw); if (!Number.isFinite(value)) throw new Error("مقدار این تگ باید عدد معتبر باشد."); } await api.writeTag(tag.id, value); await store.refresh(); toast("مقدار در دیتابیس شبیه‌سازی تغییر کرد؛ PLC واقعی نوشته نشد.", "info"); break; }
+    case "write-tag": { const tag = store.list("tags").find(item => item.id === element.dataset.id); if (!tag) break; const raw = prompt(`مقدار جدید برای ${tag.name} (${tag.type})`, String(tag.value ?? "")); if (raw === null) break; let value = raw; if (tag.type === "bool") { const normalized = raw.trim().toLowerCase(); if (!["true","false","1","0"].includes(normalized)) throw new Error("Boolean باید true / false یا 1 / 0 باشد."); value = normalized === "true" || normalized === "1"; } else if (["int16","uint16","int32","uint32"].includes(tag.type)) { if (!/^-?\d+$/.test(raw.trim())) throw new Error("مقدار این تگ باید عدد صحیح باشد."); value = Number.parseInt(raw, 10); } else if (tag.type === "float32") { value = Number(raw); if (!Number.isFinite(value)) throw new Error("مقدار این تگ باید عدد معتبر باشد."); } await api.writeTag(tag.id, value); await store.refresh(); toast("مقدار در دیتابیس شبیه‌سازی تغییر کرد؛ PLC واقعی نوشته نشد.", "info"); break; }
     case "open-modal-info": openActionInfo(element.textContent.trim(), "برای این کنترل هنوز سرویس عملیاتی و تنظیمات مستقل در Backend تعریف نشده است. هیچ تغییری در داده‌های سامانه انجام نشده است."); break;
     default: toast("این فرمان در نسخه نمایشی تعریف نشده است.", "info");
   }
@@ -354,7 +354,7 @@ export async function handleSubmit(event) {
       for (const field of ["samples","tolerance_percent","stabilization_seconds"]) values[field] = Number(values[field]);
       const hoppers = new Map();
       for (const [key, value] of Object.entries(values)) {
-        const match = key.match(/^hopper_(\\d+)_(bin|material|ratio|target)$/);
+        const match = key.match(/^hopper_(\d+)_(bin|material|ratio|target)$/);
         if (!match) continue;
         const index = Number(match[1]);
         const field = match[2];
@@ -387,7 +387,7 @@ export async function handleSubmit(event) {
       values.approval_required = values.approval_required === "true";
       const parameters = new Map();
       for (const [key, value] of Object.entries(values)) {
-        const match = key.match(/^parameter_(\\d+)_(parameter|nominal|min|max|unit|method)$/);
+        const match = key.match(/^parameter_(\d+)_(parameter|nominal|min|max|unit|method)$/);
         if (!match) continue;
         const index = Number(match[1]);
         if (!parameters.has(index)) parameters.set(index, {});
