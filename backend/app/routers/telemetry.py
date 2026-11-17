@@ -257,6 +257,8 @@ def ingest_edge_telemetry(
         ).fetchone()
         if edge is None or edge["status"] == "REVOKED":
             raise HTTPException(401, "توکن Edge معتبر نیست یا لغو شده است.")
+        if not edge["factory_id"]:
+            raise HTTPException(403, "Edge باید پیش از ارسال داده به یک کارخانه تخصیص داده شود.")
 
         for sample in body.samples:
             row = db.execute(
@@ -265,11 +267,13 @@ def ingest_edge_telemetry(
             ).fetchone()
             if row is None:
                 raise HTTPException(404, f"تگ {sample.tag_id} ثبت نشده است.")
-            if edge["factory_id"] and row["factory_id"] != edge["factory_id"]:
+            if row["factory_id"] != edge["factory_id"]:
                 raise HTTPException(403, "Edge اجازه ارسال داده برای کارخانه این تگ را ندارد.")
 
             tag = json_load(row["payload"], {}) or {}
             value = _validate_edge_value(str(tag.get("type", "")), sample.value)
+            tag["last_source"] = f"edge:{edge['id']}"
+            tag["last_quality"] = "GOOD"
             sampled_at = sample.sampled_at or datetime.now(timezone.utc)
             if sampled_at.tzinfo is None:
                 raise HTTPException(422, "زمان نمونه باید timezone داشته باشد.")
@@ -376,6 +380,9 @@ async def demo_simulator_loop(stop_event: asyncio.Event) -> None:
                 for tag in tags:
                     if tag.get("access") != "read" or tag.get("type") not in {"float32","int16","uint16","int32","uint32"}:
                         continue
+                    # A live Edge has authority over its assigned tag; never replace it with DEMO values.
+                    if str(tag.get("last_source") or "").startswith("edge:"):
+                        continue
                     old=_numeric_value(tag.get("value"))
                     if old is None:
                         continue
@@ -383,6 +390,8 @@ async def demo_simulator_loop(stop_event: asyncio.Event) -> None:
                     value=round(max(0.0,old+random.uniform(-delta,delta)),4)
                     payload={k:v for k,v in tag.items() if k not in {"id","factory_id","updated_at"}}
                     payload["value"]=value
+                    payload["last_source"]="demo-simulator"
+                    payload["last_quality"]="DEMO"
                     db.execute("UPDATE resources SET payload=?,updated_at=? WHERE collection='tags' AND id=?",
                                (json_dump(payload),now,tag["id"]))
                     db.execute(
