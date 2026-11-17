@@ -51,6 +51,7 @@ export const api = {
   stopRun: id => request(`/api/operations/production-runs/${encodeURIComponent(id)}/stop`, { method: "POST", body: {} }),
   startBatch: id => request(`/api/operations/batches/${encodeURIComponent(id)}/start`, { method: "POST", body: {} }),
   stopBatch: id => request(`/api/operations/batches/${encodeURIComponent(id)}/stop`, { method: "POST", body: {} }),
+  cancelBatch: id => request(`/api/operations/batches/${encodeURIComponent(id)}/cancel`, { method: "POST", body: {} }),
   approveTask: id => request(`/api/operations/workflow-tasks/${encodeURIComponent(id)}/approve`, { method: "POST", body: {} }),
   decideQc: (id, decision, note = "") => request(`/api/operations/qc/${encodeURIComponent(id)}/decision`, { method: "POST", body: { decision, note } }),
   runReport: (id, parameters = {}) => request(`/api/operations/reports/${encodeURIComponent(id)}/run`, { method: "POST", body: { parameters } }),
