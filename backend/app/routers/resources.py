@@ -62,6 +62,7 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
         "reports": ("name", "type"),
         "processes": ("name", "code"),
         "templates": ("name", "steps"),
+        "workflowTasks": ("title", "flow", "from", "status"),
         "orders": ("code", "product", "quantity", "unit"),
         "units": ("code", "quantity", "unit"),
         "qc": ("code", "product", "machine", "decision"),
