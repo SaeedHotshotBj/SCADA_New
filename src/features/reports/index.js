@@ -19,7 +19,7 @@ function reportsPage() {
       ${statCard("قالب فعال", enabled.toLocaleString("fa-IR"), "قالب", "green")}
       ${statCard("قالب دارای اجرا", executed.toLocaleString("fa-IR"), "قالب", "orange")}
     </div>
-    ${tabs(["گزارش‌ها", "خروجی‌های اجراشده", "زمان‌بندی"])}
+    <p class="muted-note">فهرست گزارش‌ها و آخرین اجرا از سرور بارگذاری می‌شود. سوابق اجرای هر گزارش از endpoint تاریخچه همان گزارش دریافت می‌شود؛ زمان‌بندی خودکار هنوز فعال نشده است.</p>
     ${panel("فهرست قالب‌های گزارش", rows.length ? dataTable([
       { key: "name", label: "نام گزارش" },
       { key: "type", label: "دوره تعریف‌شده" },
@@ -43,7 +43,7 @@ function processesPage() {
   }));
   return `<div class="collection-page" data-collection-name="processes" data-edit-action="new-process">
     ${pageHeader("فرآیندها و سوابق", "مدیریت تعاریف فرآیند و مشاهده رویدادهای ثبت‌شده", button("فرآیند جدید", "new-process", { icon: "+" }))}
-    ${tabs(["رویدادهای ثبت‌شده", "تعاریف فرآیند"])}
+    <p class="muted-note">تعاریف فرآیند و رویدادهای ممیزی در دو جدول مستقل نمایش داده می‌شوند.</p>
     ${panel("رویدادهای فرآیند", processEvents.length ? dataTable([
       { key: "action", label: "رویداد" },
       { key: "record_id", label: "شناسه رکورد" },
