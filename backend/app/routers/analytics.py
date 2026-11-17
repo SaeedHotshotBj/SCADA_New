@@ -13,11 +13,17 @@ from ..dependencies import get_current_user
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 
 
-def _records(db, collection: str) -> list[dict]:
-    rows = db.execute(
-        "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection=?",
-        (collection,),
-    ).fetchall()
+def _records(db, collection: str, factory_id: str | None = None) -> list[dict]:
+    if factory_id:
+        rows = db.execute(
+            "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection=? AND (factory_id=? OR factory_id IS NULL)",
+            (collection, factory_id),
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection=?",
+            (collection,),
+        ).fetchall()
     return [
         {
             "id": row["id"],
@@ -45,28 +51,54 @@ def summary(
     period_start = now - timedelta(days=days)
     since = period_start.isoformat(timespec="seconds")
     today = now.date()
+    factory_id = None if user["role"] == "Organization Admin" else user.get("factory_id")
     with connect() as db:
-        counts = {
-            row["collection"]: row["count"]
-            for row in db.execute(
-                "SELECT collection,COUNT(*) AS count FROM resources GROUP BY collection"
+        if factory_id:
+            counts = {
+                row["collection"]: row["count"]
+                for row in db.execute(
+                    "SELECT collection,COUNT(*) AS count FROM resources WHERE factory_id=? OR factory_id IS NULL GROUP BY collection",
+                    (factory_id,),
+                ).fetchall()
+            }
+        else:
+            counts = {
+                row["collection"]: row["count"]
+                for row in db.execute(
+                    "SELECT collection,COUNT(*) AS count FROM resources GROUP BY collection"
+                ).fetchall()
+            }
+        orders_all = _records(db, "orders", factory_id)
+        runs_all = _records(db, "productionRuns", factory_id)
+        qc_all = _records(db, "qc", factory_id)
+        alarms = _records(db, "alarms", factory_id)
+        batches_all = _records(db, "batches", factory_id)
+        machines = _records(db, "machines", factory_id)
+        if factory_id:
+            sample_count_period = db.execute(
+                "SELECT COUNT(*) FROM telemetry_samples WHERE factory_id=? AND sampled_at>=?",
+                (factory_id, since),
+            ).fetchone()[0]
+            latest_sample = db.execute(
+                "SELECT sampled_at,quality,source FROM telemetry_samples WHERE factory_id=? ORDER BY sampled_at DESC LIMIT 1",
+                (factory_id,),
+            ).fetchone()
+            audit_rows = db.execute(
+                """SELECT a.action,a.collection,a.record_id,a.created_at FROM audit_events a
+                   JOIN resources r ON r.collection=a.collection AND r.id=a.record_id
+                   WHERE r.factory_id=? ORDER BY a.id DESC LIMIT 10""",
+                (factory_id,),
             ).fetchall()
-        }
-        orders_all = _records(db, "orders")
-        runs_all = _records(db, "productionRuns")
-        qc_all = _records(db, "qc")
-        alarms = _records(db, "alarms")
-        batches_all = _records(db, "batches")
-        machines = _records(db, "machines")
-        sample_count_period = db.execute(
-            "SELECT COUNT(*) FROM telemetry_samples WHERE sampled_at>=?", (since,)
-        ).fetchone()[0]
-        latest_sample = db.execute(
-            "SELECT sampled_at,quality,source FROM telemetry_samples ORDER BY sampled_at DESC LIMIT 1"
-        ).fetchone()
-        audit_rows = db.execute(
-            "SELECT action,collection,record_id,created_at FROM audit_events ORDER BY created_at DESC LIMIT 10"
-        ).fetchall()
+        else:
+            sample_count_period = db.execute(
+                "SELECT COUNT(*) FROM telemetry_samples WHERE sampled_at>=?", (since,)
+            ).fetchone()[0]
+            latest_sample = db.execute(
+                "SELECT sampled_at,quality,source FROM telemetry_samples ORDER BY sampled_at DESC LIMIT 1"
+            ).fetchone()
+            audit_rows = db.execute(
+                "SELECT action,collection,record_id,created_at FROM audit_events ORDER BY created_at DESC LIMIT 10"
+            ).fetchall()
 
     def occurred_in_period(item: dict, fields: tuple[str, ...]) -> bool:
         for field in fields:
@@ -164,18 +196,32 @@ def storage_summary(user: dict = Depends(get_current_user)):
     shm_path = Path(str(DB_PATH) + "-shm")
     wal_size = wal_path.stat().st_size if wal_path.exists() else 0
     shm_size = shm_path.stat().st_size if shm_path.exists() else 0
+    factory_id = None if user["role"] == "Organization Admin" else user.get("factory_id")
     with connect() as db:
-        sample_count = db.execute("SELECT COUNT(*) FROM telemetry_samples").fetchone()[0]
-        tag_count = db.execute("SELECT COUNT(*) FROM resources WHERE collection='tags'").fetchone()[0]
-        oldest = db.execute("SELECT MIN(sampled_at) FROM telemetry_samples").fetchone()[0]
-        newest = db.execute("SELECT MAX(sampled_at) FROM telemetry_samples").fetchone()[0]
-        groups = db.execute(
-            "SELECT tag_id,COUNT(*) AS sample_count,MIN(sampled_at) AS first_sample,"
-            "MAX(sampled_at) AS last_sample FROM telemetry_samples GROUP BY tag_id ORDER BY sample_count DESC"
-        ).fetchall()
-        tag_rows = db.execute(
-            "SELECT id,payload FROM resources WHERE collection='tags'"
-        ).fetchall()
+        if factory_id:
+            sample_count = db.execute("SELECT COUNT(*) FROM telemetry_samples WHERE factory_id=?", (factory_id,)).fetchone()[0]
+            tag_count = db.execute("SELECT COUNT(*) FROM resources WHERE collection='tags' AND (factory_id=? OR factory_id IS NULL)", (factory_id,)).fetchone()[0]
+            oldest = db.execute("SELECT MIN(sampled_at) FROM telemetry_samples WHERE factory_id=?", (factory_id,)).fetchone()[0]
+            newest = db.execute("SELECT MAX(sampled_at) FROM telemetry_samples WHERE factory_id=?", (factory_id,)).fetchone()[0]
+            groups = db.execute(
+                "SELECT tag_id,COUNT(*) AS sample_count,MIN(sampled_at) AS first_sample,"
+                "MAX(sampled_at) AS last_sample FROM telemetry_samples WHERE factory_id=? GROUP BY tag_id ORDER BY sample_count DESC",
+                (factory_id,),
+            ).fetchall()
+            tag_rows = db.execute(
+                "SELECT id,payload FROM resources WHERE collection='tags' AND (factory_id=? OR factory_id IS NULL)",
+                (factory_id,),
+            ).fetchall()
+        else:
+            sample_count = db.execute("SELECT COUNT(*) FROM telemetry_samples").fetchone()[0]
+            tag_count = db.execute("SELECT COUNT(*) FROM resources WHERE collection='tags'").fetchone()[0]
+            oldest = db.execute("SELECT MIN(sampled_at) FROM telemetry_samples").fetchone()[0]
+            newest = db.execute("SELECT MAX(sampled_at) FROM telemetry_samples").fetchone()[0]
+            groups = db.execute(
+                "SELECT tag_id,COUNT(*) AS sample_count,MIN(sampled_at) AS first_sample,"
+                "MAX(sampled_at) AS last_sample FROM telemetry_samples GROUP BY tag_id ORDER BY sample_count DESC"
+            ).fetchall()
+            tag_rows = db.execute("SELECT id,payload FROM resources WHERE collection='tags'").fetchall()
     tag_meta = {row["id"]: (json_load(row["payload"], {}) or {}) for row in tag_rows}
     by_tag = [
         {
@@ -212,11 +258,21 @@ def audit_history(
     user: dict = Depends(get_current_user),
 ):
     with connect() as db:
-        rows = db.execute(
-            "SELECT id,actor_id,action,collection,record_id,details,created_at "
-            "FROM audit_events ORDER BY id DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        if user["role"] == "Organization Admin":
+            rows = db.execute(
+                "SELECT id,actor_id,action,collection,record_id,details,created_at "
+                "FROM audit_events ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                """SELECT a.id,a.actor_id,a.action,a.collection,a.record_id,a.details,a.created_at
+                   FROM audit_events a
+                   JOIN resources r ON r.collection=a.collection AND r.id=a.record_id
+                   WHERE r.factory_id=?
+                   ORDER BY a.id DESC LIMIT ?""",
+                (user["factory_id"], limit),
+            ).fetchall()
     return [
         {
             "id": row["id"],
