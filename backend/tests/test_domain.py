@@ -13,9 +13,14 @@ def _login(client: TestClient) -> None:
 def test_production_quantity_events_and_completion_are_persisted():
     with TestClient(app) as client:
         _login(client)
+        order = client.post("/api/resources/orders", json={
+            "code": "PO-QTY-TEST", "product": "کابل قدرت NYY 4×16mm²",
+            "machine": "بانچر", "quantity": 100, "unit": "m", "status": "آزادشده"
+        })
+        assert order.status_code == 201, order.text
         created = client.post("/api/resources/productionRuns", json={
             "order": "PO-QTY-TEST", "machine": "بانچر",
-            "product": "کابل آزمایشی", "target": 100, "unit": "m"
+            "product": "کابل قدرت NYY 4×16mm²", "target": 100, "unit": "m"
         })
         assert created.status_code == 201, created.text
         run_id = created.json()["id"]
@@ -97,8 +102,8 @@ def test_qc_measurements_are_persisted_and_failures_change_decision():
     with TestClient(app) as client:
         _login(client)
         qc = client.post("/api/resources/qc", json={
-            "code": "QC-MEASURE-001", "product": "کابل تست",
-            "machine": "اکسترودر", "decision": "مشروط"
+            "code": "QC-MEASURE-001", "product": "کابل قدرت NYY 4×16mm²",
+            "machine": "اکسترودر عایق", "decision": "مشروط"
         })
         assert qc.status_code == 201, qc.text
         result = client.post(f"/api/operations/qc/{qc.json()['id']}/measurements", json={
