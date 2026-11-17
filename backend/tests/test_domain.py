@@ -133,3 +133,66 @@ def test_analytics_endpoints_return_persisted_records_not_static_dashboard_numbe
         assert production.json()["mode"] == "APPLICATION_DATA"
         assert "acceptance_percent" in quality.json()["summary"]
         assert "items" in energy.json()
+
+
+def test_factory_admin_cannot_read_or_modify_another_factory_resources():
+    with TestClient(app) as admin:
+        _login(admin)
+        created_user = admin.post("/api/resources/users", json={
+            "name": "Factory One Admin", "email": "factory-one@example.local",
+            "role": "Factory Admin", "status": "فعال", "factory_id": "f1"
+        })
+        assert created_user.status_code == 201, created_user.text
+        password = created_user.json()["temporary_password"]
+
+        foreign_tag = admin.post("/api/resources/tags", json={
+            "name": "FOREIGN.TAG", "plc": "p1", "type": "float32",
+            "address": "40090", "access": "read", "factory_id": "f2"
+        })
+        assert foreign_tag.status_code == 201, foreign_tag.text
+        foreign_tag_id = foreign_tag.json()["id"]
+
+    with TestClient(app) as factory:
+        login = factory.post("/api/auth/login", json={
+            "email": "factory-one@example.local", "password": password
+        })
+        assert login.status_code == 200, login.text
+        assert login.json()["user"]["must_change_password"] is True
+
+        factories = factory.get("/api/resources/factories")
+        assert factories.status_code == 200
+        assert {item["id"] for item in factories.json()["items"]} == {"f1"}
+
+        detail = factory.get(f"/api/resources/tags/{foreign_tag_id}")
+        assert detail.status_code == 404
+        update = factory.patch(f"/api/resources/tags/{foreign_tag_id}", json={"unit": "forbidden"})
+        assert update.status_code == 404
+        delete = factory.delete(f"/api/resources/tags/{foreign_tag_id}")
+        assert delete.status_code == 404
+
+
+def test_report_filters_are_applied_to_persisted_production_runs():
+    with TestClient(app) as client:
+        _login(client)
+        created_ids = []
+        for machine in ["بانچر", "کشش مفتول"]:
+            created = client.post("/api/resources/productionRuns", json={
+                "order": f"PO-REPORT-{len(created_ids) + 1}",
+                "machine": machine, "product": "کابل آزمایشی", "target": 1000, "unit": "m"
+            })
+            assert created.status_code == 201, created.text
+            run_id = created.json()["id"]
+            created_ids.append(run_id)
+            assert client.post(f"/api/operations/production-runs/{run_id}/start").status_code == 200
+            assert client.post(f"/api/operations/production-runs/{run_id}/quantity", json={
+                "quantity": 25, "unit": "m"
+            }).status_code == 201
+
+        report = client.post("/api/operations/reports/rp1/run", json={
+            "parameters": {"machine": "بانچر"}
+        })
+        assert report.status_code == 202, report.text
+        tables = report.json()["result"]["tables"]
+        assert len(tables["production_runs"]) == 1
+        assert tables["production_runs"][0]["machine"] == "بانچر"
+        assert report.json()["result"]["summary"]["produced_quantity"] == 25
