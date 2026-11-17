@@ -239,7 +239,7 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
         names = [day.get("day") for day in days if isinstance(day, dict)]
         if len(names) != 7 or set(names) != expected_days:
             raise HTTPException(status_code=422, detail="روزهای تقویم باید هر هفت روز هفته را بدون تکرار شامل شوند.")
-        time_pattern = re.compile(r"^(?:[01]\\d|2[0-3]):[0-5]\\d$")
+        time_pattern = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
         for day in days:
             if not isinstance(day.get("enabled"), bool):
                 raise HTTPException(status_code=422, detail="وضعیت کاری هر روز باید بولی باشد.")
