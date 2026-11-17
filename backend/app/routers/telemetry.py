@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from ..database import connect, json_dump, json_load, utc_now
+from ..database import connect, json_dump, json_load, utc_now, audit
 from ..dependencies import get_current_user
 from ..security import token_hash
 
