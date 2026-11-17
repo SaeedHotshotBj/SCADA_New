@@ -121,6 +121,23 @@ function applyTableFilters(element) {
   toast(`${visible.toLocaleString("fa-IR")} ردیف مطابق فیلتر است.`, "info");
 }
 
+async function loadSelectedTrendHistory() {
+  const selectedTrend = store.list("trends").find(item => item.id === store.trendId()) || store.list("trends")[0];
+  if (!selectedTrend) {
+    store.replaceCollection("trendHistory", []);
+    return;
+  }
+  const names = String(selectedTrend.tags || "").split(/[،,]/).map(name => name.trim()).filter(Boolean);
+  const tag = store.list("tags").find(item => names.includes(item.name) && ["float32","int16","uint16","int32","uint32"].includes(item.type));
+  if (!tag) {
+    store.replaceCollection("trendHistory", []);
+    toast("برای این روند، تگ عددی قابل دریافت پیدا نشد.", "warning");
+    return;
+  }
+  const result = await api.telemetryHistory(tag.id, store.trendHours());
+  store.replaceCollection("trendHistory", result.items || []);
+}
+
 function openActionInfo(title, message) {
   document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true"><header class="modal-header"><h2>${escapeHtml(title || "اطلاعات")}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><div class="modal-fields"><p>${escapeHtml(message)}</p></div><footer class="modal-footer"><button type="button" class="btn btn-primary" data-action="close-modal">متوجه شدم</button></footer></section></div>`;
   document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
@@ -226,6 +243,18 @@ export async function handleAction(action, element) {
       const group = element.closest(".range-pills");
       group?.querySelectorAll("button").forEach(button => button.classList.toggle("active", button === element));
       toast(`بازه ${element.textContent.trim()} انتخاب شد.`, "info"); break;
+    }
+    case "select-trend": {
+      store.setTrendId(element.dataset.id);
+      await loadSelectedTrendHistory();
+      break;
+    }
+    case "select-trend-range": {
+      store.setTrendHours(element.dataset.hours);
+      const group = element.closest(".range-pills");
+      group?.querySelectorAll("button").forEach(button => button.classList.toggle("active", button === element));
+      await loadSelectedTrendHistory();
+      break;
     }
     case "approve-task": await api.approveTask(element.dataset.id); await store.refresh(); toast("وظیفه در سرور تأیید شد."); break;
     case "review-qc": { const decision = prompt("تصمیم کنترل کیفیت را وارد کنید: قبول / مشروط / رد", "قبول"); if (!decision) break; await api.decideQc(element.dataset.id, decision.trim()); await store.refresh(); toast("تصمیم کنترل کیفیت ثبت شد."); break; }
