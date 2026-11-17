@@ -144,6 +144,40 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
         ).fetchone()
         if tag is None:
             raise HTTPException(status_code=422, detail="تگ انتخاب‌شده برای آلارم در سامانه ثبت نشده است.")
+    if collection == "hmiPages":
+        if payload.get("machine"):
+            machine = db.execute(
+                "SELECT 1 FROM resources WHERE collection='machines' AND name=?",
+                (payload["machine"],),
+            ).fetchone()
+            if machine is None:
+                raise HTTPException(status_code=422, detail="ماشین انتخاب‌شده برای صفحه HMI در سامانه ثبت نشده است.")
+        layout = payload.get("layout")
+        if layout is not None:
+            if not isinstance(layout, list) or len(layout) > 50:
+                raise HTTPException(status_code=422, detail="چیدمان HMI باید آرایه‌ای با حداکثر ۵۰ جزء باشد.")
+            supported = {"value", "status", "gauge", "write"}
+            for index, component in enumerate(layout):
+                if not isinstance(component, dict) or component.get("type") not in supported:
+                    raise HTTPException(status_code=422, detail=f"نوع جزء شماره {index + 1} پشتیبانی نمی‌شود.")
+                tag_id = component.get("tag_id")
+                tag_row = db.execute(
+                    "SELECT payload,factory_id FROM resources WHERE collection='tags' AND id=?",
+                    (tag_id,),
+                ).fetchone()
+                if tag_row is None:
+                    raise HTTPException(status_code=422, detail=f"تگ جزء شماره {index + 1} پیدا نشد.")
+                tag_payload = json_load(tag_row["payload"], {}) or {}
+                if component["type"] == "write" and tag_payload.get("access") != "read_write":
+                    raise HTTPException(status_code=422, detail=f"تگ جزء شماره {index + 1} فقط خواندنی است.")
+                for bound in ("min", "max"):
+                    if bound in component:
+                        try:
+                            number = float(component[bound])
+                            if number != number or abs(number) == float("inf"):
+                                raise ValueError
+                        except (TypeError, ValueError):
+                            raise HTTPException(status_code=422, detail=f"حد {bound} در جزء شماره {index + 1} معتبر نیست.")
     factory_id = payload.get("factory_id")
     if factory_id:
         factory = db.execute(
