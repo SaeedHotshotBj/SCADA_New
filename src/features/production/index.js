@@ -48,7 +48,7 @@ function runPage() {
 function machinesPage() {
   const rows = store.list("machines");
   return `<div class="machine-directory" data-collection-name="machines" data-edit-action="new-machine">${pageHeader("ماشین‌ها و خطوط تولید", "مدیریت فهرست ماشین‌ها و کدهای تجهیز", button("ماشین جدید", "new-machine", { icon: "+" }))}
-    ${rows.length ? rows.map(machine => `<article class="directory-card"><div class="directory-icon">⚙</div><div><h3>${machine.name}</h3><p>کد تجهیز: ${machine.code || "—"}</p></div><div class="directory-meta">${pill(machine.status || "تعریف‌شده", "info")}<small>تعریف نرم‌افزاری؛ وضعیت ارتباط سخت‌افزاری تأیید نشده است</small></div><button class="btn btn-light btn-sm" data-action="edit-record" data-id="${machine.id}">ویرایش</button><button class="btn btn-light btn-sm" data-action="delete-record" data-collection="machines" data-id="${machine.id}">حذف</button></article>`).join("") : emptyState("ماشینی ثبت نشده است.")}
+    ${rows.length ? rows.map(machine => `<article class="directory-card"><div class="directory-icon">⚙</div><div><h3>${machine.name}</h3><p>کد تجهیز: ${machine.code || "—"}</p></div><div class="directory-meta">${pill("تعریف‌شده", "info")}<small>وضعیت سخت‌افزاری از این رکورد قابل تأیید نیست</small></div><button class="btn btn-light btn-sm" data-action="edit-record" data-id="${machine.id}">ویرایش</button><button class="btn btn-light btn-sm" data-action="delete-record" data-collection="machines" data-id="${machine.id}">حذف</button></article>`).join("") : emptyState("ماشینی ثبت نشده است.")}
   </div>`;
 }
 
