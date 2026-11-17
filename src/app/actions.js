@@ -281,6 +281,12 @@ export async function handleAction(action, element) {
       toast("اجرای تولید در Backend تکمیل شد.");
       break;
     }
+    case "download-report-execution": {
+      const execution = store.list("reportExecutions").find(row => row.id === element.dataset.id);
+      if (!execution) { toast("خروجی در حافظه این نشست نیست؛ گزارش را دوباره اجرا کنید.", "warning"); break; }
+      downloadJson(`scada-report-${execution.id}.json`, execution.result || execution);
+      break;
+    }
     case "print-label": window.print(); break;
     case "run-report": {
       const group = element.closest(".report-builder, .filter-bar");
@@ -289,7 +295,8 @@ export async function handleAction(action, element) {
       if (!reportId) { toast("ابتدا یک قالب گزارش فعال ثبت کنید.", "warning"); break; }
       const result = await api.runReport(reportId, parameters);
       await store.refresh();
-      store.replaceCollection("reportExecutions", [result, ...store.list("reportExecutions")].slice(0, 20));
+      const history = await api.listReportExecutions(reportId);
+      store.replaceCollection("reportExecutions", history || [result]);
       downloadJson(`scada-report-${result.id}.json`, result.result || result);
       toast(`گزارش ذخیره‌شده تولید و فایل JSON آن دریافت شد: ${result.id}`);
       break;
