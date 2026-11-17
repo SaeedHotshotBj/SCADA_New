@@ -590,3 +590,66 @@ def test_demo_simulator_never_overwrites_a_tag_owned_by_edge():
         assert latest["value"] == 123.45
         assert latest["quality"] == "GOOD"
         assert latest["source"].startswith("edge:")
+
+
+def test_factory_user_cannot_operate_on_foreign_factory_runs_batches_or_reports():
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local", "password": "demo1234"
+        })
+
+        product = client.post("/api/resources/products", json={
+            "factory_id": "f2", "code": "F2-PROD", "name": "محصول کارخانه دوم",
+            "unit": "m", "status": "فعال"
+        })
+        assert product.status_code == 201, product.text
+        machine = client.post("/api/resources/machines", json={
+            "factory_id": "f2", "name": "ماشین کارخانه دوم", "code": "F2-M1",
+            "status": "آماده‌به‌کار"
+        })
+        assert machine.status_code == 201, machine.text
+        order = client.post("/api/resources/orders", json={
+            "factory_id": "f2", "code": "F2-ORDER-001",
+            "product": "محصول کارخانه دوم", "machine": "ماشین کارخانه دوم",
+            "quantity": 100, "unit": "m", "status": "آزادشده"
+        })
+        assert order.status_code == 201, order.text
+        run = client.post("/api/resources/productionRuns", json={
+            "factory_id": "f2", "order": "F2-ORDER-001",
+            "machine": "ماشین کارخانه دوم", "product": "محصول کارخانه دوم",
+            "target": 100, "unit": "m"
+        })
+        assert run.status_code == 201, run.text
+        batch = client.post("/api/resources/batches", json={
+            "factory_id": "f2", "code": "F2-BATCH-001", "formula": "F2-FORMULA",
+            "target": 50
+        })
+        assert batch.status_code == 201, batch.text
+        report = client.post("/api/resources/reports", json={
+            "factory_id": "f2", "name": "گزارش کارخانه دوم", "type": "روزانه"
+        })
+        assert report.status_code == 201, report.text
+
+        user = client.post("/api/resources/users", json={
+            "factory_id": "f1", "name": "مدیر تولید کارخانه اول",
+            "email": "factory-one-manager@example.local",
+            "role": "Production Manager", "status": "فعال"
+        })
+        assert user.status_code == 201, user.text
+        temporary_password = user.json()["temporary_password"]
+        client.post("/api/auth/logout")
+        login = client.post("/api/auth/login", json={
+            "email": "factory-one-manager@example.local",
+            "password": temporary_password
+        })
+        assert login.status_code == 200, login.text
+
+        run_id = run.json()["id"]
+        batch_id = batch.json()["id"]
+        report_id = report.json()["id"]
+        assert client.post(f"/api/operations/production-runs/{run_id}/start").status_code == 404
+        assert client.get(f"/api/operations/production-runs/{run_id}/events").status_code == 404
+        assert client.get(f"/api/operations/batches/{batch_id}/weighments").status_code == 404
+        assert client.post(f"/api/operations/reports/{report_id}/run",
+                           json={"parameters": {}}).status_code == 404
+        assert client.get(f"/api/operations/reports/{report_id}/executions").status_code == 404
