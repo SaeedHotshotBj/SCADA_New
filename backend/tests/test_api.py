@@ -392,3 +392,40 @@ def test_plc_tag_factory_ownership_is_enforced_and_returned():
         })
         assert inherited_tag.status_code == 201
         assert inherited_tag.json()["factory_id"] == factory_id
+
+
+def test_hmi_layout_validates_tag_bindings_and_write_access():
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local", "password": "demo1234"
+        })
+        valid = client.post("/api/resources/hmiPages", json={
+            "name": "HMI test",
+            "machine": "بانچر",
+            "description": "layout validation",
+            "layout": [
+                {"type": "gauge", "tag_id": "t3", "label": "Current", "min": 0, "max": 300},
+                {"type": "write", "tag_id": "t7", "label": "Speed setpoint"},
+            ],
+            "status": "فعال",
+        })
+        assert valid.status_code == 201
+        assert valid.json()["components"] == 2
+
+        read_only_write = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid HMI",
+            "machine": "بانچر",
+            "description": "write to read-only tag",
+            "layout": [{"type": "write", "tag_id": "t3"}],
+            "status": "فعال",
+        })
+        assert read_only_write.status_code == 422
+
+        missing_tag = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid HMI 2",
+            "machine": "بانچر",
+            "description": "unknown tag",
+            "layout": [{"type": "value", "tag_id": "missing"}],
+            "status": "فعال",
+        })
+        assert missing_tag.status_code == 422
