@@ -102,15 +102,36 @@ function alarmsPage() {
 
 function trendsPage() {
   const rows = store.list("trends");
+  const selected = rows.find(row => row.id === store.trendId()) || rows[0] || null;
   const history = store.list("trendHistory");
-  const values = history.map(sample => Number(sample.value)).filter(value => Number.isFinite(value));
+  const chartRows = history.slice(-12);
+  const values = chartRows.map(sample => Number(sample.value)).filter(value => Number.isFinite(value));
+  const labels = chartRows.map(sample => sample.sampled_at
+    ? new Date(sample.sampled_at).toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" })
+    : "—");
   const latest = history[history.length - 1];
-  return `<div>${pageHeader("روندها", "نمایش داده‌های تاریخی ثبت‌شده برای تگ‌های انتخاب‌شده", button("روند جدید", "new-trend", { icon: "+" }))}
-    <div class="trend-tags">${rows.map((row, i) => `<button class="${i === 0 ? "active" : ""}" data-action="select-range">${row.name}</button>`).join("")}</div>
-    <div class="trend-controls"><span>${pill(latest ? `تاریخچه دریافت شد · ${latest.quality || "UNSAMPLED"}` : "در انتظار داده", latest?.quality === "GOOD" ? "success" : latest ? "warning" : "muted")}</span><div class="range-pills">${["۱ ساعت","۶ ساعت","۲۴ ساعت"].map((x,i) => `<button data-action="select-range" class="${i === 2 ? "active" : ""}">${x}</button>`).join("")}</div></div>
-    ${history.length ? lineChart("تاریخچه تگ نمونه · ۲۴ ساعت", undefined, "#e7a300", values) : panel("تاریخچه تله‌متری", emptyState("هنوز نمونه‌ای برای این تگ ثبت نشده است. بعد از شروع شبیه‌ساز داده‌ها در این بخش نمایش داده می‌شوند."))}
-    ${panel("نمونه‌های اخیر", history.length ? dataTable([{key:"sampled_at",label:"زمان"},{key:"value",label:"مقدار"},{key:"quality",label:"کیفیت",render:row=>pill(row.quality || "DEMO","warning")},{key:"source",label:"منبع"}], history.slice(-50).reverse()) : emptyState("داده‌ای برای نمایش وجود ندارد."))}
-    ${panel("مدیریت روندها", dataTable([{ key: "name", label: "نام روند" }, { key: "tags", label: "تگ‌ها" }, { key: "period", label: "بازه" }, { key: "status", label: "وضعیت", render: row => pill(row.status, "success") }], rows, { actions: true }))}
+  const hours = store.trendHours();
+  const rangeLabels = { 1: "۱ ساعت", 6: "۶ ساعت", 24: "۲۴ ساعت" };
+  return `<div>${pageHeader("روندها", "انتخاب روند و بازه زمانی، تاریخچه را از API و پایگاه داده دریافت می‌کند.", button("به‌روزرسانی", "refresh-demo", { variant: "light" }))}
+    <div class="trend-tags">${rows.map(row => `<button class="${selected?.id === row.id ? "active" : ""}" data-action="select-trend" data-id="${row.id}">${row.name}</button>`).join("")}</div>
+    <div class="trend-controls">
+      <span>${pill(latest ? `آخرین نمونه · ${latest.quality || "UNSAMPLED"}` : "نمونه‌ای در این بازه نیست", latest?.quality === "GOOD" ? "success" : latest?.quality === "DEMO" ? "warning" : "muted")}</span>
+      <div class="range-pills">${[1,6,24].map(value => `<button data-action="select-trend-range" data-hours="${value}" class="${hours === value ? "active" : ""}">${rangeLabels[value]}</button>`).join("")}</div>
+    </div>
+    ${selected ? panel("روند انتخاب‌شده", `<div class="storage-list"><div><span>نام روند</span><b>${selected.name}</b></div><div><span>تگ‌های تعریف‌شده</span><b>${selected.tags || "—"}</b></div><div><span>بازه نمونه‌برداری تعریف‌شده</span><b>${selected.period || "—"}</b></div></div>`) : emptyState("ابتدا یک روند تعریف کنید.")}
+    ${history.length && values.length ? lineChart(`تاریخچه ${selected?.name || "تگ"} · ${rangeLabels[hours]}`, labels, "#e7a300", values) : panel("تاریخچه تله‌متری", emptyState("در این بازه نمونه‌ای برای تگ انتخاب‌شده ثبت نشده است."))}
+    ${panel("نمونه‌های دریافت‌شده", history.length ? dataTable([
+      {key:"sampled_at",label:"زمان",render:row=>row.sampled_at ? new Date(row.sampled_at).toLocaleString("fa-IR") : "—"},
+      {key:"value",label:"مقدار"},
+      {key:"quality",label:"کیفیت",render:row=>pill(row.quality || "UNSAMPLED",row.quality === "GOOD" ? "success" : row.quality === "DEMO" ? "warning" : "muted")},
+      {key:"source",label:"منبع"}
+    ], history.slice(-50).reverse()) : emptyState("برای این تگ در بازه انتخاب‌شده داده‌ای وجود ندارد."))}
+    ${panel("مدیریت روندها", rows.length ? dataTable([
+      { key: "name", label: "نام روند" },
+      { key: "tags", label: "تگ‌ها" },
+      { key: "period", label: "بازه تعریف‌شده" },
+      { key: "status", label: "وضعیت", render: row => pill(row.status, row.status === "فعال" ? "success" : "muted") },
+    ], rows, { actions: true }) : emptyState("هنوز روندی ثبت نشده است."))}
   </div>`;
 }
 
