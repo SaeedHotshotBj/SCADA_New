@@ -28,7 +28,8 @@ function boardPage() {
   const released = orders.filter(order => order.status === "آزادشده").length;
   const weekStart = new Date();
   weekStart.setHours(0, 0, 0, 0);
-  weekStart.setDate(weekStart.getDate() + 7 * store.weekOffset());
+  const daysSinceSaturday = (weekStart.getDay() + 1) % 7;
+  weekStart.setDate(weekStart.getDate() - daysSinceSaturday + 7 * store.weekOffset());
   const weekDates = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
   const header = weekDates.map(date => `<b>${date.toLocaleDateString("fa-IR", { weekday: "short", day: "numeric" })}</b>`).join("");
   const machineRows = machines.map((machine, index) => {
