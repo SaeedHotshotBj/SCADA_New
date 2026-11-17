@@ -53,13 +53,74 @@ function openChangePasswordModal() {
 }
 
 function downloadCsv() {
-  const rows = store.list("tags");
-  const headers = ["name", "plc", "type", "address", "access", "unit", "value"];
-  const csv = [headers.join(","), ...rows.map(row => headers.map(key => `"${String(row[key] ?? "").replaceAll('"', '""')}"`).join(","))].join("\n");
-  const blob = new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob); const a = document.createElement("a");
-  a.href = url; a.download = "scada-demo-export.csv"; a.click(); URL.revokeObjectURL(url);
+  const collection = document.querySelector("[data-collection-name]")?.dataset.collectionName || "tags";
+  const rows = store.list(collection);
+  if (!rows.length) {
+    toast("برای خروجی گرفتن، داده‌ای در این بخش وجود ندارد.", "info");
+    return;
+  }
+  const headers = [...new Set(rows.flatMap(row => Object.keys(row)))];
+  const csvCell = value => {
+    const text = value && typeof value === "object" ? JSON.stringify(value) : String(value ?? "");
+    return `"${text.replaceAll('"', '""')}"`;
+  };
+  const csv = [headers.map(csvCell).join(","), ...rows.map(row => headers.map(key => csvCell(row[key])).join(","))].join("\\r\\n");
+  const blob = new Blob(["\\ufeff", csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `scada-${collection}-export.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
+
+function downloadJson(value, filename) {
+  const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function showRecord(collection, id) {
+  const record = store.list(collection).find(item => item.id === id);
+  if (!record) throw new Error("رکورد موردنظر پیدا نشد.");
+  const rows = Object.entries(record).map(([key, value]) => {
+    const display = value && typeof value === "object" ? JSON.stringify(value, null, 2) : String(value ?? "—");
+    return `<div class="storage-list"><div><span>${escapeHtml(key)}</span><b>${escapeHtml(display)}</b></div></div>`;
+  }).join("");
+  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true"><header class="modal-header"><h2>جزئیات ${escapeHtml(collection)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><div class="modal-fields">${rows}</div><footer class="modal-footer"><button type="button" class="btn btn-primary" data-action="close-modal">بستن</button></footer></section></div>`;
+  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
+}
+
+function applyTableFilters(element) {
+  const filterBar = element.closest(".filter-bar, .report-builder");
+  const page = element.closest(".page-content") || document;
+  const selected = [...(filterBar?.querySelectorAll("select") || [])]
+    .map(select => select.value?.trim())
+    .filter(value => value && !/^(همه|انتخاب|تمام)/.test(value));
+  const rows = [...page.querySelectorAll(".data-table tbody tr")];
+  if (!rows.length) {
+    toast("در این صفحه جدول قابل فیلتر کردن وجود ندارد.", "info");
+    return;
+  }
+  let visible = 0;
+  for (const row of rows) {
+    const text = row.textContent || "";
+    const matches = selected.every(value => text.includes(value));
+    row.hidden = !matches;
+    if (matches) visible += 1;
+  }
+  toast(`${visible.toLocaleString("fa-IR")} ردیف مطابق فیلتر است.`, "info");
+}
+
+function openActionInfo(title, message) {
+  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true"><header class="modal-header"><h2>${escapeHtml(title || "اطلاعات")}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><div class="modal-fields"><p>${escapeHtml(message)}</p></div><footer class="modal-footer"><button type="button" class="btn btn-primary" data-action="close-modal">متوجه شدم</button></footer></section></div>`;
+  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
+}
+
 
 export async function handleAction(action, element) {
   switch (action) {
@@ -115,11 +176,12 @@ export async function handleAction(action, element) {
     case "start-run": case "stop-run": {
       const card = element.closest("[data-run-card]");
       let runId = element.dataset.id || element.dataset.runId || card?.dataset.runId;
+      const selectedMachine = document.querySelector('[name="operator_machine"]')?.value;
       if (!runId && action === "start-run" && card?.dataset.orderId) {
         const order = store.list("orders").find(item => item.id === card.dataset.orderId);
         if (!order) throw new Error("سفارش انتخاب‌شده پیدا نشد.");
         const created = await store.add("productionRuns", {
-          order: order.code, order_id: order.id, machine: card.dataset.machine || "نامشخص",
+          order: order.code, order_id: order.id, machine: card.dataset.machine || selectedMachine || "نامشخص",
           product: order.product, target: Number(order.quantity), unit: order.unit,
           status: "آماده"
         });
@@ -141,7 +203,13 @@ export async function handleAction(action, element) {
     }
     case "approve-task": await api.approveTask(element.dataset.id); await store.refresh(); toast("وظیفه در سرور تأیید شد."); break;
     case "review-qc": { const decision = prompt("تصمیم کنترل کیفیت را وارد کنید: قبول / مشروط / رد", "قبول"); if (!decision) break; await api.decideQc(element.dataset.id, decision.trim()); await store.refresh(); toast("تصمیم کنترل کیفیت ثبت شد."); break; }
-    case "apply-filter": toast("فیلترهای نمایشی اعمال شدند.", "info"); break;
+    case "apply-filter": applyTableFilters(element); break;
+    case "show-record": showRecord(element.dataset.collection, element.dataset.id); break;
+    case "move-week": store.setWeekOffset(store.weekOffset() + Number(element.dataset.delta || 1)); break;
+    case "toggle-fullscreen":
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+      break;
     case "start-batch": {
       const batchId = element.dataset.id || store.list("batches")[0]?.id;
       if (!batchId) { toast("ابتدا از دکمه «بچ جدید» یک بچ ثبت کنید.", "warning"); break; }
@@ -149,6 +217,15 @@ export async function handleAction(action, element) {
       const status = document.querySelector("[data-batch-status]");
       if (status) status.textContent = "در حال توزین (حالت شبیه‌سازی)";
       toast("وضعیت بچ در سرور شروع شد؛ هیچ فرمانی به هاپر واقعی ارسال نشد.", "info"); break;
+    }
+    case "cancel-batch": {
+      const batchId = element.dataset.id || store.list("batches")[0]?.id;
+      if (!batchId) { toast("بچی برای لغو وجود ندارد.", "warning"); break; }
+      if (!confirm("بچ انتخاب‌شده لغو شود؟")) break;
+      await api.cancelBatch(batchId);
+      await store.refresh();
+      toast("بچ در پایگاه داده لغو شد. هیچ فرمانی به تجهیزات ارسال نشد.", "warning");
+      break;
     }
     case "stop-batch": {
       const batchId = element.dataset.id || store.list("batches")[0]?.id;
@@ -159,9 +236,14 @@ export async function handleAction(action, element) {
       toast("بچ در سرور متوقف شد؛ عملیات توزین سخت‌افزاری انجام نشد.", "info"); break;
     }
     case "print-label": window.print(); break;
-    case "run-report": { const result = await api.runReport(element.dataset.id); toast(`گزارش اجرا شد: ${result.id}`); break; }
+    case "run-report": {
+      const result = await api.runReport(element.dataset.id);
+      downloadJson(result.result, `scada-report-${result.id}.json`);
+      toast(`گزارش اجرا و فایل JSON دریافت شد: ${result.id}`);
+      break;
+    }
     case "write-tag": { const tag = store.list("tags").find(item => item.id === element.dataset.id); if (!tag) break; const raw = prompt(`مقدار جدید برای ${tag.name} (${tag.type})`, String(tag.value ?? "")); if (raw === null) break; let value = raw; if (tag.type === "bool") { const normalized = raw.trim().toLowerCase(); if (!["true","false","1","0"].includes(normalized)) throw new Error("Boolean باید true / false یا 1 / 0 باشد."); value = normalized === "true" || normalized === "1"; } else if (["int16","uint16","int32","uint32"].includes(tag.type)) { if (!/^-?\\d+$/.test(raw.trim())) throw new Error("مقدار این تگ باید عدد صحیح باشد."); value = Number.parseInt(raw, 10); } else if (tag.type === "float32") { value = Number(raw); if (!Number.isFinite(value)) throw new Error("مقدار این تگ باید عدد معتبر باشد."); } await api.writeTag(tag.id, value); await store.refresh(); toast("مقدار در دیتابیس شبیه‌سازی تغییر کرد؛ PLC واقعی نوشته نشد.", "info"); break; }
-    case "open-modal-info": toast("این عملیات هنوز در نسخه متصل تعریف نشده است.", "info"); break;
+    case "open-modal-info": openActionInfo(element.textContent.trim(), "برای این کنترل هنوز سرویس عملیاتی و تنظیمات مستقل در Backend تعریف نشده است. هیچ تغییری در داده‌های سامانه انجام نشده است."); break;
     default: toast("این فرمان در نسخه نمایشی تعریف نشده است.", "info");
   }
 }
