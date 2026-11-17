@@ -64,8 +64,8 @@ function downloadCsv() {
     const text = value && typeof value === "object" ? JSON.stringify(value) : String(value ?? "");
     return `"${text.replaceAll('"', '""')}"`;
   };
-  const csv = [headers.map(csvCell).join(","), ...rows.map(row => headers.map(key => csvCell(row[key])).join(","))].join("\\r\\n");
-  const blob = new Blob(["\\ufeff", csv], { type: "text/csv;charset=utf-8" });
+  const csv = [headers.map(csvCell).join(","), ...rows.map(row => headers.map(key => csvCell(row[key])).join(","))].join("\r\n");
+  const blob = new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
