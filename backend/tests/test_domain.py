@@ -203,3 +203,43 @@ def test_report_filters_are_applied_to_persisted_production_runs():
         assert len(tables["production_runs"]) == 1
         assert tables["production_runs"][0]["machine"] == "بانچر"
         assert report.json()["result"]["summary"]["produced_quantity"] == 25
+
+
+def test_edge_alarm_rule_triggers_acknowledges_and_returns_to_normal():
+    with TestClient(app) as client:
+        _login(client)
+        alarm = client.post("/api/resources/alarms", json={
+            "name": "سرعت بالا", "severity": "زیاد", "tag": "t6",
+            "operator": ">", "threshold": 100, "deadband": 5,
+            "message": "سرعت از حد مجاز عبور کرد", "status": "فعال"
+        })
+        assert alarm.status_code == 201, alarm.text
+
+        edge = client.post("/api/edge/register", json={
+            "name": "EDGE-ALARM-TEST", "factory_id": "f1"
+        })
+        assert edge.status_code == 201, edge.text
+        token = edge.json()["edge_token"]
+
+        high = client.post("/api/edge/ingest", headers={"X-Edge-Token": token}, json={
+            "samples": [{"tag_id": "t6", "value": 120, "quality": "GOOD"}]
+        })
+        assert high.status_code == 202, high.text
+        events = client.get("/api/telemetry/alarms/events")
+        assert events.status_code == 200
+        active = [item for item in events.json()["items"] if item["alarm_id"] == alarm.json()["id"]]
+        assert len(active) == 1
+        assert active[0]["state"] == "ACTIVE"
+        event_id = active[0]["id"]
+
+        ack = client.post(f"/api/telemetry/alarms/events/{event_id}/acknowledge")
+        assert ack.status_code == 200, ack.text
+        assert ack.json()["state"] == "ACKNOWLEDGED"
+
+        normal = client.post("/api/edge/ingest", headers={"X-Edge-Token": token}, json={
+            "samples": [{"tag_id": "t6", "value": 90, "quality": "GOOD"}]
+        })
+        assert normal.status_code == 202, normal.text
+        events = client.get("/api/telemetry/alarms/events")
+        returned = next(item for item in events.json()["items"] if item["id"] == event_id)
+        assert returned["state"] == "RETURNED"
