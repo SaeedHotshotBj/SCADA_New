@@ -81,7 +81,7 @@ export function renderBi() {
         <div class="insight insight-info">تعداد اجرای ثبت‌شده در هفت روز اخیر: <b>${count(daily.reduce((sum, item) => sum + Number(item.runs || 0), 0))}</b></div>
         <div class="insight insight-info">آخرین کیفیت تلمتری: <b>${analytics.latest_telemetry?.quality || "هنوز نمونه‌ای ثبت نشده"}</b></div>
       `)}
-      ${donutChart("نتایج ثبت‌شده کنترل کیفیت", qcValues.length ? qcValues : [0, 0, 0])}
+      ${distributionDonutChart("نتایج ثبت‌شده کنترل کیفیت", qcStatus)}
     </div>
 
     <div class="two-col-grid">
