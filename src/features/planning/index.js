@@ -1,7 +1,6 @@
 import { store } from "../../services/demo-store.js";
 import { button, dataTable, pageHeader, panel, pill, tabs, statCard, dateFilter, emptyState } from "../../shared/ui.js";
 
-const machines = ["کشش مفتول راد", "مولتی‌وایر", "بانچر", "اکسترودر عایق", "کابل‌کشی", "قرقره‌پیچ"];
 
 function boardPage() {
   const orders = store.list("orders");
@@ -25,6 +24,7 @@ function boardPage() {
   </div>`;
 }
 function calendarPage() {
+  const machines = store.list("machines").map(row => row.name).filter(Boolean);
   const calendars = store.list("machineCalendars");
   const current = calendars[0];
   const days = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
@@ -60,8 +60,8 @@ function calendarPage() {
 function operatorPage() {
   const orders = store.list("orders").filter(order => !["تکمیل‌شده", "لغوشده"].includes(order.status));
   const runs = store.list("productionRuns");
-  const availableMachines = store.list("machines").map(row => row.name).filter(Boolean);
-  const operatorMachines = availableMachines.length ? availableMachines : machines;
+  const machines = store.list("machines").map(row => row.name).filter(Boolean);
+  const operatorMachines = machines;
   return `<div>${pageHeader("ایستگاه اپراتور", "انتخاب سفارش و ماشین و ثبت اجرای تولید در ایستگاه کاری")}
     <div class="operator-select"><label class="field"><span>اپراتور</span><select><option>اپراتور نمونه</option><option>اپراتور شیفت صبح</option></select></label><label class="field"><span>ماشین</span><select name="operator-machine">${operatorMachines.map(x => `<option>${x}</option>`).join("")}</select></label><label class="field"><span>شیفت</span><select><option>صبح</option><option>عصر</option><option>شب</option></select></label></div>
     <div class="operator-grid">${orders.map((order, i) => `<article class="operator-card" data-run-card data-order-id="${order.id}" data-machine="${order.machine || ""}"><div class="operator-card-head"><span>${pill(order.status, order.status === "در حال تولید" ? "success" : "info")}</span><small>${order.machine || "هنگام شروع انتخاب می‌شود"}</small></div><h3>${order.code}</h3><p>${order.product}</p><div class="operator-progress"><span>پیشرفت سفارش</span><b>${order.progress || 0}٪</b><i><em style="width:${order.progress || 0}%"></em></i></div><div class="operator-metrics"><div><small>مقدار هدف</small><b>${Number(order.quantity).toLocaleString("fa-IR")} ${order.unit}</b></div><div><small>مقدار تولید</small><b>${Number(runs.find(run => run.order_id === order.id && run.status === "در حال تولید")?.quantity_actual || 0).toLocaleString("fa-IR")} ${order.unit}</b></div></div><div class="operator-actions"><button class="btn btn-primary" data-action="start-run" data-order-id="${order.id}">شروع اجرا</button><button class="btn btn-light" data-action="stop-run" data-order-id="${order.id}">توقف</button><span data-run-status>متوقف</span></div></article>`).join("")}</div>
