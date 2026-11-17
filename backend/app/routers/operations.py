@@ -306,6 +306,9 @@ def run_report(report_id: str, body: RunRequest, user: dict = Depends(get_curren
 @router.get("/reports/{report_id}/executions/{execution_id}")
 def get_report_execution(report_id: str, execution_id: str, user: dict = Depends(get_current_user)):
     with connect() as db:
+        report = _get_resource(db, "reports", report_id, user)
+        if report is None:
+            raise HTTPException(404, "قالب گزارش پیدا نشد.")
         row = db.execute(
             "SELECT id,report_id,status,parameters,result,requested_by,created_at,completed_at FROM report_executions WHERE report_id=? AND id=?",
             (report_id, execution_id),
@@ -320,6 +323,9 @@ def get_report_execution(report_id: str, execution_id: str, user: dict = Depends
 @router.get("/reports/{report_id}/executions")
 def list_report_executions(report_id: str, user: dict = Depends(get_current_user)):
     with connect() as db:
+        report = _get_resource(db, "reports", report_id, user)
+        if report is None:
+            raise HTTPException(404, "قالب گزارش پیدا نشد.")
         if user["role"] == "Organization Admin":
             rows = db.execute(
                 "SELECT id,report_id,status,parameters,result,requested_by,created_at,completed_at FROM report_executions WHERE report_id=? ORDER BY created_at DESC LIMIT 100",
@@ -427,10 +433,8 @@ def complete_production_run(run_id: str, user: dict = Depends(get_current_user))
 @router.get("/production-runs/{run_id}/events")
 def production_run_events(run_id: str, user: dict = Depends(get_current_user)):
     with connect() as db:
-        exists = db.execute(
-            "SELECT 1 FROM resources WHERE collection='productionRuns' AND id=?", (run_id,)
-        ).fetchone()
-        if not exists:
+        run = _get_resource(db, "productionRuns", run_id, user)
+        if run is None:
             raise HTTPException(404, "اجرای تولید پیدا نشد.")
         rows = db.execute(
             "SELECT id,event,quantity,unit,details,actor_id,created_at FROM production_run_events WHERE run_id=? ORDER BY created_at,id",
@@ -457,7 +461,7 @@ def record_batch_weighments(batch_id: str, body: BatchWeighmentsRequest,
             raise HTTPException(422, "درصد تلرانس بچ معتبر نیست.")
         config_id = batch.get("batch_config_id")
         if config_id:
-            config = _get_resource(db, "batchConfigs", config_id)
+            config = _get_resource(db, "batchConfigs", config_id, user)
             if config is None:
                 raise HTTPException(409, "تنظیمات خط مرتبط با این بچ دیگر وجود ندارد.")
             expected = {str(item.get("bin")) for item in (config.get("hoppers") or []) if item.get("bin")}
@@ -491,8 +495,8 @@ def record_batch_weighments(batch_id: str, body: BatchWeighmentsRequest,
 @router.get("/batches/{batch_id}/weighments")
 def list_batch_weighments(batch_id: str, user: dict = Depends(get_current_user)):
     with connect() as db:
-        exists = db.execute("SELECT 1 FROM resources WHERE collection='batches' AND id=?", (batch_id,)).fetchone()
-        if not exists:
+        batch = _get_resource(db, "batches", batch_id, user)
+        if batch is None:
             raise HTTPException(404, "بچ پیدا نشد.")
         rows = db.execute(
             """SELECT id,hopper_key,material,target_weight,actual_weight,unit,tolerance_percent,
@@ -523,7 +527,7 @@ def complete_batch(batch_id: str, user: dict = Depends(get_current_user)):
             raise HTTPException(409, "برای این بچ هنوز هیچ توزینی ثبت نشده است.")
         config_id = batch.get("batch_config_id")
         if config_id:
-            config = _get_resource(db, "batchConfigs", config_id)
+            config = _get_resource(db, "batchConfigs", config_id, user)
             if config is None:
                 raise HTTPException(409, "تنظیمات خط مرتبط با این بچ دیگر وجود ندارد.")
             expected = {str(item.get("bin")) for item in (config.get("hoppers") or []) if item.get("bin")}
