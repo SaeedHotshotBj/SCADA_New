@@ -542,7 +542,7 @@ def record_qc_measurement(qc_id: str, body: QCMeasurementRequest,
     passed = (body.minimum is None or body.actual >= body.minimum) and (body.maximum is None or body.actual <= body.maximum)
     result = "PASS" if passed else "FAIL"
     with connect() as db:
-        row = _get_resource(db, "qc", qc_id)
+        row = _get_resource(db, "qc", qc_id, user)
         if row is None:
             raise HTTPException(404, "رکورد کنترل کیفیت پیدا نشد.")
         cur = db.execute(
