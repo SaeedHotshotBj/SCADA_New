@@ -79,23 +79,37 @@ function emit() {
 }
 
 async function hydrate() {
-  const [snapshot, analytics, storage, audit] = await Promise.all([
+  const [snapshot, analytics, storage, audit, telemetry] = await Promise.all([
     api.bootstrap(),
     api.analyticsSummary(),
     api.analyticsStorage(),
     api.auditHistory(50),
+    api.telemetryLatest(),
   ]);
+  const telemetryByTag = new Map((telemetry.items || []).map(item => [item.tag_id, item]));
+  const tags = (snapshot.data.tags || []).map(tag => {
+    const sample = telemetryByTag.get(tag.id);
+    return sample ? {
+      ...tag,
+      value: sample.value,
+      quality: sample.quality,
+      source: sample.source,
+      sampled_at: sample.sampled_at,
+    } : { ...tag, quality: "UNSAMPLED", source: "seed" };
+  });
   state = {
     ...clone(seed),
     ...snapshot.data,
+    tags,
     analytics,
     storage,
     audit,
+    telemetryLatest: telemetry,
   };
   currentUser = snapshot.user;
   serverConnected = true;
   emit();
-  return { ...snapshot, analytics, storage, audit };
+  return { ...snapshot, analytics, storage, audit, telemetry };
 }
 
 export const store = {
