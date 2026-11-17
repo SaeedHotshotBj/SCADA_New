@@ -1,6 +1,6 @@
 import {
-  button, dataTable, gradientBanner, lineChart, barChart, donutChart,
-  panel, statCard, pill, dateFilter, emptyState
+  button, dataTable, gradientBanner, lineChart, barChart, distributionDonutChart,
+  panel, statCard, pill, emptyState
 } from "../../shared/ui.js";
 import { store } from "../../services/demo-store.js";
 
@@ -35,7 +35,10 @@ export function renderBi() {
     record_id: item.record_id || "—",
     created_at: item.created_at ? new Date(item.created_at).toLocaleString("fa-IR") : "—",
   }));
-  const qcValues = qcStatus.map(item => item.count);
+  const chartDaily = daily.length > 14
+    ? daily.filter((item, index) => index % Math.ceil(daily.length / 14) === 0 || index === daily.length - 1)
+    : daily;
+  const dailyLabels = chartDaily.map(item => new Date(item.day + "T00:00:00").toLocaleDateString("fa-IR", { month: "numeric", day: "numeric" }));
   const machineLabels = machineRows.map(item => item.name);
   const machineRunCounts = machineRows.map(item => item.run_count);
   const sampleMode = analytics.data_quality === "DEMO" ? "داده نمایشی" : "داده ثبت‌شده";
@@ -82,7 +85,7 @@ export function renderBi() {
     </div>
 
     <div class="two-col-grid">
-      ${lineChart("تعداد اجرای تولید ثبت‌شده در هفت روز اخیر", undefined, "#17b98a", daily.map(item => Number(item.runs || 0)))}
+      ${lineChart(`تعداد اجرای ثبت‌شده در ${analytics.period_days || 7} روز اخیر`, dailyLabels, "#17b98a", chartDaily.map(item => Number(item.runs || 0)))}
       ${barChart("تعداد اجرا بر اساس ماشین", machineLabels.length ? machineLabels : ["بدون ماشین"], machineRunCounts.length ? machineRunCounts : [0])}
     </div>
 
