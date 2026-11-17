@@ -30,21 +30,27 @@ class Heartbeat(BaseModel):
 def register_edge(body: EdgeRegistration, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin","Factory Admin"}:
         raise HTTPException(403,"ثبت Edge فقط برای مدیر سامانه یا کارخانه مجاز است.")
+    if user["role"] == "Factory Admin":
+        if not user.get("factory_id"):
+            raise HTTPException(403, "حساب مدیر کارخانه به کارخانه‌ای تخصیص داده نشده است.")
+        if body.factory_id and body.factory_id != user["factory_id"]:
+            raise HTTPException(403, "مدیر کارخانه فقط برای کارخانه خودش می‌تواند Edge ثبت کند.")
     now = utc_now()
     edge_id = "edge-" + new_token()[:14]
     token = new_token()
     with connect() as db:
-        if body.factory_id:
-            exists = db.execute("SELECT 1 FROM resources WHERE collection='factories' AND id=?", (body.factory_id,)).fetchone()
+        factory_id = user.get("factory_id") if user["role"] == "Factory Admin" else body.factory_id
+        if factory_id:
+            exists = db.execute("SELECT 1 FROM resources WHERE collection='factories' AND id=?", (factory_id,)).fetchone()
             if not exists:
                 raise HTTPException(404,"کارخانه انتخاب‌شده پیدا نشد.")
         db.execute(
             """INSERT INTO edge_devices(id,factory_id,name,status,token_hash,metadata,created_at,updated_at)
                VALUES(?,?,?,?,?,?,?,?)""",
-            (edge_id,body.factory_id,body.name,"PENDING",token_hash(token),
+            (edge_id,factory_id,body.name,"PENDING",token_hash(token),
              json_dump({"note":body.note}),now,now),
         )
-        audit(db,user["id"],"edge.register","edge_devices",edge_id,{"factory_id":body.factory_id})
+        audit(db,user["id"],"edge.register","edge_devices",edge_id,{"factory_id":factory_id})
     # The raw secret is returned once and is never retrievable from the database.
     return {"id":edge_id,"name":body.name,"status":"PENDING","edge_token":token,
             "install_hint":"این توکن فقط در زمان ثبت نمایش داده می‌شود؛ آن را در فایل تنظیمات Edge نگه دارید."}
@@ -53,9 +59,15 @@ def register_edge(body: EdgeRegistration, user: dict = Depends(get_current_user)
 @router.get("")
 def list_edges(user: dict = Depends(get_current_user)):
     with connect() as db:
-        rows = db.execute(
-            "SELECT id,factory_id,name,status,metadata,last_seen,created_at,updated_at FROM edge_devices ORDER BY created_at DESC"
-        ).fetchall()
+        if user["role"] == "Organization Admin":
+            rows = db.execute(
+                "SELECT id,factory_id,name,status,metadata,last_seen,created_at,updated_at FROM edge_devices ORDER BY created_at DESC"
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT id,factory_id,name,status,metadata,last_seen,created_at,updated_at FROM edge_devices WHERE factory_id=? ORDER BY created_at DESC",
+                (user.get("factory_id") or "",),
+            ).fetchall()
     return {"items":[{"id":r["id"],"factory_id":r["factory_id"],"name":r["name"],"status":r["status"],
                       "metadata":json_load(r["metadata"],{}),"last_seen":r["last_seen"],
                       "created_at":r["created_at"],"updated_at":r["updated_at"]} for r in rows]}
@@ -84,6 +96,9 @@ def revoke_edge(edge_id: str, user: dict = Depends(get_current_user)):
     if user["role"] not in {"Organization Admin","Factory Admin"}:
         raise HTTPException(403,"دسترسی کافی ندارید.")
     with connect() as db:
+        target = db.execute("SELECT factory_id FROM edge_devices WHERE id=?", (edge_id,)).fetchone()
+        if target is None or (user["role"] == "Factory Admin" and target["factory_id"] != user.get("factory_id")):
+            raise HTTPException(404,"Edge پیدا نشد.")
         cur = db.execute("UPDATE edge_devices SET status='REVOKED',token_hash=NULL,updated_at=? WHERE id=?", (utc_now(),edge_id))
         if cur.rowcount == 0:
             raise HTTPException(404,"Edge پیدا نشد.")
