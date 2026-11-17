@@ -5,11 +5,11 @@ function liveDataPage() {
   const rows = store.list("tags");
   const columns = [
     { key: "name", label: "تگ" }, { key: "value", label: "مقدار" },
-    { key: "unit", label: "واحد" }, { key: "quality", label: "کیفیت", render: () => pill("DEMO", "warning") },
-    { key: "time", label: "زمان", render: row => row.updated_at ? new Date(row.updated_at).toLocaleTimeString("fa-IR") : "—" },
+    { key: "unit", label: "واحد" }, { key: "quality", label: "کیفیت", render: row => pill(row.quality || "UNSAMPLED", row.quality === "GOOD" ? "success" : row.quality === "DEMO" ? "warning" : "muted") },
+    { key: "time", label: "زمان", render: row => (row.sampled_at || row.updated_at) ? new Date(row.sampled_at || row.updated_at).toLocaleTimeString("fa-IR") : "—" },
     { key: "write", label: "نوشتن", render: row => row.access === "read_write" ? `<button class="btn btn-light btn-sm" data-action="write-tag" data-id="${row.id}">Write</button>` : "—" }
   ];
-  return `<div>${pageHeader("مقادیر زنده تگ", "مقادیر از Backend و شبیه‌ساز محلی دریافت می‌شوند؛ کیفیت همه نمونه‌ها DEMO است.", pill("DEMO · API", "warning"))}${panel("مقادیر لحظه‌ای", dataTable(columns, rows))}</div>`;
+  return `<div>${pageHeader("مقادیر زنده تگ", "مقادیر، زمان نمونه و کیفیت از آخرین داده ذخیره‌شده در Backend دریافت می‌شوند.", pill("API · Live", "success"))}${panel("مقادیر لحظه‌ای", dataTable(columns, rows))}</div>`;
 }
 
 function hmiPagesPage() {
@@ -22,7 +22,42 @@ function hmiPagesPage() {
 const machineTabs = ["نمای کلی", "کشش مفتول راد", "مولتی‌وایر", "بانچر", "اکسترودر عایق", "کابل‌کشی", "اکسترودر روشن", "قرقره‌پیچ", "انرژی", "آلارم‌ها"];
 
 function classicHmiPage() {
-  return `<div class="classic-page"><div class="classic-toolbar"><span>${pill("ارتباط زنده نمایشی", "success")} <small>۱۱:۱۰:۰۱ · ${new Date().toLocaleDateString("fa-IR")}</small></span><div>${button("بازنشانی نما", "refresh-demo", { variant: "light", small: true })}${button("بزرگ‌نمایی", "open-modal-info", { variant: "light", small: true })}</div></div><div class="classic-board"><header><h1>کابل‌سازی نمونه — سامانه‌ی پایش و کنترل تولید</h1><b class="digital-clock">11:10:01</b><p>نمای کلی خط تولید — کارخانه نمونه</p></header><div class="machine-cards">${["کشش درشت", "مولتی‌وایر", "بانچر", "اکسترودر عایق", "کابل‌کشی", "اکسترودر روشن", "قرقره‌پیچ"].map((name, index) => `<article class="machine-card"><h3>${name}</h3><small>${["RBD-01", "MWD-01", "BUN-01", "EXI-01", "LAY-01", "EXO-01", "CPK-01"][index]}</small><div class="motor-status">M</div><span class="machine-running">● در کار</span><div class="machine-metrics"><label>سرعت<strong>${[31.7, 599.7, 120.1, 300, 60.2, 0, 120][index]} <small>m/min</small></strong></label><label>توان<strong>${[67.8, 220.4, 115.4, 191.2, 89.9, 30.9, 63][index]} <small>kW</small></strong></label></div><button class="btn btn-light btn-sm" data-action="open-modal-info">جزئیات ›</button></article>`).join("")}</div><div class="process-strip"><span>جریان مواد</span><div></div><span>خط تولید نمونه</span></div><div class="classic-bottom-grid"><section class="panel"><h3>مقادیر کلی خط</h3><div class="classic-kpis">${["توان کل|809 kW", "انرژی مصرفی|178098 kWh", "فشار هوای فشرده|7.28 bar", "دمای آب چیلر|13.4 °C", "قرقره‌های تکمیل‌شده|802 عدد", "وزن قرقره جاری|630.4 kg"].map(item => { const [k, v] = item.split("|"); return `<div><small>${k}</small><b>${v}</b></div>`; }).join("")}</div></section><section class="dark-display"><span>آلارم‌های فعال</span><b>آلارم فعالی وجود ندارد</b></section></div></div><div class="classic-tabs">${machineTabs.map((name, i) => `<button class="${i === 0 ? "active" : ""}" data-action="select-range">${name}</button>`).join("")}</div></div>`;
+  const tags = store.list("tags");
+  const analytics = store.snapshot().analytics || {};
+  const kpis = analytics.kpis || {};
+  const cards = tags.map(tag => `<article class="machine-card">
+    <h3>${tag.name}</h3>
+    <small>${tag.plc || "بدون PLC"} · ${tag.address || "بدون آدرس"}</small>
+    <div class="motor-status">${tag.type === "bool" ? "B" : "T"}</div>
+    <span class="machine-running">${tag.quality === "GOOD" ? "● داده Edge" : tag.quality === "DEMO" ? "● شبیه‌سازی" : "● بدون نمونه جدید"}</span>
+    <div class="machine-metrics">
+      <label>مقدار<strong>${tag.value ?? "—"} <small>${tag.unit || ""}</small></strong></label>
+      <label>کیفیت<strong>${tag.quality || "UNSAMPLED"}</strong></label>
+    </div>
+    <small>آخرین نمونه: ${tag.sampled_at ? new Date(tag.sampled_at).toLocaleTimeString("fa-IR") : "—"}</small>
+  </article>`).join("");
+  const alarms = store.list("alarms").filter(item => !["تأییدشده","غیرفعال","رفع‌شده"].includes(item.status));
+  return `<div class="classic-page">
+    <div class="classic-toolbar"><span>${pill("دریافت از API", "success")} <small>${new Date().toLocaleString("fa-IR")}</small></span>
+      <div>${button("به‌روزرسانی", "refresh-demo", { variant: "light", small: true })}${button("بزرگ‌نمایی", "toggle-fullscreen", { variant: "light", small: true })}</div>
+    </div>
+    <div class="classic-board"><header><h1>نمای عملیاتی تگ‌ها — وضعیت داده دریافتی</h1><b class="digital-clock">${new Date().toLocaleTimeString("en-GB")}</b><p>مقادیر از آخرین نمونه ذخیره‌شده در Backend خوانده می‌شوند؛ داده بدون نمونه با UNSAMPLED مشخص است.</p></header>
+      <div class="machine-cards">${cards || emptyState("تگی برای نمایش ثبت نشده است.")}</div>
+      <div class="process-strip"><span>منبع داده</span><div></div><span>Backend / Edge / DEMO</span></div>
+      <div class="classic-bottom-grid">
+        <section class="panel"><h3>آمار ثبت‌شده سامانه</h3><div class="classic-kpis">
+          <div><small>سفارش فعال</small><b>${kpis.active_order_count ?? "—"}</b></div>
+          <div><small>اجرای در حال تولید</small><b>${kpis.running_count ?? "—"}</b></div>
+          <div><small>تگ تعریف‌شده</small><b>${kpis.tag_count ?? "—"}</b></div>
+          <div><small>نمونه تلمتری ۲۴ ساعت</small><b>${kpis.telemetry_samples_24h ?? "—"}</b></div>
+          <div><small>بچ فعال</small><b>${kpis.active_batch_count ?? "—"}</b></div>
+          <div><small>ماشین تعریف‌شده</small><b>${kpis.machine_count ?? "—"}</b></div>
+        </div></section>
+        <section class="dark-display"><span>آلارم‌های فعال</span><b>${alarms.length ? alarms.length.toLocaleString("fa-IR") + " آلارم فعال" : "آلارم فعالی ثبت نشده"}</b></section>
+      </div>
+    </div>
+    <div class="classic-tabs">${machineTabs.map((name, i) => `<button class="${i === 0 ? "active" : ""}" data-action="select-range">${name}</button>`).join("")}</div>
+  </div>`;
 }
 
 function alarmsPage() {
@@ -37,7 +72,7 @@ function trendsPage() {
   const latest = history[history.length - 1];
   return `<div>${pageHeader("روندها", "نمایش داده‌های تاریخی ثبت‌شده برای تگ‌های انتخاب‌شده", button("روند جدید", "new-trend", { icon: "+" }))}
     <div class="trend-tags">${rows.map((row, i) => `<button class="${i === 0 ? "active" : ""}" data-action="select-range">${row.name}</button>`).join("")}</div>
-    <div class="trend-controls"><span>${pill(latest ? "تاریخچه دریافت شد · DEMO" : "در انتظار داده", latest ? "warning" : "muted")}</span><div class="range-pills">${["۱ ساعت","۶ ساعت","۲۴ ساعت"].map((x,i) => `<button data-action="select-range" class="${i === 2 ? "active" : ""}">${x}</button>`).join("")}</div></div>
+    <div class="trend-controls"><span>${pill(latest ? `تاریخچه دریافت شد · ${latest.quality || "UNSAMPLED"}` : "در انتظار داده", latest?.quality === "GOOD" ? "success" : latest ? "warning" : "muted")}</span><div class="range-pills">${["۱ ساعت","۶ ساعت","۲۴ ساعت"].map((x,i) => `<button data-action="select-range" class="${i === 2 ? "active" : ""}">${x}</button>`).join("")}</div></div>
     ${history.length ? lineChart("تاریخچه تگ نمونه · ۲۴ ساعت", undefined, "#e7a300", values) : panel("تاریخچه تله‌متری", emptyState("هنوز نمونه‌ای برای این تگ ثبت نشده است. بعد از شروع شبیه‌ساز داده‌ها در این بخش نمایش داده می‌شوند."))}
     ${panel("نمونه‌های اخیر", history.length ? dataTable([{key:"sampled_at",label:"زمان"},{key:"value",label:"مقدار"},{key:"quality",label:"کیفیت",render:row=>pill(row.quality || "DEMO","warning")},{key:"source",label:"منبع"}], history.slice(-50).reverse()) : emptyState("داده‌ای برای نمایش وجود ندارد."))}
     ${panel("مدیریت روندها", dataTable([{ key: "name", label: "نام روند" }, { key: "tags", label: "تگ‌ها" }, { key: "period", label: "بازه" }, { key: "status", label: "وضعیت", render: row => pill(row.status, "success") }], rows, { actions: true }))}
