@@ -146,11 +146,14 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
             raise HTTPException(status_code=422, detail="تگ انتخاب‌شده برای آلارم در سامانه ثبت نشده است.")
     if collection == "hmiPages":
         if payload.get("machine"):
-            machine = db.execute(
-                "SELECT 1 FROM resources WHERE collection='machines' AND name=?",
-                (payload["machine"],),
-            ).fetchone()
-            if machine is None:
+            machine_rows = db.execute(
+                "SELECT payload FROM resources WHERE collection='machines'"
+            ).fetchall()
+            machine_exists = any(
+                (json_load(row["payload"], {}) or {}).get("name") == payload["machine"]
+                for row in machine_rows
+            )
+            if not machine_exists:
                 raise HTTPException(status_code=422, detail="ماشین انتخاب‌شده برای صفحه HMI در سامانه ثبت نشده است.")
         layout = payload.get("layout")
         if layout is not None:
