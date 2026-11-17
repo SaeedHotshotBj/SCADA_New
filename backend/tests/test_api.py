@@ -146,14 +146,23 @@ def test_hmi_and_operational_configuration_resources():
 
         hmi = client.post("/api/resources/hmiPages", json={
             "name":"صفحه تست","machine":"بانچر","description":"CI test",
-            "components":"12","status":"فعال"
+            "layout":[{"type":"value","tag_id":"t3","label":"جریان"}],"status":"فعال"
         })
         assert hmi.status_code == 201
-        assert hmi.json()["components"] == 12
+        assert hmi.json()["components"] == 1
 
+        invalid_gauge = client.post("/api/resources/hmiPages", json={
+            "name":"گیج نامعتبر","machine":"بانچر","description":"invalid gauge",
+            "layout":[{"type":"gauge","tag_id":"t3","min":100,"max":10}],"status":"فعال"
+        })
+        assert invalid_gauge.status_code == 422
+
+        days = [
+            {"day":day,"enabled":True,"start":"08:00","end":"17:00","break":"01:00"}
+            for day in ["شنبه","یکشنبه","دوشنبه","سه‌شنبه","چهارشنبه","پنجشنبه","جمعه"]
+        ]
         calendar = client.post("/api/resources/machineCalendars", json={
-            "machine":"بانچر","year":"1405","month":"آبان",
-            "days":[{"day":"شنبه","enabled":True,"start":"08:00","end":"17:00","break":"01:00"}]
+            "machine":"بانچر","year":"1405","month":"آبان","days":days
         })
         assert calendar.status_code == 201
 
@@ -167,6 +176,15 @@ def test_hmi_and_operational_configuration_resources():
         })
         assert batch_config.status_code == 201
         assert batch_config.json()["samples"] == 5
+        invalid_batch_config = client.post("/api/resources/batchConfigs", json={
+            "code":"BATCH-CI-BAD","name":"فرمول نامعتبر","loadcell":"Loadcell-01",
+            "samples":5,"tolerance_percent":0.5,"stabilization_seconds":3,
+            "formula":"bad ratio","hoppers":[
+                {"bin":"H1","material":"PVC","ratio":60,"target":60},
+                {"bin":"H2","material":"افزودنی","ratio":30,"target":30}
+            ]
+        })
+        assert invalid_batch_config.status_code == 422
 
         control_plan = client.post("/api/resources/controlPlans", json={
             "product":"محصول تست","process":"اکستروژن","version":"1",
@@ -174,6 +192,12 @@ def test_hmi_and_operational_configuration_resources():
             "parameters":[{"parameter":"قطر","nominal":"2.4","min":"2.3","max":"2.5","unit":"mm","method":"اندازه‌گیری"}]
         })
         assert control_plan.status_code == 201
+        invalid_control_plan = client.post("/api/resources/controlPlans", json={
+            "product":"محصول تست","process":"اکستروژن","version":"bad",
+            "sampling_interval":"هر ۳۰ دقیقه","sample_count":3,"approval_required":True,
+            "parameters":[{"parameter":"قطر","nominal":"2.4","min":"2.6","max":"2.3","unit":"mm","method":"اندازه‌گیری"}]
+        })
+        assert invalid_control_plan.status_code == 422
         snapshot = client.get("/api/bootstrap").json()["data"]
         assert any(row["id"] == hmi.json()["id"] for row in snapshot["hmiPages"])
         assert any(row["id"] == calendar.json()["id"] for row in snapshot["machineCalendars"])
