@@ -67,7 +67,7 @@ def health():
 def bootstrap(user: dict = Depends(get_current_user)):
     collections = [
         "factories","plcs","tags","alarms","trends","reports","processes","templates",
-        "orders","units","qc","batches","productionRuns","workflowTasks","products","machines","prices","hmiPages","machineCalendars","batchConfigs","controlPlans",
+        "orders","units","qc","batches","productionRuns","workflowTasks","products","machines","prices","hmiPages","machineCalendars","batchConfigs","controlPlans","productFields","downtimeReasons","inputTypes","stopLines","outputTypes","documentSequences","productionRules",
     ]
     data={}
     with connect() as db:
