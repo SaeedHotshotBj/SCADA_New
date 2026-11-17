@@ -21,7 +21,7 @@ const schemas = {
   "new-product": { title: "محصول جدید", collection: "products", fields: [["code", "کد محصول", "text"], ["name", "نام محصول", "text"], ["unit", "واحد اصلی", "select", ["m", "kg", "عدد"]], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
   "new-price": { title: "قیمت یا تعرفه جدید", collection: "prices", fields: [["kind", "نوع", "select", ["مواد اولیه", "تعرفه انرژی"]], ["code", "کد", "text"], ["name", "نام", "text"], ["price", "مبلغ واحد", "number"], ["currency", "واحد پول", "select", ["ریال", "تومان"]], ["unit", "واحد اندازه‌گیری", "select", ["kg", "m", "kWh", "عدد"]], ["valid_from", "تاریخ اعتبار", "text"], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
   "new-machine": { title: "ماشین جدید", collection: "machines", fields: [["name", "نام ماشین", "text"], ["code", "کد تجهیز", "text"], ["status", "وضعیت نرم‌افزاری", "select", ["تعریف‌شده", "آماده‌به‌کار", "غیرفعال"]]] },
-  "new-hmi-page": { title: "صفحه HMI جدید", collection: "hmiPages", fields: [["name", "نام صفحه", "text"], ["machine", "ماشین", "text"], ["description", "توضیحات", "text"], ["components", "تعداد قطعات", "number"], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] }
+  "new-hmi-page": { title: "صفحه HMI جدید", collection: "hmiPages", fields: [["name", "نام صفحه", "text"], ["machine", "ماشین", "select", []], ["description", "توضیحات", "text"], ["layout", "چیدمان اجزا (JSON)", "textarea"], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] }
 };
 
 function toast(message, type = "success") {
@@ -36,6 +36,9 @@ function openModal(action, record = null) {
   if (!schema) return;
   const fields = schema.fields.map(([name, label, type, options]) => {
     const value = record?.[name] ?? "";
+    if (type === "textarea") {
+      return `<label class="field"><span>${escapeHtml(label)}</span><textarea name="${name}" rows="8" required placeholder='[{"type":"value","tag_id":"t3","label":"مقدار"}]'>${escapeHtml(typeof value === "string" ? value : JSON.stringify(value || [], null, 2))}</textarea></label>`;
+    }
     if (type === "select") {
       const sourceOptions = name === "plc" && schema.collection === "tags"
         ? store.list("plcs").map(plc => ({ value: plc.id, label: plc.name }))
@@ -43,7 +46,9 @@ function openModal(action, record = null) {
           ? store.list("tags").map(tag => ({ value: tag.id, label: tag.name }))
           : name === "factory_id" && schema.collection === "plcs"
             ? store.list("factories").map(factory => ({ value: factory.id, label: factory.name }))
-            : (options || []).map(option => ({ value: option, label: option }));
+            : name === "machine" && schema.collection === "hmiPages"
+              ? store.list("machines").map(machine => ({ value: machine.name, label: machine.name }))
+              : (options || []).map(option => ({ value: option, label: option }));
       return `<label class="field"><span>${escapeHtml(label)}</span><select name="${name}" required>${sourceOptions.map(option => `<option value="${escapeHtml(option.value)}" ${String(option.value) === String(value) ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label>`;
     }
     return `<label class="field"><span>${escapeHtml(label)}</span><input name="${name}" type="${type}" value="${escapeHtml(value)}" ${type === "number" ? "min=0 step=any" : ""} required /></label>`;
@@ -297,6 +302,7 @@ export async function handleAction(action, element) {
       toast(`گزارش اجرا و فایل JSON دریافت شد: ${result.id}`);
       break;
     }
+    case "hmi-write-tag":
     case "write-tag": { const tag = store.list("tags").find(item => item.id === element.dataset.id); if (!tag) break; const raw = prompt(`مقدار جدید برای ${tag.name} (${tag.type})`, String(tag.value ?? "")); if (raw === null) break; let value = raw; if (tag.type === "bool") { const normalized = raw.trim().toLowerCase(); if (!["true","false","1","0"].includes(normalized)) throw new Error("Boolean باید true / false یا 1 / 0 باشد."); value = normalized === "true" || normalized === "1"; } else if (["int16","uint16","int32","uint32"].includes(tag.type)) { if (!/^-?\\d+$/.test(raw.trim())) throw new Error("مقدار این تگ باید عدد صحیح باشد."); value = Number.parseInt(raw, 10); } else if (tag.type === "float32") { value = Number(raw); if (!Number.isFinite(value)) throw new Error("مقدار این تگ باید عدد معتبر باشد."); } await api.writeTag(tag.id, value); await store.refresh(); toast("مقدار در دیتابیس شبیه‌سازی تغییر کرد؛ PLC واقعی نوشته نشد.", "info"); break; }
     case "open-modal-info": openActionInfo(element.textContent.trim(), "برای این کنترل هنوز سرویس عملیاتی و تنظیمات مستقل در Backend تعریف نشده است. هیچ تغییری در داده‌های سامانه انجام نشده است."); break;
     default: toast("این فرمان در نسخه نمایشی تعریف نشده است.", "info");
@@ -384,6 +390,24 @@ export async function handleSubmit(event) {
   const schema = schemas[form.dataset.schema];
   if (values.steps) values.steps = values.steps.split(/[،,]/).map(step => step.trim()).filter(Boolean);
   if (values.fields) values.fields = Number(values.fields);
+  if (schema.collection === "hmiPages") {
+    let layout;
+    try { layout = JSON.parse(values.layout || "[]"); }
+    catch { throw new Error("چیدمان HMI باید JSON معتبر باشد."); }
+    if (!Array.isArray(layout) || layout.length > 50) throw new Error("چیدمان باید آرایه‌ای با حداکثر ۵۰ جزء باشد.");
+    const validTypes = new Set(["value", "status", "gauge", "write"]);
+    for (const [index, item] of layout.entries()) {
+      if (!item || typeof item !== "object" || !validTypes.has(item.type)) throw new Error(`نوع جزء شماره ${index + 1} معتبر نیست.`);
+      const tag = store.list("tags").find(row => row.id === item.tag_id);
+      if (!tag) throw new Error(`تگ جزء شماره ${index + 1} در سامانه پیدا نشد.`);
+      if (item.type === "write" && tag.access !== "read_write") throw new Error(`تگ ${tag.name} فقط خواندنی است.`);
+      for (const bound of ["min", "max"]) {
+        if (item[bound] !== undefined && !Number.isFinite(Number(item[bound]))) throw new Error(`مقدار ${bound} جزء شماره ${index + 1} معتبر نیست.`);
+      }
+    }
+    values.layout = layout;
+    values.components = layout.length;
+  }
   let saved;
   if (form.dataset.editId) saved = await store.update(schema.collection, form.dataset.editId, values);
   else saved = await store.add(schema.collection, values);
