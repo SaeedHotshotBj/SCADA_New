@@ -1,5 +1,5 @@
 import { store } from "../../services/demo-store.js";
-import { button, dataTable, pageHeader, panel, pill, tabs, statCard, donutChart, barChart, lineChart, emptyState } from "../../shared/ui.js";
+import { button, dataTable, pageHeader, panel, pill, statCard, distributionDonutChart, barChart, emptyState } from "../../shared/ui.js";
 
 function qualityDashboard() {
   const rows = store.list("qc");
@@ -27,11 +27,11 @@ function qualityDashboard() {
       ${statCard("در انتظار بررسی", pending.toLocaleString("fa-IR"), "مورد", "orange")}
     </div>
     <div class="two-col-grid">
-      ${donutChart("نتیجه بازرسی‌های ثبت‌شده", decisions.map(item => item.count))}
+      ${distributionDonutChart("نتیجه بازرسی‌های ثبت‌شده", decisions)}
       ${barChart("تعداد بازرسی بر اساس ماشین", machineRows.length ? machineRows.map(item => item.machine) : ["بدون داده"], machineRows.length ? machineRows.map(item => item.count) : [0])}
     </div>
     <div class="two-col-grid">
-      ${lineChart("تعداد سوابق کنترل کیفیت", undefined, "#16b98c", [total])}
+      ${panel("خلاصه سوابق کنترل کیفیت", `<div class="storage-list"><div><span>کل بازرسی‌های ذخیره‌شده</span><b>${total.toLocaleString("fa-IR")}</b></div><div><span>تصمیم‌های ثبت‌شده</span><b>${(accepted + rejected + rows.filter(row => row.decision === "مشروط").length).toLocaleString("fa-IR")}</b></div><div><span>موارد در انتظار</span><b>${pending.toLocaleString("fa-IR")}</b></div></div>`)}
       ${panel("عملکرد ثبت‌شده خطوط", machineRows.length ? dataTable([
         { key: "machine", label: "ماشین" },
         { key: "count", label: "تعداد بازرسی", render: row => row.count.toLocaleString("fa-IR") },
