@@ -4,21 +4,45 @@ import { button, dataTable, pageHeader, panel, pill, tabs } from "../../shared/u
 function plcsPage() {
   const rows = store.list("plcs");
   const columns = [
-    { key: "name", label: "نام" }, { key: "protocol", label: "پروتکل" }, { key: "address", label: "آدرس" },
-    { key: "unit", label: "Unit" }, { key: "poll", label: "Poll" },
-    { key: "active", label: "فعال" }, { key: "status", label: "وضعیت", render: row => pill(row.status, row.status === "CONNECTED" ? "success" : "danger") }
+    { key: "name", label: "نام" },
+    { key: "protocol", label: "پروتکل" },
+    { key: "address", label: "آدرس" },
+    { key: "unit", label: "Unit" },
+    { key: "poll", label: "Poll" },
+    { key: "active", label: "فعال" },
+    { key: "status", label: "وضعیت", render: row => pill(row.status || "تعریف‌شده", row.status === "SIMULATOR" ? "warning" : "muted") },
   ];
-  const actions = rows.map(row => `<button class="btn btn-light btn-sm" data-action="toggle-plc" data-id="${row.id}">${row.status === "CONNECTED" ? "قطع آزمایشی" : "اتصال آزمایشی"}</button>`).join(" ");
-  return `<div data-collection-name="plcs" data-edit-action="new-plc">${pageHeader("PLC ها", "تعریف ارتباط با کنترلرها و وضعیت اتصال", button("PLC جدید", "new-plc", { icon: "+" }))}${panel("فهرست PLC ها", `${dataTable(columns, rows, { actions: true })}<div class="table-actions">${actions}</div>`)}</div>`;
+  return `<div data-collection-name="plcs" data-edit-action="new-plc">${pageHeader("PLC ها", "تعریف مشخصات کنترلرها؛ وضعیت ارتباط سخت‌افزاری فقط پس از نصب و تأیید آداپتور معتبر می‌شود.", button("PLC جدید", "new-plc", { icon: "+" }))}
+    ${panel("فهرست PLC ها", dataTable(columns, rows, { actions: true }))}
+    <p class="muted-note">تعریف PLC در این صفحه به‌تنهایی اتصال Modbus یا S7 ایجاد نمی‌کند. تا زمانی که درایور و نقشه آدرس تأیید نشده باشد، هیچ نوشتن سخت‌افزاری انجام نمی‌شود.</p>
+  </div>`;
 }
 
 function tagsPage() {
   const rows = store.list("tags");
-  return `<div data-collection-name="tags" data-edit-action="new-tag">${pageHeader("مدیریت تگ", "تعریف آدرس، نوع داده، دسترسی و واحد تگ‌ها", `${button("تگ جدید", "new-tag", { icon: "+" })}${button("فقط read/write", "open-modal-info", { variant: "light" })}${button("JSON تگ‌ها (ESP)", "export-csv", { variant: "light", icon: "⇩" })}`)}${panel("تگ‌های کارخانه", dataTable([{ key: "name", label: "نام" }, { key: "tag_uuid", label: "tag_uuid", render: row => `<code>${row.id.toUpperCase()}-DEMO-UUID</code>` }, { key: "plc", label: "PLC" }, { key: "type", label: "نوع" }, { key: "address", label: "آدرس" }, { key: "access", label: "دسترسی" }, { key: "unit", label: "واحد" }], rows, { actions: true }))}</div>`;
+  const plcs = store.list("plcs");
+  const mapped = rows.map(row => ({
+    ...row,
+    plc_name: plcs.find(plc => plc.id === row.plc)?.name || row.plc || "—",
+    tag_id: row.id,
+    quality: row.quality || "UNSAMPLED",
+  }));
+  return `<div data-collection-name="tags" data-edit-action="new-tag">${pageHeader("مدیریت تگ", "تعریف آدرس، نوع داده، دسترسی و واحد تگ‌ها", `${button("تگ جدید", "new-tag", { icon: "+" })}${button("فقط read/write", "filter-read-write", { variant: "light" })}${button("خروجی CSV تگ‌ها", "export-csv", { variant: "light", icon: "⇩" })}`)}
+    ${panel("تگ‌های کارخانه", dataTable([
+      { key: "name", label: "نام" },
+      { key: "tag_id", label: "شناسه تگ" },
+      { key: "plc_name", label: "PLC" },
+      { key: "type", label: "نوع" },
+      { key: "address", label: "آدرس" },
+      { key: "access", label: "دسترسی" },
+      { key: "unit", label: "واحد" },
+      { key: "quality", label: "کیفیت آخرین نمونه", render: row => pill(row.quality, row.quality === "GOOD" ? "success" : row.quality === "DEMO" ? "warning" : "muted") },
+    ], mapped, { actions: true }))}
+  </div>`;
 }
 
 export function renderEquipment(path) {
   if (path === "/equipment/tags") return tagsPage();
   if (path === "/equipment/plcs") return plcsPage();
-  return `<div>${pageHeader("تجهیزات", "مدیریت PLC ها و تگ‌های کارخانه")}${tabs(["PLC ها", "تگ‌ها"])}${panel("انتخاب بخش", `${button("مدیریت PLC ها", "open-modal-info")}${button("مدیریت تگ‌ها", "open-modal-info")}`)}</div>`;
+  return `<div>${pageHeader("تجهیزات", "مدیریت PLC ها و تگ‌های کارخانه")}${tabs(["PLC ها", "تگ‌ها"])}${panel("انتخاب بخش", `<a class="btn btn-primary" href="#/equipment/plcs">مدیریت PLC ها</a><a class="btn btn-light" href="#/equipment/tags">مدیریت تگ‌ها</a>`)}</div>`;
 }
