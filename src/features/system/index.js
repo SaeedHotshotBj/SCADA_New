@@ -68,7 +68,7 @@ function storagePage() {
   }));
   return `<div class="storage-page">
     ${pageHeader("مرکز مدیریت و استفاده از داده", "آمار واقعی پایگاه داده SQLite و نمونه‌های تلمتری ذخیره‌شده در Backend")}
-    ${tabs(["تاریخچه‌ی روندها", "تنظیمات"], 0)}
+    <div class="storage-nav"><a class="btn btn-light" href="#/live/trends">مشاهده تاریخچه روندها</a><span class="muted-note">اطلاعات این صفحه از پایگاه داده سرور خوانده می‌شود.</span></div>
     <div class="stats-grid stats-grid-4">
       ${statCard("حجم کل ذخیره‌سازی", formatBytes(totalSize), "", "blue", "", "فایل اصلی + WAL + SHM")}
       ${statCard("نمونه‌های ذخیره‌شده", Number(storage.telemetry_sample_count || 0).toLocaleString("fa-IR"), "نمونه", "green")}
