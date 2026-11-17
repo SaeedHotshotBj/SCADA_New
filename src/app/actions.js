@@ -41,7 +41,9 @@ function openModal(action, record = null) {
         ? store.list("plcs").map(plc => ({ value: plc.id, label: plc.name }))
         : name === "formula" && schema.collection === "batches"
           ? store.list("batchConfigs").map(config => ({ value: config.name || config.formula || config.code, label: config.name || config.formula || config.code }))
-          : (options || []).map(option => ({ value: option, label: option }));
+          : name === "tag" && schema.collection === "alarms"
+            ? store.list("tags").map(tag => ({ value: tag.id, label: tag.name }))
+            : (options || []).map(option => ({ value: option, label: option }));
       return `<label class="field"><span>${escapeHtml(label)}</span><select name="${name}" required>${sourceOptions.map(option => `<option value="${escapeHtml(option.value)}" ${String(option.value) === String(value) ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label>`;
     }
     return `<label class="field"><span>${escapeHtml(label)}</span><input name="${name}" type="${type}" value="${escapeHtml(value)}" ${type === "number" ? "min=0 step=any" : ""} required /></label>`;
