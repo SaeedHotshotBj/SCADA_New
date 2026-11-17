@@ -28,6 +28,7 @@ def public_user(row) -> dict:
     return {
         "id": row["id"], "email": row["email"], "name": row["name"],
         "role": row["role"], "status": row["status"],
+        "factory_id": row["factory_id"],
         "must_change_password": bool(row.get("must_change_password", 0)),
     }
 
@@ -39,7 +40,7 @@ def login(body: LoginRequest, request: Request, response: Response):
         raise HTTPException(status_code=422, detail="ایمیل معتبر نیست.")
     with connect() as db:
         user = db.execute(
-            "SELECT id,email,name,role,status,password_hash,must_change_password FROM users WHERE email=? COLLATE NOCASE",
+            "SELECT id,email,name,role,status,factory_id,password_hash,must_change_password FROM users WHERE email=? COLLATE NOCASE",
             (email,),
         ).fetchone()
         if user is None or user["status"] != "فعال" or not verify_password(body.password, user["password_hash"]):
