@@ -92,6 +92,27 @@ def initialize_schema() -> None:
       id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id TEXT, action TEXT NOT NULL,
       collection TEXT, record_id TEXT, details TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS production_run_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL, event TEXT NOT NULL,
+      quantity REAL, unit TEXT, details TEXT NOT NULL DEFAULT '{}',
+      actor_id TEXT, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_run_events_time ON production_run_events(run_id, created_at);
+    CREATE TABLE IF NOT EXISTS batch_weighments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id TEXT NOT NULL, hopper_key TEXT NOT NULL,
+      material TEXT NOT NULL, target_weight REAL NOT NULL, actual_weight REAL NOT NULL,
+      unit TEXT NOT NULL DEFAULT 'kg', tolerance_percent REAL NOT NULL DEFAULT 0,
+      result TEXT NOT NULL, quality TEXT NOT NULL DEFAULT 'DEMO',
+      source TEXT NOT NULL DEFAULT 'manual-demo', actor_id TEXT, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_batch_weighments_time ON batch_weighments(batch_id, created_at);
+    CREATE TABLE IF NOT EXISTS qc_measurements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, qc_id TEXT NOT NULL, parameter TEXT NOT NULL,
+      nominal REAL, minimum REAL, maximum REAL, actual REAL NOT NULL,
+      unit TEXT NOT NULL DEFAULT '', result TEXT NOT NULL, note TEXT NOT NULL DEFAULT '',
+      inspector_id TEXT, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_qc_measurements_time ON qc_measurements(qc_id, created_at);
     """
     with connect() as db:
         db.executescript(schema)
