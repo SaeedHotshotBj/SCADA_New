@@ -243,3 +243,31 @@ def test_edge_alarm_rule_triggers_acknowledges_and_returns_to_normal():
         events = client.get("/api/telemetry/alarms/events")
         returned = next(item for item in events.json()["items"] if item["id"] == event_id)
         assert returned["state"] == "RETURNED"
+
+
+def test_factory_configuration_dictionaries_are_persisted_and_bootstrapped():
+    with TestClient(app) as client:
+        _login(client)
+        entries = [
+            ("downtimeReasons", {"code": "DWN-TEST", "reason": "توقف آزمون", "group": "فنی"}),
+            ("inputTypes", {"code": "IN-TEST", "name": "ورودی تست", "unit": "kg"}),
+            ("stopLines", {"code": "SL-TEST", "name": "خط توقف تست"}),
+            ("outputTypes", {"code": "OUT-TEST", "name": "قرقره تست", "unit": "kg"}),
+            ("documentSequences", {"document": "TEST", "prefix": "TS", "year_pattern": "{YEAR}", "sequence_length": 6}),
+            ("productionRules", {"code": "RULE-TEST", "name": "قاعده تست", "rule": "ثبت مقدار قبل از تکمیل", "status": "فعال"}),
+        ]
+        created = {}
+        for collection, payload in entries:
+            response = client.post(f"/api/resources/{collection}", json=payload)
+            assert response.status_code == 201, response.text
+            created[collection] = response.json()["id"]
+
+        bootstrap = client.get("/api/bootstrap")
+        assert bootstrap.status_code == 200, bootstrap.text
+        for collection, _ in entries:
+            assert any(row["id"] == created[collection] for row in bootstrap.json()["data"][collection])
+
+        invalid = client.post("/api/resources/documentSequences", json={
+            "document": "BAD", "prefix": "BAD", "year_pattern": "{YEAR}", "sequence_length": -1
+        })
+        assert invalid.status_code == 422
