@@ -6,7 +6,7 @@ import random
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from ..database import connect, json_dump, json_load, utc_now
@@ -19,6 +19,45 @@ router = APIRouter(prefix="/api/telemetry", tags=["Telemetry"])
 class TagWrite(BaseModel):
     value: Any
     reason: str = Field(default="manual-demo-write", max_length=200)
+
+
+class EdgeTelemetrySample(BaseModel):
+    tag_id: str = Field(min_length=1, max_length=128)
+    value: Any
+    sampled_at: datetime | None = None
+
+
+class EdgeTelemetryBatch(BaseModel):
+    samples: list[EdgeTelemetrySample] = Field(min_length=1, max_length=500)
+
+
+def _validate_edge_value(kind: str, value: Any) -> Any:
+    if kind == "bool":
+        if type(value) is not bool:
+            raise HTTPException(422, "مقدار BOOL باید true یا false باشد.")
+        return value
+    if kind in {"int16", "uint16", "int32", "uint32"}:
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise HTTPException(422, "مقدار تگ صحیح باید عدد صحیح باشد.")
+        bounds = {
+            "int16": (-32768, 32767),
+            "uint16": (0, 65535),
+            "int32": (-2147483648, 2147483647),
+            "uint32": (0, 4294967295),
+        }
+        low, high = bounds[kind]
+        if not low <= value <= high:
+            raise HTTPException(422, "مقدار خارج از محدوده نوع داده است.")
+        return value
+    if kind == "float32":
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+            raise HTTPException(422, "مقدار REAL باید عدد محدود باشد.")
+        return float(value)
+    if kind == "string":
+        if not isinstance(value, str) or len(value) > 1024:
+            raise HTTPException(422, "مقدار STRING معتبر نیست.")
+        return value
+    raise HTTPException(422, "نوع داده تگ پشتیبانی نمی‌شود.")
 
 
 def _numeric_value(value: Any) -> float | None:
@@ -64,6 +103,89 @@ def history(tag_id: str, hours: int = Query(24, ge=1, le=744),
         ).fetchall()
     return {"items":[{"tag_id":r["tag_id"],"value":json_load(r["value_json"]),
                       "quality":r["quality"],"source":r["source"],"sampled_at":r["sampled_at"]} for r in reversed(rows)]}
+
+
+@router.post("/edge/ingest")
+def ingest_edge_telemetry(
+    body: EdgeTelemetryBatch,
+    x_edge_token: str | None = Header(default=None, alias="X-Edge-Token"),
+):
+    """Persist samples sent by an authenticated Edge agent.
+
+    This endpoint records data only. It never translates a sample into a PLC write.
+    """
+    if not x_edge_token:
+        raise HTTPException(401, "توکن Edge ارسال نشده است.")
+
+    received_at = utc_now()
+    accepted: list[dict[str, Any]] = []
+    with connect() as db:
+        edge = db.execute(
+            "SELECT id,factory_id,status FROM edge_devices WHERE token_hash=?",
+            (token_hash(x_edge_token),),
+        ).fetchone()
+        if edge is None or edge["status"] == "REVOKED":
+            raise HTTPException(401, "توکن Edge معتبر نیست یا لغو شده است.")
+
+        for sample in body.samples:
+            row = db.execute(
+                "SELECT id,factory_id,payload FROM resources WHERE collection='tags' AND id=?",
+                (sample.tag_id,),
+            ).fetchone()
+            if row is None:
+                raise HTTPException(404, f"تگ {sample.tag_id} ثبت نشده است.")
+            if edge["factory_id"] and row["factory_id"] != edge["factory_id"]:
+                raise HTTPException(403, "Edge اجازه ارسال داده برای کارخانه این تگ را ندارد.")
+
+            tag = json_load(row["payload"], {}) or {}
+            value = _validate_edge_value(str(tag.get("type", "")), sample.value)
+            sampled_at = sample.sampled_at or datetime.now(timezone.utc)
+            if sampled_at.tzinfo is None:
+                raise HTTPException(422, "زمان نمونه باید timezone داشته باشد.")
+            sampled_at_text = sampled_at.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+            tag["value"] = value
+            db.execute(
+                "UPDATE resources SET payload=?,updated_at=? WHERE collection='tags' AND id=?",
+                (json_dump(tag), sampled_at_text, sample.tag_id),
+            )
+            db.execute(
+                "INSERT INTO telemetry_samples(factory_id,tag_id,value_json,quality,source,sampled_at) "
+                "VALUES(?,?,?,?,?,?)",
+                (
+                    row["factory_id"], sample.tag_id, json_dump(value),
+                    "GOOD", f"edge:{edge['id']}", sampled_at_text,
+                ),
+            )
+            accepted.append({
+                "tag_id": sample.tag_id,
+                "value": value,
+                "quality": "GOOD",
+                "sampled_at": sampled_at_text,
+            })
+
+        db.execute(
+            "UPDATE edge_devices SET status='ONLINE',last_seen=?,updated_at=? WHERE id=?",
+            (received_at, received_at, edge["id"]),
+        )
+        db.execute(
+            "INSERT INTO audit_events(actor_id,action,collection,record_id,details,created_at) "
+            "VALUES(?,?,?,?,?,?)",
+            (
+                None, "edge.telemetry_ingest", "edge_devices", edge["id"],
+                json_dump({"accepted_samples": len(accepted), "tag_ids": [item["tag_id"] for item in accepted]}),
+                received_at,
+            ),
+        )
+
+    return {
+        "edge_id": edge["id"],
+        "status": "ONLINE",
+        "accepted_samples": len(accepted),
+        "items": accepted,
+        "mode": "EDGE_INGEST",
+        "note": "نمونه‌ها در SQLite ذخیره شدند؛ این endpoint فرمانی به PLC ارسال نمی‌کند.",
+    }
 
 
 @router.post("/tags/{tag_id}/write")
