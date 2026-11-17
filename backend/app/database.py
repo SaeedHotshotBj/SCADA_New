@@ -1,0 +1,105 @@
+from __future__ import annotations
+
+import json
+import sqlite3
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Iterator
+
+from .config import DB_PATH
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+@contextmanager
+def connect() -> Iterator[sqlite3.Connection]:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(DB_PATH, timeout=15, isolation_level="DEFERRED")
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys=ON")
+    connection.execute("PRAGMA journal_mode=WAL")
+    connection.execute("PRAGMA busy_timeout=15000")
+    try:
+        yield connection
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+def row_dict(row: sqlite3.Row | None) -> dict | None:
+    return dict(row) if row is not None else None
+
+
+def json_dump(value: object) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+
+
+def json_load(value: str | None, default=None):
+    if not value:
+        return default
+    try:
+        return json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return default
+
+
+def initialize_schema() -> None:
+    schema = """
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      name TEXT NOT NULL, role TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'فعال',
+      password_hash TEXT NOT NULL, must_change_password INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+      token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
+    CREATE TABLE IF NOT EXISTS resources (
+      collection TEXT NOT NULL, id TEXT NOT NULL, factory_id TEXT,
+      payload TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      PRIMARY KEY(collection, id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_resources_collection ON resources(collection, updated_at);
+    CREATE TABLE IF NOT EXISTS edge_devices (
+      id TEXT PRIMARY KEY, factory_id TEXT, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING',
+      token_hash TEXT, metadata TEXT NOT NULL DEFAULT '{}', last_seen TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS telemetry_samples (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, factory_id TEXT, tag_id TEXT NOT NULL,
+      value_json TEXT NOT NULL, quality TEXT NOT NULL, source TEXT NOT NULL,
+      sampled_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_telemetry_tag_time ON telemetry_samples(tag_id, sampled_at DESC);
+    CREATE TABLE IF NOT EXISTS batch_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id TEXT NOT NULL,
+      event TEXT NOT NULL, payload TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS report_executions (
+      id TEXT PRIMARY KEY, report_id TEXT NOT NULL, status TEXT NOT NULL,
+      parameters TEXT NOT NULL DEFAULT '{}', result TEXT NOT NULL DEFAULT '{}',
+      requested_by TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS audit_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id TEXT, action TEXT NOT NULL,
+      collection TEXT, record_id TEXT, details TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL
+    );
+    """
+    with connect() as db:
+        db.executescript(schema)
+
+
+def audit(db: sqlite3.Connection, actor_id: str | None, action: str,
+          collection: str | None = None, record_id: str | None = None, details: dict | None = None) -> None:
+    db.execute(
+        "INSERT INTO audit_events(actor_id, action, collection, record_id, details, created_at) VALUES(?,?,?,?,?,?)",
+        (actor_id, action, collection, record_id, json_dump(details or {}), utc_now()),
+    )

@@ -11,9 +11,9 @@ function reportsPage() {
       { key: "name", label: "نام گزارش" }, { key: "type", label: "دوره اجرا" }, { key: "tags", label: "تعداد تگ" },
       { key: "status", label: "وضعیت", render: row => pill(row.status || "فعال", row.status === "غیرفعال" ? "muted" : "success") },
       { key: "last", label: "آخرین اجرا", render: () => "امروز · ۱۱:۰۰" },
-      { key: "format", label: "قالب خروجی", render: () => "CSV / Excel" }
+      { key: "format", label: "قالب خروجی", render: () => "CSV / Excel" }, { key: "run", label: "اجرا", render: row => `<button class="btn btn-primary btn-sm" data-action="run-report" data-id="${row.id}">اجرای گزارش</button>` }
     ], rows, { actions: true }))}
-    <div class="panel-actions">${button("دریافت CSV", "export-csv", { variant: "light" })}${button("اجرای گزارش", "open-modal-info", { variant: "primary" })}</div>
+    <div class="panel-actions">${button("دریافت CSV", "export-csv", { variant: "light" })}</div>
   </div>`;
 }
 

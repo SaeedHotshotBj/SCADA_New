@@ -14,21 +14,33 @@ function boardPage() {
 }
 
 function calendarPage() {
-  return `<div>${pageHeader("تقویم ماشین‌ها", "تنظیم روزهای کاری، ساعات شیفت و استثناهای تقویم برای هر ماشین")}
-    <div class="filter-bar"><label class="field"><span>ماشین</span><select>${machines.map(x => `<option>${x}</option>`).join("")}</select></label><label class="field"><span>سال</span><select><option>۱۴۰۵</option><option>۱۴۰۶</option></select></label><label class="field"><span>ماه</span><select><option>آبان</option><option>آذر</option><option>مهر</option></select></label>${button("افزودن استثنا", "open-modal-info", { variant: "light" })}${button("ذخیره تقویم", "open-modal-info")}</div>
-    ${panel("برنامه هفتگی ماشین", `<div class="schedule-table"><div class="schedule-head"><b>روز هفته</b><b>وضعیت کاری</b><b>شروع شیفت</b><b>پایان شیفت</b><b>استراحت</b></div>${["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"].map((day, i) => `<div class="schedule-row"><b>${day}</b><label class="switch"><input type="checkbox" ${i < 6 ? "checked" : ""}><span></span></label><input value="08:00" type="time"><input value="17:00" type="time"><input value="01:00" type="text"></div>`).join("")}</div>`)}
-    ${panel("استثناها و تعطیلات", emptyState("برای این ماشین استثنایی ثبت نشده است."))}
+  const calendar = store.list("machineCalendars")[0] || {
+    machine: machines[0], year: "1405", month: "آبان",
+    days: ["شنبه","یکشنبه","دوشنبه","سه‌شنبه","چهارشنبه","پنجشنبه","جمعه"].map((day,index) => ({
+      day, enabled:index<6, start:"08:00", end:index===5 ? "13:00" : "17:00", break:index===5 ? "00:30" : "01:00"
+    }))
+  };
+  const days = ["شنبه","یکشنبه","دوشنبه","سه‌شنبه","چهارشنبه","پنجشنبه","جمعه"];
+  return `<div>${pageHeader("تقویم ماشین‌ها", "تنظیم روزهای کاری، ساعات شیفت و استثناهای تقویم برای هر ماشین", `<button class="btn btn-primary" type="submit" form="machine-calendar-form">ذخیره تقویم</button>`)}
+    <form id="machine-calendar-form" data-local-form="machine-calendar" data-id="${calendar.id || ""}">
+      <div class="filter-bar"><label class="field"><span>ماشین</span><select name="machine">${machines.map(name => `<option ${name === calendar.machine ? "selected" : ""}>${name}</option>`).join("")}</select></label><label class="field"><span>سال</span><select name="year"><option ${calendar.year === "1405" ? "selected" : ""}>1405</option><option ${calendar.year === "1406" ? "selected" : ""}>1406</option></select></label><label class="field"><span>ماه</span><select name="month">${["مهر","آبان","آذر","دی","بهمن","اسفند"].map(month => `<option ${month === calendar.month ? "selected" : ""}>${month}</option>`).join("")}</select></label></div>
+      ${panel("برنامه هفتگی ماشین", `<div class="schedule-table"><div class="schedule-head"><b>روز هفته</b><b>وضعیت کاری</b><b>شروع شیفت</b><b>پایان شیفت</b><b>استراحت</b></div>${days.map((day,index) => { const saved = calendar.days?.find(item => item.day === day) || {}; return `<div class="schedule-row"><b>${day}</b><label class="switch"><input type="hidden" name="day_${index}_enabled" value="false"><input type="checkbox" name="day_${index}_enabled" value="true" ${saved.enabled ? "checked" : ""}><span></span></label><input name="day_${index}_start" value="${saved.start || "08:00"}" type="time" required><input name="day_${index}_end" value="${saved.end || "17:00"}" type="time" required><input name="day_${index}_break" value="${saved.break || "01:00"}" type="time" required></div>`; }).join("")}</div>`)}
+    </form>
+    ${panel("استثناها و تعطیلات", emptyState("ثبت استثناهای تقویم در مرحله بعدی توسعه انجام می‌شود."))}
   </div>`;
 }
-
 function operatorPage() {
   const orders = store.list("orders");
+  const runs = store.list("productionRuns");
   return `<div>${pageHeader("ایستگاه اپراتور", "انتخاب سفارش و ماشین و ثبت اجرای تولید در ایستگاه کاری")}
     <div class="operator-select"><label class="field"><span>اپراتور</span><select><option>اپراتور نمونه</option><option>اپراتور شیفت صبح</option></select></label><label class="field"><span>ماشین</span><select>${machines.map(x => `<option>${x}</option>`).join("")}</select></label><label class="field"><span>شیفت</span><select><option>صبح</option><option>عصر</option><option>شب</option></select></label></div>
-    <div class="operator-grid">${orders.map((order, i) => `<article class="operator-card" data-run-card><div class="operator-card-head"><span>${pill(order.status, order.status === "در حال تولید" ? "success" : "info")}</span><small>${machines[i % machines.length]}</small></div><h3>${order.code}</h3><p>${order.product}</p><div class="operator-progress"><span>پیشرفت سفارش</span><b>${order.progress || 0}٪</b><i><em style="width:${order.progress || 0}%"></em></i></div><div class="operator-metrics"><div><small>مقدار هدف</small><b>${Number(order.quantity).toLocaleString("fa-IR")} ${order.unit}</b></div><div><small>مقدار تولید</small><b>${Math.round(Number(order.quantity) * (order.progress || 0) / 100).toLocaleString("fa-IR")} ${order.unit}</b></div></div><div class="operator-actions"><button class="btn btn-primary" data-action="start-run">شروع اجرا</button><button class="btn btn-light" data-action="stop-run">توقف</button><span data-run-status>متوقف</span></div></article>`).join("")}</div>
+    <div class="operator-grid">${orders.map((order, i) => {
+      const run = runs.find(item => item.order_id === order.id && item.status !== "تکمیل‌شده");
+      const running = run?.status === "در حال تولید";
+      return `<article class="operator-card" data-run-card data-order-id="${order.id}" data-run-id="${run?.id || ""}" data-machine="${machines[i % machines.length]}"><div class="operator-card-head"><span>${pill(run?.status || order.status, running ? "success" : "info")}</span><small>${machines[i % machines.length]}</small></div><h3>${order.code}</h3><p>${order.product}</p><div class="operator-progress"><span>پیشرفت سفارش</span><b>${order.progress || 0}٪</b><i><em style="width:${order.progress || 0}%"></em></i></div><div class="operator-metrics"><div><small>مقدار هدف</small><b>${Number(order.quantity).toLocaleString("fa-IR")} ${order.unit}</b></div><div><small>مقدار تولید</small><b>${Math.round(Number(order.quantity) * (order.progress || 0) / 100).toLocaleString("fa-IR")} ${order.unit}</b></div></div><div class="operator-actions">${running ? `<button class="btn btn-light" data-action="stop-run" data-run-id="${run.id}">توقف</button>` : `<button class="btn btn-primary" data-action="start-run" ${run ? `data-run-id="${run.id}"` : ""}>شروع اجرا</button>`}<span data-run-status>${run?.status || "آماده شروع"}</span></div></article>`;
+    }).join("")}</div>
   </div>`;
 }
-
 function unitsPage() {
   const units = store.list("units");
   return `<div class="collection-page" data-collection-name="units" data-edit-action="new-unit">${pageHeader("واحدهای تولید", "ردیابی قرقره‌ها، بسته‌ها و واحدهای تولیدی نهایی", button("واحد جدید", "new-unit", { icon: "+" }))}

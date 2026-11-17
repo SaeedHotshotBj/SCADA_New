@@ -5,16 +5,18 @@ function liveDataPage() {
   const rows = store.list("tags");
   const columns = [
     { key: "name", label: "تگ" }, { key: "value", label: "مقدار" },
-    { key: "unit", label: "واحد" }, { key: "quality", label: "کیفیت", render: () => pill("GOOD", "success") },
-    { key: "time", label: "زمان", render: () => "۱۱:۰۹:۲۷" },
-    { key: "write", label: "نوشتن", render: row => row.access === "read_write" ? `<button class="btn btn-light btn-sm" data-action="open-modal-info">Write</button>` : "—" }
+    { key: "unit", label: "واحد" }, { key: "quality", label: "کیفیت", render: () => pill("DEMO", "warning") },
+    { key: "time", label: "زمان", render: row => row.updated_at ? new Date(row.updated_at).toLocaleTimeString("fa-IR") : "—" },
+    { key: "write", label: "نوشتن", render: row => row.access === "read_write" ? `<button class="btn btn-light btn-sm" data-action="write-tag" data-id="${row.id}">Write</button>` : "—" }
   ];
-  return `<div>${pageHeader("مقادیر زنده تگ", "داده‌های زنده از PLC از طریق WebSocket؛ مقادیر این صفحه نمونه هستند.", pill("متصل · WEBSOCKET", "success"))}${panel("مقادیر لحظه‌ای", dataTable(columns, rows))}</div>`;
+  return `<div>${pageHeader("مقادیر زنده تگ", "مقادیر از Backend و شبیه‌ساز محلی دریافت می‌شوند؛ کیفیت همه نمونه‌ها DEMO است.", pill("DEMO · API", "warning"))}${panel("مقادیر لحظه‌ای", dataTable(columns, rows))}</div>`;
 }
 
 function hmiPagesPage() {
-  const designs = ["نمای کلی خط", "کشش مفتول راد", "مولتی‌وایر", "بانچر", "قرقره‌پیچ", "اکسترودر عایق", "استرندر", "اکسترودر روشن", "انرژی و تأسیسات", "آلارم‌ها"];
-  return `<div>${pageHeader("صفحات HMI", "صفحات عملیاتی خود را با قطعات دلخواه بسازید — گیج، مخزن، پمپ، نمودار و صفحه سفارشی", button("صفحه جدید", "open-modal-info", { icon: "+" }))}<div class="hmi-gallery">${designs.map((name, index) => `<article class="hmi-card"><div class="hmi-preview"><div class="preview-top"></div><div class="preview-layout"><div class="preview-gauge"></div><div class="preview-info"></div><div class="preview-chart"></div><div class="preview-tiles"><i></i><i></i><i></i><i></i><i></i></div></div></div><div class="hmi-card-footer"><span><b>${index + 1}.</b> ${name}</span><small>کلاسیک · ${index % 2 ? 54 : 72} قطعه</small><div><button class="btn btn-light btn-sm" data-action="open-modal-info">ویرایش</button><a class="btn btn-link btn-sm" href="#/live/classic">اجرا ›</a></div></div></article>`).join("")}</div></div>`;
+  const designs = store.list("hmiPages");
+  return `<div class="hmi-page-collection" data-collection-name="hmiPages" data-edit-action="new-hmi-page">${pageHeader("صفحات HMI", "مدیریت صفحات عملیاتی و چیدمان‌های HMI", button("صفحه جدید", "new-hmi-page", { icon: "+" }))}
+    ${designs.length ? `<div class="hmi-gallery">${designs.map((page, index) => `<article class="hmi-card"><div class="hmi-preview"><div class="preview-top"></div><div class="preview-layout"><div class="preview-gauge"></div><div class="preview-info"></div><div class="preview-chart"></div><div class="preview-tiles"><i></i><i></i><i></i><i></i><i></i></div></div></div><div class="hmi-card-footer"><span><b>${index + 1}.</b> ${page.name}</span><small>${page.machine || "بدون ماشین"} · ${page.components || 0} قطعه · ${page.status || "پیش‌نویس"}</small><div><button class="btn btn-light btn-sm" data-action="edit-record" data-id="${page.id}">ویرایش</button><button class="btn btn-light btn-sm" data-action="delete-record" data-collection="hmiPages" data-id="${page.id}">حذف</button><a class="btn btn-link btn-sm" href="#/live/classic">اجرا ›</a></div></div></article>`).join("")}</div>` : emptyState("هنوز صفحه HMI تعریف نشده است.")}
+  </div>`;
 }
 
 const machineTabs = ["نمای کلی", "کشش مفتول راد", "مولتی‌وایر", "بانچر", "اکسترودر عایق", "کابل‌کشی", "اکسترودر روشن", "قرقره‌پیچ", "انرژی", "آلارم‌ها"];
@@ -30,7 +32,16 @@ function alarmsPage() {
 
 function trendsPage() {
   const rows = store.list("trends");
-  return `<div data-collection-name="trends" data-edit-action="new-trend">${pageHeader("روندها", "نمایش زنده و تاریخی تگ‌های انتخاب‌شده", button("روند جدید", "new-trend", { icon: "+" }))}<div class="trend-tags">${rows.map((row, i) => `<button class="${i === 0 ? "active" : ""}" data-action="select-range">${row.name}</button>`).join("")}</div><div class="trend-controls"><span>${pill("زنده · به‌روزرسانی هر ۵ ثانیه", "success")}</span><div class="range-pills">${["۱ دقیقه", "۵ دقیقه", "۱۵ دقیقه", "۱ ساعت", "۶ ساعت", "بازه دلخواه"].map((x, i) => `<button data-action="select-range" class="${i === 1 ? "active" : ""}">${x}</button>`).join("")}</div></div><div class="two-col-grid">${lineChart("سرعت ماشین‌های خط", undefined, "#e7a300", [299, 300, 301, 299, 300, 299, 301])}${lineChart("دمای زون‌های اکسترودر", undefined, "#12b9aa", [170, 170, 168, 184, 185, 181, 183])}</div>${panel("مدیریت روندها", dataTable([{ key: "name", label: "نام روند" }, { key: "tags", label: "تگ‌ها" }, { key: "period", label: "بازه" }, { key: "status", label: "وضعیت", render: row => pill(row.status, "success") }], rows, { actions: true }))}</div>`;
+  const history = store.list("trendHistory");
+  const values = history.map(sample => Number(sample.value)).filter(value => Number.isFinite(value));
+  const latest = history[history.length - 1];
+  return `<div>${pageHeader("روندها", "نمایش داده‌های تاریخی ثبت‌شده برای تگ‌های انتخاب‌شده", button("روند جدید", "new-trend", { icon: "+" }))}
+    <div class="trend-tags">${rows.map((row, i) => `<button class="${i === 0 ? "active" : ""}" data-action="select-range">${row.name}</button>`).join("")}</div>
+    <div class="trend-controls"><span>${pill(latest ? "تاریخچه دریافت شد · DEMO" : "در انتظار داده", latest ? "warning" : "muted")}</span><div class="range-pills">${["۱ ساعت","۶ ساعت","۲۴ ساعت"].map((x,i) => `<button data-action="select-range" class="${i === 2 ? "active" : ""}">${x}</button>`).join("")}</div></div>
+    ${history.length ? lineChart("تاریخچه تگ نمونه · ۲۴ ساعت", undefined, "#e7a300", values) : panel("تاریخچه تله‌متری", emptyState("هنوز نمونه‌ای برای این تگ ثبت نشده است. بعد از شروع شبیه‌ساز داده‌ها در این بخش نمایش داده می‌شوند."))}
+    ${panel("نمونه‌های اخیر", history.length ? dataTable([{key:"sampled_at",label:"زمان"},{key:"value",label:"مقدار"},{key:"quality",label:"کیفیت",render:row=>pill(row.quality || "DEMO","warning")},{key:"source",label:"منبع"}], history.slice(-50).reverse()) : emptyState("داده‌ای برای نمایش وجود ندارد."))}
+    ${panel("مدیریت روندها", dataTable([{ key: "name", label: "نام روند" }, { key: "tags", label: "تگ‌ها" }, { key: "period", label: "بازه" }, { key: "status", label: "وضعیت", render: row => pill(row.status, "success") }], rows, { actions: true }))}
+  </div>`;
 }
 
 export function renderLive(path) {
