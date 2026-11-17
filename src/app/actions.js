@@ -276,6 +276,72 @@ export async function handleSubmit(event) {
     form.reset();
     return true;
   }
+  if (event.target.id === "start-run-form") {
+    event.preventDefault();
+    const form = event.target;
+    const order = store.list("orders").find(item => item.id === new FormData(form).get("order_id"));
+    if (!order) throw new Error("سفارش انتخاب‌شده پیدا نشد.");
+    const created = await store.add("productionRuns", {
+      order: order.code, order_id: order.id, machine: form.dataset.machine,
+      product: order.product, target: Number(order.quantity), unit: order.unit,
+      quantity_actual: 0, scrap_quantity: 0, status: "آماده"
+    });
+    await api.startRun(created.id);
+    await store.refresh();
+    document.getElementById("modal-root").innerHTML = "";
+    toast("اجرای تولید در سرور ایجاد و شروع شد.");
+    return true;
+  }
+  if (event.target.id === "qc-review-form") {
+    event.preventDefault();
+    const form = event.target;
+    const values = Object.fromEntries(new FormData(form).entries());
+    const measurement = {
+      parameter: values.parameter,
+      actual: Number(values.actual),
+      nominal: values.nominal === "" ? null : Number(values.nominal),
+      minimum: values.minimum === "" ? null : Number(values.minimum),
+      maximum: values.maximum === "" ? null : Number(values.maximum),
+      unit: values.unit,
+      note: values.note
+    };
+    if (!Number.isFinite(measurement.actual)) throw new Error("مقدار واقعی باید عدد معتبر باشد.");
+    await api.recordQcMeasurement(form.dataset.id, measurement);
+    await api.decideQc(form.dataset.id, values.decision, values.note);
+    await store.refresh();
+    document.getElementById("modal-root").innerHTML = "";
+    toast("اندازه‌گیری و تصمیم کنترل کیفیت در سرور ثبت شد.");
+    return true;
+  }
+  if (event.target.matches('[data-local-form="batch-weighment"]')) {
+    event.preventDefault();
+    const form = event.target;
+    const values = Object.fromEntries(new FormData(form).entries());
+    const items = [];
+    for (let index = 0; index < Number(form.dataset.hopperCount || 0); index += 1) {
+      const target = Number(values[`hopper_${index}_target`]);
+      const actual = Number(values[`hopper_${index}_actual`]);
+      if (!Number.isFinite(target) || target <= 0 || !Number.isFinite(actual) || actual < 0) {
+        throw new Error("وزن هدف و وزن واقعی هر هاپر باید عدد معتبر باشند.");
+      }
+      items.push({
+        hopper_key: values[`hopper_${index}_key`],
+        material: values[`hopper_${index}_material`],
+        target_weight: target,
+        actual_weight: actual,
+        unit: "kg"
+      });
+    }
+    if (!items.length) throw new Error("حداقل یک هاپر برای ثبت توزین لازم است.");
+    const batchId = form.dataset.batchId;
+    const result = await api.recordBatchWeighments(batchId, { items });
+    await store.refresh();
+    toast(result.items.some(item => item.result !== "IN_TOLERANCE")
+      ? "توزین ثبت شد؛ حداقل یک ماده خارج از تلرانس است."
+      : "توزین آزمایشی در سرور ثبت شد؛ داده از لودسل واقعی نیست.",
+      result.items.some(item => item.result !== "IN_TOLERANCE") ? "warning" : "info");
+    return true;
+  }
   if (event.target.id === "password-change-form") {
     event.preventDefault();
     const values = Object.fromEntries(new FormData(event.target).entries());
