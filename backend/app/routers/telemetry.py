@@ -70,8 +70,14 @@ def _numeric_value(value: Any) -> float | None:
         return None
 
 
-def _tag_rows(db):
-    rows = db.execute("SELECT id,factory_id,payload,updated_at FROM resources WHERE collection='tags'").fetchall()
+def _tag_rows(db, factory_id: str | None = None):
+    if factory_id:
+        rows = db.execute(
+            "SELECT id,factory_id,payload,updated_at FROM resources WHERE collection='tags' AND (factory_id=? OR factory_id IS NULL)",
+            (factory_id,),
+        ).fetchall()
+    else:
+        rows = db.execute("SELECT id,factory_id,payload,updated_at FROM resources WHERE collection='tags'").fetchall()
     output=[]
     for row in rows:
         payload=json_load(row["payload"],{}) or {}
@@ -176,8 +182,12 @@ def _latest_sample_map(db) -> dict[str, dict]:
 @router.get("/latest")
 def latest(user: dict = Depends(get_current_user)):
     with connect() as db:
-        tags = _tag_rows(db)
-        edges = db.execute("SELECT id,name,status,last_seen FROM edge_devices ORDER BY created_at").fetchall()
+        factory_id = None if user["role"] == "Organization Admin" else user.get("factory_id")
+        tags = _tag_rows(db, factory_id)
+        if factory_id:
+            edges = db.execute("SELECT id,name,status,last_seen FROM edge_devices WHERE factory_id=? ORDER BY created_at", (factory_id,)).fetchall()
+        else:
+            edges = db.execute("SELECT id,name,status,last_seen FROM edge_devices ORDER BY created_at").fetchall()
         samples = _latest_sample_map(db)
     items = []
     for tag in tags:
@@ -207,10 +217,21 @@ def history(tag_id: str, hours: int = Query(24, ge=1, le=744),
             user: dict = Depends(get_current_user)):
     since=(datetime.now(timezone.utc)-timedelta(hours=hours)).isoformat(timespec="seconds")
     with connect() as db:
-        rows=db.execute(
-            "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples WHERE tag_id=? AND sampled_at>=? ORDER BY sampled_at DESC LIMIT ?",
-            (tag_id,since,limit),
-        ).fetchall()
+        tag = db.execute(
+            "SELECT factory_id FROM resources WHERE collection='tags' AND id=?", (tag_id,)
+        ).fetchone()
+        if tag is None or (user["role"] != "Organization Admin" and tag["factory_id"] not in {None, user.get("factory_id")}):
+            raise HTTPException(404, "تگ پیدا نشد.")
+        if user["role"] == "Organization Admin":
+            rows=db.execute(
+                "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples WHERE tag_id=? AND sampled_at>=? ORDER BY sampled_at DESC LIMIT ?",
+                (tag_id,since,limit),
+            ).fetchall()
+        else:
+            rows=db.execute(
+                "SELECT tag_id,value_json,quality,source,sampled_at FROM telemetry_samples WHERE tag_id=? AND factory_id=? AND sampled_at>=? ORDER BY sampled_at DESC LIMIT ?",
+                (tag_id,user.get("factory_id"),since,limit),
+            ).fetchall()
     return {"items":[{"tag_id":r["tag_id"],"value":json_load(r["value_json"]),
                       "quality":r["quality"],"source":r["source"],"sampled_at":r["sampled_at"]} for r in reversed(rows)]}
 
@@ -306,7 +327,7 @@ def write_tag(tag_id: str, body: TagWrite, user: dict = Depends(get_current_user
         raise HTTPException(403, "نقش کاربری اجازه‌ی نوشتن مقدار تگ را ندارد.")
     with connect() as db:
         row=db.execute("SELECT payload,factory_id FROM resources WHERE collection='tags' AND id=?",(tag_id,)).fetchone()
-        if not row:
+        if not row or (user["role"] != "Organization Admin" and row["factory_id"] not in {None, user.get("factory_id")}):
             raise HTTPException(404,"تگ پیدا نشد.")
         tag=json_load(row["payload"],{}) or {}
         if tag.get("access") != "read_write":
@@ -382,29 +403,38 @@ async def demo_simulator_loop(stop_event: asyncio.Event) -> None:
             continue
 
 
-async def websocket_identity(websocket: WebSocket) -> bool:
-    token=websocket.cookies.get("scada_session")
+async def websocket_identity(websocket: WebSocket) -> dict | None:
+    token = websocket.cookies.get("scada_session")
     if not token:
-        return False
-    now=utc_now()
+        return None
+    now = utc_now()
     with connect() as db:
-        row=db.execute(
-            "SELECT 1 FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.status='فعال'",
-            (token_hash(token),now),
+        row = db.execute(
+            """SELECT u.id,u.role,u.factory_id FROM sessions s
+               JOIN users u ON u.id=s.user_id
+               WHERE s.token_hash=? AND s.expires_at>? AND u.status='فعال'""",
+            (token_hash(token), now),
         ).fetchone()
-    return row is not None
+    if row is None:
+        return None
+    identity = dict(row)
+    if identity["role"] != "Organization Admin" and not identity.get("factory_id"):
+        return None
+    return identity
 
 
 @router.websocket("/ws/live")
 async def live_socket(websocket: WebSocket):
-    if not await websocket_identity(websocket):
+    user = await websocket_identity(websocket)
+    if not user:
         await websocket.close(code=4401)
         return
     await websocket.accept()
     try:
         while True:
             with connect() as db:
-                tags = _tag_rows(db)
+                factory_id = None if user["role"] == "Organization Admin" else user.get("factory_id")
+                tags = _tag_rows(db, factory_id)
                 samples = _latest_sample_map(db)
             items = []
             for tag in tags:
