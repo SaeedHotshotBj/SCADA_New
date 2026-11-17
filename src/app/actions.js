@@ -157,11 +157,6 @@ export async function handleAction(action, element) {
       if (row) await store.update(collection, row.id, { status: row.status === "فعال" ? "غیرفعال" : "فعال" });
       break;
     }
-    case "toggle-plc": {
-      const row = store.list("plcs").find(item => item.id === element.dataset.id);
-      if (row) await store.update("plcs", row.id, { status: row.status === "CONNECTED" ? "DISCONNECTED" : "CONNECTED" });
-      break;
-    }
     case "ack-alarm": {
       await store.update("alarms", element.dataset.id, { status: "تأییدشده", acknowledged_at: new Date().toISOString() }); toast("آلارم تأیید شد."); break;
     }
@@ -173,6 +168,32 @@ export async function handleAction(action, element) {
       break;
     }
     case "toggle-sidebar": document.body.classList.toggle("sidebar-collapsed"); break;
+    case "toggle-bi-layout": {
+      const page = document.querySelector(".bi-page");
+      if (!page) break;
+      const compact = page.dataset.compact !== "true";
+      page.dataset.compact = String(compact);
+      page.querySelectorAll(".stats-grid, .two-col-grid, .bi-grid").forEach(block => {
+        block.style.gap = compact ? "8px" : "";
+        block.style.marginBottom = compact ? "8px" : "";
+      });
+      toast(compact ? "فاصله‌گذاری داشبورد فشرده شد." : "چیدمان عادی داشبورد فعال شد.", "info");
+      break;
+    }
+    case "filter-read-write": {
+      const table = document.querySelector('[data-collection-name="tags"] .data-table tbody');
+      if (!table) break;
+      const active = element.dataset.active !== "true";
+      element.dataset.active = String(active);
+      let shown = 0;
+      table.querySelectorAll("tr").forEach(row => {
+        const match = (row.textContent || "").includes("read_write");
+        row.hidden = active && !match;
+        if (!row.hidden) shown += 1;
+      });
+      toast(active ? `${shown.toLocaleString("fa-IR")} تگ read/write نمایش داده شد.` : "همه تگ‌ها نمایش داده شدند.", "info");
+      break;
+    }
     case "start-run": case "stop-run": {
       const card = element.closest("[data-run-card]");
       let runId = element.dataset.id || element.dataset.runId || card?.dataset.runId;
