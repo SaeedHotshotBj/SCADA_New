@@ -21,7 +21,14 @@ const schemas = {
   "new-price": { title: "قیمت یا تعرفه جدید", collection: "prices", fields: [["kind", "نوع", "select", ["مواد اولیه", "تعرفه انرژی"]], ["code", "کد", "text"], ["name", "نام", "text"], ["price", "مبلغ واحد", "number"], ["currency", "واحد پول", "select", ["ریال", "تومان"]], ["unit", "واحد اندازه‌گیری", "select", ["kg", "m", "kWh", "عدد"]], ["valid_from", "تاریخ اعتبار", "text"], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
   "new-machine": { title: "ماشین جدید", collection: "machines", fields: [["name", "نام ماشین", "text"], ["code", "کد تجهیز", "text"], ["status", "وضعیت", "select", ["متصل", "آماده‌به‌کار", "غیرفعال"]]] },
   "new-hmi-page": { title: "صفحه HMI جدید", collection: "hmiPages", fields: [["name", "نام صفحه", "text"], ["machine", "ماشین", "text"], ["description", "توضیحات", "text"], ["components", "تعداد قطعات", "number"], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
-  "new-batch-config": { title: "تنظیم خط توزین", collection: "batchConfigs", fields: [["code", "کد تنظیمات", "text"], ["name", "نام تنظیمات", "text"], ["line", "خط تولید", "text"], ["samples", "تعداد نمونه", "number"], ["tolerance_percent", "حد مجاز خطا (%)", "number"], ["stabilization_seconds", "زمان پایدارسازی (ثانیه)", "number"]] }
+  "new-batch-config": { title: "تنظیم خط توزین", collection: "batchConfigs", fields: [["code", "کد تنظیمات", "text"], ["name", "نام تنظیمات", "text"], ["line", "خط تولید", "text"], ["samples", "تعداد نمونه", "number"], ["tolerance_percent", "حد مجاز خطا (%)", "number"], ["stabilization_seconds", "زمان پایدارسازی (ثانیه)", "number"]] },
+  "new-product-field": { title: "فیلد اختصاصی محصول", collection: "productFields", fields: [["product_code", "کد محصول", "select", []], ["name", "نام فیلد", "text"], ["field_type", "نوع فیلد", "select", ["text", "number", "date", "select"]], ["required", "الزامی", "select", ["بله", "خیر"]], ["options", "گزینه‌ها (با ویرگول)", "text"]] },
+  "new-downtime-reason": { title: "علت توقف جدید", collection: "downtimeReasons", fields: [["code", "کد", "text"], ["reason", "علت توقف", "text"], ["group", "گروه", "select", ["فرآیندی", "تأمین", "فنی", "برنامه‌ریزی", "کیفیت", "سایر"]]] },
+  "new-input-type": { title: "نوع ورودی جدید", collection: "inputTypes", fields: [["code", "کد", "text"], ["name", "عنوان", "text"], ["unit", "واحد", "text"], ["description", "توضیحات", "text"]] },
+  "new-stop-line": { title: "خط توقف جدید", collection: "stopLines", fields: [["code", "کد", "text"], ["name", "نام خط توقف", "text"], ["description", "توضیحات", "text"]] },
+  "new-output-type": { title: "نوع خروجی قرقره", collection: "outputTypes", fields: [["code", "کد", "text"], ["name", "عنوان", "text"], ["unit", "واحد", "text"], ["description", "توضیحات", "text"]] },
+  "new-document-sequence": { title: "قانون شماره‌گذاری سند", collection: "documentSequences", fields: [["document", "نوع سند", "text"], ["prefix", "پیشوند", "text"], ["year_pattern", "الگوی سال", "text"], ["sequence_length", "طول شماره ترتیبی", "number"]] },
+  "new-production-rule": { title: "قاعده اجرای تولید", collection: "productionRules", fields: [["code", "کد قاعده", "text"], ["name", "نام قاعده", "text"], ["rule", "شرح قاعده", "text"], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] }
 };
 
 function toast(message, type = "success") {
@@ -45,7 +52,9 @@ function openModal(action, record = null) {
             ? store.list("tags").map(tag => ({ value: tag.id, label: tag.name }))
             : name === "machine" && schema.collection === "orders"
               ? store.list("machines").map(machine => ({ value: machine.name, label: machine.name }))
-              : (options || []).map(option => ({ value: option, label: option }));
+              : name === "product_code" && schema.collection === "productFields"
+                ? store.list("products").map(product => ({ value: product.code, label: product.code + " — " + product.name }))
+                : (options || []).map(option => ({ value: option, label: option }));
       return `<label class="field"><span>${escapeHtml(label)}</span><select name="${name}" required>${sourceOptions.map(option => `<option value="${escapeHtml(option.value)}" ${String(option.value) === String(value) ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label>`;
     }
     return `<label class="field"><span>${escapeHtml(label)}</span><input name="${name}" type="${type}" value="${escapeHtml(value)}" ${type === "number" ? "min=0 step=any" : ""} required /></label>`;
