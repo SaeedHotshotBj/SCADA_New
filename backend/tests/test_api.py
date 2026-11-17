@@ -207,3 +207,76 @@ def test_user_management_is_admin_only_and_bootstrap_hides_other_users():
 
         denied_other_user_read = client.get("/api/resources/users/u-admin")
         assert denied_other_user_read.status_code == 404
+
+
+def test_edge_telemetry_ingest_validates_scope_and_persists_history():
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local", "password": "demo1234"
+        })
+        registered = client.post("/api/edge/register", json={
+            "name": "EDGE-INGEST-CI", "factory_id": "f1", "note": "telemetry ingest test"
+        })
+        assert registered.status_code == 201
+        token = registered.json()["edge_token"]
+
+        ingest = client.post(
+            "/api/telemetry/edge/ingest",
+            headers={"X-Edge-Token": token},
+            json={"samples": [{"tag_id": "t6", "value": 145.75}]},
+        )
+        assert ingest.status_code == 200
+        assert ingest.json()["accepted_samples"] == 1
+        assert ingest.json()["items"][0]["quality"] == "GOOD"
+
+        latest = client.get("/api/telemetry/latest")
+        assert latest.status_code == 200
+        current = next(item for item in latest.json()["items"] if item["tag_id"] == "t6")
+        assert current["value"] == 145.75
+        assert current["quality"] == "GOOD"
+        assert current["source"].startswith("edge:")
+
+        history = client.get("/api/telemetry/history?tag_id=t6&hours=24")
+        assert history.status_code == 200
+        assert any(item["value"] == 145.75 and item["quality"] == "GOOD" for item in history.json()["items"])
+
+        invalid_type = client.post(
+            "/api/telemetry/edge/ingest",
+            headers={"X-Edge-Token": token},
+            json={"samples": [{"tag_id": "t6", "value": "not-a-number"}]},
+        )
+        assert invalid_type.status_code == 422
+
+        assert client.post(
+            "/api/telemetry/edge/ingest",
+            headers={"X-Edge-Token": "not-a-real-token"},
+            json={"samples": [{"tag_id": "t6", "value": 1.0}]},
+        ).status_code == 401
+
+
+def test_analytics_summary_storage_and_audit_are_database_backed():
+    with TestClient(app) as client:
+        unauthenticated = client.get("/api/analytics/summary")
+        assert unauthenticated.status_code == 401
+
+        client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local", "password": "demo1234"
+        })
+        summary = client.get("/api/analytics/summary")
+        assert summary.status_code == 200
+        body = summary.json()
+        assert body["kpis"]["tag_count"] >= 1
+        assert "oee" in body["derived_metrics"]
+        assert body["derived_metrics"]["oee"] is None
+        assert isinstance(body["production_by_day"], list)
+
+        storage = client.get("/api/analytics/storage")
+        assert storage.status_code == 200
+        storage_body = storage.json()
+        assert storage_body["engine"] == "SQLite"
+        assert storage_body["tag_count"] >= 1
+        assert "telemetry_by_tag" in storage_body
+
+        audit = client.get("/api/analytics/audit?limit=10")
+        assert audit.status_code == 200
+        assert isinstance(audit.json(), list)
