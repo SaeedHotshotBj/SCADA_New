@@ -153,6 +153,14 @@ function openActionInfo(title, message) {
 }
 
 
+function openProductionQuantityModal(runId) {
+  const run = store.list("productionRuns").find(item => item.id === runId);
+  if (!run) { toast("اجرای تولید پیدا نشد.", "warning"); return; }
+  if (run.status !== "در حال تولید") { toast("ثبت مقدار فقط برای اجرای فعال مجاز است.", "warning"); return; }
+  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="ثبت مقدار تولید"><header class="modal-header"><h2>ثبت مقدار تولید · ${escapeHtml(run.order || run.product)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="production-quantity-form" data-id="${escapeHtml(runId)}"><div class="modal-fields"><label class="field"><span>مقدار تولید این ثبت (${escapeHtml(run.unit || "واحد")})</span><input name="quantity" type="number" min="0.001" step="any" required></label><label class="field"><span>ضایعات این ثبت (${escapeHtml(run.unit || "واحد")})</span><input name="scrap_quantity" type="number" min="0" step="any" value="0" required></label><label class="field"><span>یادداشت</span><input name="note" maxlength="1000"></label></div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ثبت مقدار</button></footer></form></section></div>`;
+  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
+}
+
 export async function handleAction(action, element) {
   switch (action) {
     case "new-user": case "new-factory": case "new-plc": case "new-tag": case "new-alarm": case "new-trend": case "new-report": case "new-process": case "new-template": case "new-task": case "new-order": case "new-unit": case "new-qc": case "new-batch": case "new-run": case "new-product": case "new-price": case "new-machine": case "new-hmi-page":
@@ -291,6 +299,13 @@ export async function handleAction(action, element) {
       await loadSelectedTrendHistory();
       break;
     }
+    case "record-production-quantity": openProductionQuantityModal(element.dataset.id); break;
+    case "complete-run": {
+      await api.completeRun(element.dataset.id);
+      await store.refresh();
+      toast("اجرای تولید تکمیل و در پایگاه داده ثبت شد؛ فرمانی به PLC ارسال نشد.");
+      break;
+    }
     case "approve-task": await api.approveTask(element.dataset.id); await store.refresh(); toast("وظیفه در سرور تأیید شد."); break;
     case "review-qc": { const decision = prompt("تصمیم کنترل کیفیت را وارد کنید: قبول / مشروط / رد", "قبول"); if (!decision) break; await api.decideQc(element.dataset.id, decision.trim()); await store.refresh(); toast("تصمیم کنترل کیفیت ثبت شد."); break; }
     case "apply-filter": applyTableFilters(element); break;
@@ -401,6 +416,23 @@ export async function handleSubmit(event) {
       toast("تنظیمات طرح کنترل کیفیت ذخیره شد.");
     }
     form.reset();
+    return true;
+  }
+  if (event.target.id === "production-quantity-form") {
+    event.preventDefault();
+    const form = event.target;
+    const values = Object.fromEntries(new FormData(form).entries());
+    const quantity = Number(values.quantity);
+    const scrap_quantity = Number(values.scrap_quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(scrap_quantity) || scrap_quantity < 0) {
+      throw new Error("مقدار تولید و ضایعات باید عدد معتبر باشند.");
+    }
+    await api.recordProductionQuantity(form.dataset.id, {
+      quantity, scrap_quantity, unit: "", note: values.note || ""
+    });
+    await store.refresh();
+    document.getElementById("modal-root").innerHTML = "";
+    toast("مقدار تولید و ضایعات در سوابق سرور ثبت شد.");
     return true;
   }
   if (event.target.id === "password-change-form") {
