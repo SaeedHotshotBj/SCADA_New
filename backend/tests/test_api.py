@@ -188,7 +188,7 @@ def test_hmi_and_operational_configuration_resources():
 
         control_plan = client.post("/api/resources/controlPlans", json={
             "product":"محصول تست","process":"اکستروژن","version":"1",
-            "sampling_interval":"هر ۳۰ دقیقه","sample_count":"3",
+            "sampling_interval":"هر ۳۰ دقیقه","sample_count":"3","approval_required":True,
             "parameters":[{"parameter":"قطر","nominal":"2.4","min":"2.3","max":"2.5","unit":"mm","method":"اندازه‌گیری"}]
         })
         assert control_plan.status_code == 201
