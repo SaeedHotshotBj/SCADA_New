@@ -103,8 +103,17 @@ function syncLiveConnection() {
       const message = JSON.parse(event.data);
       if (message.type !== "telemetry.snapshot") return;
       const current = store.list("tags");
-      const values = new Map(message.items.map(item => [item.tag_id, item.value]));
-      const next = current.map(tag => values.has(tag.id) ? { ...tag, value: values.get(tag.id) } : tag);
+      const values = new Map(message.items.map(item => [item.tag_id, item]));
+      const next = current.map(tag => {
+        const sample = values.get(tag.id);
+        return sample ? {
+          ...tag,
+          value: sample.value,
+          last_quality: sample.quality || "DEMO",
+          last_source: sample.source || "unspecified",
+          updated_at: sample.sampled_at || tag.updated_at,
+        } : tag;
+      });
       store.replaceCollection("tags", next);
     } catch (error) {
       console.error("Invalid telemetry message", error);
