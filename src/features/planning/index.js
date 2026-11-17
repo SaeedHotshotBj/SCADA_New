@@ -14,10 +14,35 @@ function boardPage() {
 }
 
 function calendarPage() {
-  return `<div>${pageHeader("تقویم ماشین‌ها", "تنظیم روزهای کاری، ساعات شیفت و استثناهای تقویم برای هر ماشین")}
-    <div class="filter-bar"><label class="field"><span>ماشین</span><select>${machines.map(x => `<option>${x}</option>`).join("")}</select></label><label class="field"><span>سال</span><select><option>۱۴۰۵</option><option>۱۴۰۶</option></select></label><label class="field"><span>ماه</span><select><option>آبان</option><option>آذر</option><option>مهر</option></select></label>${button("افزودن استثنا", "open-modal-info", { variant: "light" })}${button("ذخیره تقویم", "open-modal-info")}</div>
-    ${panel("برنامه هفتگی ماشین", `<div class="schedule-table"><div class="schedule-head"><b>روز هفته</b><b>وضعیت کاری</b><b>شروع شیفت</b><b>پایان شیفت</b><b>استراحت</b></div>${["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"].map((day, i) => `<div class="schedule-row"><b>${day}</b><label class="switch"><input type="checkbox" ${i < 6 ? "checked" : ""}><span></span></label><input value="08:00" type="time"><input value="17:00" type="time"><input value="01:00" type="text"></div>`).join("")}</div>`)}
-    ${panel("استثناها و تعطیلات", emptyState("برای این ماشین استثنایی ثبت نشده است."))}
+  const calendars = store.list("machineCalendars");
+  const current = calendars[0];
+  const days = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
+  const schedule = days.map((day, index) => current?.days?.find(item => item.day === day) || {
+    day, enabled: index < 6, start: "08:00", end: index === 5 ? "13:00" : "17:00",
+    break: index === 5 ? "00:30" : "01:00"
+  });
+  return `<div>${pageHeader("تقویم ماشین‌ها", "ذخیره روزهای کاری و ساعات شیفت برای هر ماشین در پایگاه داده")}
+    <form class="panel" data-local-form="machine-calendar">
+      <div class="panel-body">
+        <div class="filter-bar">
+          <label class="field"><span>ماشین</span><select name="machine" required>${machines.map(machine => `<option ${machine === current?.machine ? "selected" : ""}>${machine}</option>`).join("")}</select></label>
+          <label class="field"><span>سال</span><input name="year" value="${current?.year || "1405"}" required></label>
+          <label class="field"><span>ماه</span><select name="month" required>${["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"].map(month => `<option ${month === (current?.month || "آبان") ? "selected" : ""}>${month}</option>`).join("")}</select></label>
+        </div>
+        <div class="schedule-table">
+          <div class="schedule-head"><b>روز هفته</b><b>وضعیت کاری</b><b>شروع شیفت</b><b>پایان شیفت</b><b>استراحت</b></div>
+          ${schedule.map((day,index) => `<div class="schedule-row">
+            <b>${day.day}</b>
+            <label class="switch"><input type="checkbox" name="day_${index}_enabled" value="true" ${day.enabled ? "checked" : ""}><span></span></label>
+            <input name="day_${index}_start" value="${day.start}" type="time" required>
+            <input name="day_${index}_end" value="${day.end}" type="time" required>
+            <input name="day_${index}_break" value="${day.break}" type="text" required>
+          </div>`).join("")}
+        </div>
+      </div>
+      <div class="panel-actions"><button class="btn btn-primary" type="submit">ذخیره تقویم</button></div>
+    </form>
+    ${panel("تقویم‌های ذخیره‌شده", calendars.length ? dataTable([{ key: "machine", label: "ماشین" }, { key: "year", label: "سال" }, { key: "month", label: "ماه" }, { key: "days", label: "روزهای تعریف‌شده", render: row => (row.days || []).filter(day => day.enabled).length }], calendars) : emptyState("هنوز تقویمی ذخیره نشده است."))}
   </div>`;
 }
 
