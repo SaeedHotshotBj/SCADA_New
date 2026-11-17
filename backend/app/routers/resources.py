@@ -71,7 +71,7 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
         "products": ("code", "name", "unit"),
         "machines": ("name", "code"),
         "prices": ("kind", "code", "name", "price", "currency", "unit"),
-        "hmiPages": ("name", "machine", "description"),
+        "hmiPages": ("name", "machine", "description", "layout"),
         "machineCalendars": ("machine", "year", "month", "days"),
         "batchConfigs": ("code", "name", "loadcell", "formula", "hoppers"),
         "controlPlans": ("product", "process", "sampling_interval", "sample_count", "parameters"),
@@ -186,6 +186,8 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
         if tag is None:
             raise HTTPException(status_code=422, detail="تگ انتخاب‌شده برای آلارم در سامانه ثبت نشده است.")
     if collection == "hmiPages":
+        if "layout" not in payload:
+            raise HTTPException(status_code=422, detail="چیدمان صفحه HMI الزامی است.")
         if payload.get("machine"):
             machine_rows = db.execute(
                 "SELECT payload FROM resources WHERE collection='machines'"
