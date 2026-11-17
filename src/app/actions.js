@@ -161,6 +161,22 @@ function openProductionQuantityModal(runId) {
   document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
 }
 
+function openQcReviewModal(qcId) {
+  const row = store.list("qc").find(item => item.id === qcId);
+  if (!row) { toast("رکورد کنترل کیفیت پیدا نشد.", "warning"); return; }
+  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="ثبت اندازه‌گیری کنترل کیفیت"><header class="modal-header"><h2>بررسی QC · ${escapeHtml(row.code || row.product || qcId)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="qc-measurement-form" data-id="${escapeHtml(qcId)}"><div class="modal-fields">
+    <label class="field"><span>پارامتر اندازه‌گیری</span><input name="parameter" value="اندازه‌گیری دستی" required></label>
+    <label class="field"><span>مقدار واقعی</span><input name="actual" type="number" step="any" required></label>
+    <label class="field"><span>مقدار اسمی (اختیاری)</span><input name="nominal" type="number" step="any"></label>
+    <label class="field"><span>حداقل مجاز (اختیاری)</span><input name="minimum" type="number" step="any"></label>
+    <label class="field"><span>حداکثر مجاز (اختیاری)</span><input name="maximum" type="number" step="any"></label>
+    <label class="field"><span>واحد</span><input name="unit" placeholder="mm / Ω / kg"></label>
+    <label class="field"><span>تصمیم در صورت قرارداشتن در محدوده</span><select name="decision"><option value="قبول">قبول</option><option value="مشروط">مشروط</option><option value="رد">رد</option></select></label>
+    <label class="field"><span>توضیحات</span><input name="note" maxlength="1000"></label>
+  </div><p class="muted-note">این اندازه‌گیری به‌صورت دستی توسط کاربر ثبت می‌شود؛ مقدار سنسور یا ابزار آزمایشگاهی به‌طور خودکار خوانده نمی‌شود. اگر مقدار خارج از حد باشد، تصمیم نهایی به‌صورت «رد» ثبت می‌شود.</p><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ثبت اندازه‌گیری و تصمیم</button></footer></form></section></div>`;
+  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
+}
+
 export async function handleAction(action, element) {
   switch (action) {
     case "new-user": case "new-factory": case "new-plc": case "new-tag": case "new-alarm": case "new-trend": case "new-report": case "new-process": case "new-template": case "new-task": case "new-order": case "new-unit": case "new-qc": case "new-batch": case "new-run": case "new-product": case "new-price": case "new-machine": case "new-hmi-page":
@@ -307,7 +323,7 @@ export async function handleAction(action, element) {
       break;
     }
     case "approve-task": await api.approveTask(element.dataset.id); await store.refresh(); toast("وظیفه در سرور تأیید شد."); break;
-    case "review-qc": { const decision = prompt("تصمیم کنترل کیفیت را وارد کنید: قبول / مشروط / رد", "قبول"); if (!decision) break; await api.decideQc(element.dataset.id, decision.trim()); await store.refresh(); toast("تصمیم کنترل کیفیت ثبت شد."); break; }
+    case "review-qc": openQcReviewModal(element.dataset.id); break;
     case "apply-filter": applyTableFilters(element); break;
     case "show-record": showRecord(element.dataset.collection, element.dataset.id); break;
     case "move-week": store.setWeekOffset(store.weekOffset() + Number(element.dataset.delta || 1)); break;
@@ -433,6 +449,33 @@ export async function handleSubmit(event) {
     await store.refresh();
     document.getElementById("modal-root").innerHTML = "";
     toast("مقدار تولید و ضایعات در سوابق سرور ثبت شد.");
+    return true;
+  }
+  if (event.target.id === "qc-measurement-form") {
+    event.preventDefault();
+    const form = event.target;
+    const values = Object.fromEntries(new FormData(form).entries());
+    const measurement = {
+      parameter: values.parameter,
+      actual: Number(values.actual),
+      nominal: values.nominal === "" ? null : Number(values.nominal),
+      minimum: values.minimum === "" ? null : Number(values.minimum),
+      maximum: values.maximum === "" ? null : Number(values.maximum),
+      unit: values.unit || "",
+      note: values.note || "",
+    };
+    if (!Number.isFinite(measurement.actual)
+      || [measurement.nominal, measurement.minimum, measurement.maximum].some(value => value !== null && !Number.isFinite(value))) {
+      throw new Error("مقادیر اندازه‌گیری باید عدد معتبر باشند.");
+    }
+    const measured = await api.recordQcMeasurement(form.dataset.id, measurement);
+    const decision = measured.result === "FAIL" ? "رد" : values.decision;
+    await api.decideQc(form.dataset.id, decision, values.note || "");
+    await store.refresh();
+    document.getElementById("modal-root").innerHTML = "";
+    toast(measured.result === "FAIL"
+      ? "اندازه‌گیری خارج از محدوده بود؛ رکورد با تصمیم رد ذخیره شد."
+      : "اندازه‌گیری و تصمیم کنترل کیفیت در Backend ذخیره شد.");
     return true;
   }
   if (event.target.id === "password-change-form") {
