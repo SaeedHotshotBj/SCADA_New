@@ -92,6 +92,14 @@ def bootstrap(user: dict = Depends(get_current_user)):
         edge_rows=db.execute(
             "SELECT id,factory_id,name,status,metadata,last_seen,created_at,updated_at FROM edge_devices ORDER BY created_at DESC"
         ).fetchall()
+        plc_counts = {}
+        for plc in data["plcs"]:
+            factory_id = plc.get("factory_id")
+            if factory_id:
+                plc_counts[factory_id] = plc_counts.get(factory_id, 0) + 1
+        for factory in data["factories"]:
+            factory["plcs"] = plc_counts.get(factory["id"], 0)
+
         data["edgeDevices"]=[
             {"id":r["id"],"factory_id":r["factory_id"],"name":r["name"],"status":r["status"],
              "metadata":json_load(r["metadata"],{}),"last_seen":r["last_seen"],
