@@ -79,12 +79,23 @@ function emit() {
 }
 
 async function hydrate() {
-  const snapshot = await api.bootstrap();
-  state = { ...clone(seed), ...snapshot.data };
+  const [snapshot, analytics, storage, audit] = await Promise.all([
+    api.bootstrap(),
+    api.analyticsSummary(),
+    api.analyticsStorage(),
+    api.auditHistory(50),
+  ]);
+  state = {
+    ...clone(seed),
+    ...snapshot.data,
+    analytics,
+    storage,
+    audit,
+  };
   currentUser = snapshot.user;
   serverConnected = true;
   emit();
-  return snapshot;
+  return { ...snapshot, analytics, storage, audit };
 }
 
 export const store = {
