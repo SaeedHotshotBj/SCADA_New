@@ -55,6 +55,8 @@ export const api = {
   listEdges: () => request("/api/edge"),
   revokeEdge: id => request(`/api/edge/${encodeURIComponent(id)}/revoke`, { method: "POST", body: {} }),
   telemetryLatest: () => request("/api/telemetry/latest"),
+  alarmEvents: () => request("/api/telemetry/alarms/events"),
+  acknowledgeAlarm: id => request(`/api/telemetry/alarms/events/${encodeURIComponent(id)}/acknowledge`, { method: "POST", body: {} }),
   telemetryHistory: (tagId, hours = 24) => request(`/api/telemetry/history?tag_id=${encodeURIComponent(tagId)}&hours=${encodeURIComponent(hours)}`),
   analyticsOverview: () => request("/api/analytics/overview"),
   analyticsProduction: filters => request(`/api/analytics/production?${new URLSearchParams(filters || {})}`),
