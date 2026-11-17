@@ -1,5 +1,5 @@
 import {
-  button, dataTable, gradientBanner, lineChart, barChart, distributionDonutChart,
+  button, dataTable, gradientBanner, lineChart, distributionBarChart, distributionDonutChart,
   panel, statCard, pill, emptyState
 } from "../../shared/ui.js";
 import { store } from "../../services/demo-store.js";
@@ -39,8 +39,6 @@ export function renderBi() {
     ? daily.filter((item, index) => index % Math.ceil(daily.length / 14) === 0 || index === daily.length - 1)
     : daily;
   const dailyLabels = chartDaily.map(item => new Date(item.day + "T00:00:00").toLocaleDateString("fa-IR", { month: "numeric", day: "numeric" }));
-  const machineLabels = machineRows.map(item => item.name);
-  const machineRunCounts = machineRows.map(item => item.run_count);
   const sampleMode = analytics.data_quality === "DEMO" ? "داده نمایشی" : "داده ثبت‌شده";
 
   return `<div class="bi-page">
@@ -78,7 +76,7 @@ export function renderBi() {
       ${panel("وضعیت داده و شاخص‌های قابل محاسبه", `
         <div class="insight insight-info">این داشبورد اعداد را از پایگاه داده می‌خواند و مقدار ساختگی برای شاخص‌های اندازه‌گیری‌نشده نمایش نمی‌دهد.</div>
         <div class="insight insight-warning">OEE، مقدار واقعی تولید، انرژی و ضایعات تا زمان ثبت ورودی‌های معتبر و تعریف فرمول محاسبه، قابل گزارش نیستند.</div>
-        <div class="insight insight-info">تعداد اجرای ثبت‌شده در هفت روز اخیر: <b>${count(daily.reduce((sum, item) => sum + Number(item.runs || 0), 0))}</b></div>
+        <div class="insight insight-info">تعداد اجرای ثبت‌شده در ${analytics.period_days || 7} روز اخیر: <b>${count(daily.reduce((sum, item) => sum + Number(item.runs || 0), 0))}</b></div>
         <div class="insight insight-info">آخرین کیفیت تلمتری: <b>${analytics.latest_telemetry?.quality || "هنوز نمونه‌ای ثبت نشده"}</b></div>
       `)}
       ${distributionDonutChart("نتایج ثبت‌شده کنترل کیفیت", qcStatus)}
@@ -86,7 +84,7 @@ export function renderBi() {
 
     <div class="two-col-grid">
       ${lineChart(`تعداد اجرای ثبت‌شده در ${analytics.period_days || 7} روز اخیر`, dailyLabels, "#17b98a", chartDaily.map(item => Number(item.runs || 0)))}
-      ${barChart("تعداد اجرا بر اساس ماشین", machineLabels.length ? machineLabels : ["بدون ماشین"], machineRunCounts.length ? machineRunCounts : [0])}
+      ${distributionBarChart("تعداد اجرا بر اساس ماشین", machineRows.map(item => ({ name: item.name, count: item.run_count })))}
     </div>
 
     <div class="two-col-grid">
