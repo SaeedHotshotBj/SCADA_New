@@ -102,7 +102,7 @@ function classicHmiPage() {
           <div><small>سفارش فعال</small><b>${kpis.active_order_count ?? "—"}</b></div>
           <div><small>اجرای در حال تولید</small><b>${kpis.running_count ?? "—"}</b></div>
           <div><small>تگ تعریف‌شده</small><b>${kpis.tag_count ?? "—"}</b></div>
-          <div><small>نمونه تلمتری ۲۴ ساعت</small><b>${kpis.telemetry_samples_24h ?? "—"}</b></div>
+          <div><small>نمونه تلمتری در بازه</small><b>${kpis.telemetry_samples_period ?? "—"}</b></div>
           <div><small>بچ فعال</small><b>${kpis.active_batch_count ?? "—"}</b></div>
           <div><small>ماشین تعریف‌شده</small><b>${kpis.machine_count ?? "—"}</b></div>
         </div></section>
