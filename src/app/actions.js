@@ -15,7 +15,7 @@ const schemas = {
   "new-order": { title: "سفارش تولید جدید", collection: "orders", fields: [["code", "شماره سفارش", "text"], ["product", "محصول", "text"], ["quantity", "مقدار", "number"], ["unit", "واحد", "select", ["m", "kg", "عدد"]], ["status", "وضعیت", "select", ["در انتظار", "آزادشده", "در حال تولید"]]] },
   "new-unit": { title: "واحد تولید جدید", collection: "units", fields: [["code", "کد واحد", "text"], ["quantity", "مقدار", "number"], ["unit", "واحد", "select", ["m", "kg", "عدد"]], ["status", "وضعیت", "select", ["باز", "بسته"]]] },
   "new-qc": { title: "ثبت کنترل کیفیت", collection: "qc", fields: [["code", "شماره کنترل", "text"], ["product", "محصول", "text"], ["machine", "ماشین", "text"], ["decision", "تصمیم", "select", ["قبول", "مشروط", "رد"]]] },
-  "new-batch": { title: "ثبت بچ جدید", collection: "batches", fields: [["code", "کد بچ", "text"], ["formula", "فرمول", "text"], ["target", "وزن هدف (kg)", "number"], ["material", "ماده", "text"]] },
+  "new-batch": { title: "ثبت بچ جدید", collection: "batches", fields: [["code", "کد بچ", "text"], ["formula", "فرمول", "select", []], ["target", "وزن هدف (kg)", "number"], ["material", "ماده", "text"]] },
   "new-run": { title: "شروع اجرای تولید", collection: "productionRuns", fields: [["order", "شماره سفارش", "text"], ["machine", "ماشین", "text"], ["product", "محصول", "text"], ["target", "هدف تولید", "number"]] },
   "new-product": { title: "محصول جدید", collection: "products", fields: [["code", "کد محصول", "text"], ["name", "نام محصول", "text"], ["unit", "واحد اصلی", "select", ["m", "kg", "عدد"]], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
   "new-price": { title: "قیمت یا تعرفه جدید", collection: "prices", fields: [["kind", "نوع", "select", ["مواد اولیه", "تعرفه انرژی"]], ["code", "کد", "text"], ["name", "نام", "text"], ["price", "مبلغ واحد", "number"], ["currency", "واحد پول", "select", ["ریال", "تومان"]], ["unit", "واحد اندازه‌گیری", "select", ["kg", "m", "kWh", "عدد"]], ["valid_from", "تاریخ اعتبار", "text"], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
@@ -39,7 +39,9 @@ function openModal(action, record = null) {
     if (type === "select") {
       const sourceOptions = name === "plc" && schema.collection === "tags"
         ? store.list("plcs").map(plc => ({ value: plc.id, label: plc.name }))
-        : (options || []).map(option => ({ value: option, label: option }));
+        : name === "formula" && schema.collection === "batches"
+          ? store.list("batchConfigs").map(config => ({ value: config.name || config.formula || config.code, label: config.name || config.formula || config.code }))
+          : (options || []).map(option => ({ value: option, label: option }));
       return `<label class="field"><span>${escapeHtml(label)}</span><select name="${name}" required>${sourceOptions.map(option => `<option value="${escapeHtml(option.value)}" ${String(option.value) === String(value) ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label>`;
     }
     return `<label class="field"><span>${escapeHtml(label)}</span><input name="${name}" type="${type}" value="${escapeHtml(value)}" ${type === "number" ? "min=0 step=any" : ""} required /></label>`;
@@ -107,7 +109,10 @@ function openQcReviewModal(qcId) {
 
 export async function handleAction(action, element) {
   switch (action) {
-    case "new-user": case "new-factory": case "new-plc": case "new-tag": case "new-alarm": case "new-trend": case "new-report": case "new-process": case "new-template": case "new-order": case "new-unit": case "new-qc": case "new-batch": case "new-run": case "new-product": case "new-price": case "new-machine": case "new-hmi-page": case "new-batch-config":
+    case "new-user": case "new-factory": case "new-plc": case "new-tag": case "new-alarm": case "new-trend": case "new-report": case "new-process": case "new-template": case "new-order": case "new-unit": case "new-qc": case "new-run": case "new-product": case "new-price": case "new-machine": case "new-hmi-page": case "new-batch-config":
+      openModal(action); break;
+    case "new-batch":
+      if (!store.list("batchConfigs").length) { toast("ابتدا در تنظیمات توزین، حداقل یک فرمول و هاپر ذخیره کنید.", "warning"); break; }
       openModal(action); break;
     case "edit-record": {
       const collection = document.querySelector("[data-collection-name]")?.dataset.collectionName;
@@ -224,7 +229,7 @@ export async function handleAction(action, element) {
       toast(`گزارش از داده‌های ذخیره‌شده اجرا شد: ${result.id}`);
       break;
     }
-    case "write-tag": { const tag = store.list("tags").find(item => item.id === element.dataset.id); if (!tag) break; const raw = prompt(`مقدار جدید برای ${tag.name} (${tag.type})`, String(tag.value ?? "")); if (raw === null) break; let value = raw; if (tag.type === "bool") { const normalized = raw.trim().toLowerCase(); if (!["true","false","1","0"].includes(normalized)) throw new Error("Boolean باید true / false یا 1 / 0 باشد."); value = normalized === "true" || normalized === "1"; } else if (["int16","uint16","int32","uint32"].includes(tag.type)) { if (!/^-?\\d+$/.test(raw.trim())) throw new Error("مقدار این تگ باید عدد صحیح باشد."); value = Number.parseInt(raw, 10); } else if (tag.type === "float32") { value = Number(raw); if (!Number.isFinite(value)) throw new Error("مقدار این تگ باید عدد معتبر باشد."); } await api.writeTag(tag.id, value); await store.refresh(); toast("مقدار در دیتابیس شبیه‌سازی تغییر کرد؛ PLC واقعی نوشته نشد.", "info"); break; }
+    case "write-tag": { const tag = store.list("tags").find(item => item.id === element.dataset.id); if (!tag) break; const raw = prompt(`مقدار جدید برای ${tag.name} (${tag.type})`, String(tag.value ?? "")); if (raw === null) break; let value = raw; if (tag.type === "bool") { const normalized = raw.trim().toLowerCase(); if (!["true","false","1","0"].includes(normalized)) throw new Error("Boolean باید true / false یا 1 / 0 باشد."); value = normalized === "true" || normalized === "1"; } else if (["int16","uint16","int32","uint32"].includes(tag.type)) { if (!/^-?\d+$/.test(raw.trim())) throw new Error("مقدار این تگ باید عدد صحیح باشد."); value = Number.parseInt(raw, 10); } else if (tag.type === "float32") { value = Number(raw); if (!Number.isFinite(value)) throw new Error("مقدار این تگ باید عدد معتبر باشد."); } await api.writeTag(tag.id, value); await store.refresh(); toast("مقدار در دیتابیس شبیه‌سازی تغییر کرد؛ PLC واقعی نوشته نشد.", "info"); break; }
     case "open-modal-info": toast("این عملیات هنوز در نسخه متصل تعریف نشده است.", "info"); break;
     default: toast("این فرمان در نسخه نمایشی تعریف نشده است.", "info");
   }
@@ -245,7 +250,7 @@ export async function handleSubmit(event) {
       for (const field of ["samples","tolerance_percent","stabilization_seconds"]) values[field] = Number(values[field]);
       const hoppers = new Map();
       for (const [key, value] of Object.entries(values)) {
-        const match = key.match(/^hopper_(\\d+)_(bin|material|ratio|target)$/);
+        const match = key.match(/^hopper_(\d+)_(bin|material|ratio|target)$/);
         if (!match) continue;
         const index = Number(match[1]);
         const field = match[2];
@@ -278,7 +283,7 @@ export async function handleSubmit(event) {
       values.approval_required = values.approval_required === "true";
       const parameters = new Map();
       for (const [key, value] of Object.entries(values)) {
-        const match = key.match(/^parameter_(\\d+)_(parameter|nominal|min|max|unit|method)$/);
+        const match = key.match(/^parameter_(\d+)_(parameter|nominal|min|max|unit|method)$/);
         if (!match) continue;
         const index = Number(match[1]);
         if (!parameters.has(index)) parameters.set(index, {});
@@ -377,6 +382,12 @@ export async function handleSubmit(event) {
   const schema = schemas[form.dataset.schema];
   if (values.steps) values.steps = values.steps.split(/[،,]/).map(step => step.trim()).filter(Boolean);
   if (values.fields) values.fields = Number(values.fields);
+  if (schema.collection === "batches") {
+    const config = store.list("batchConfigs").find(item => [item.name, item.code, item.formula].includes(values.formula));
+    if (!config) throw new Error("فرمول انتخاب‌شده در تنظیمات توزین پیدا نشد.");
+    values.tolerance_percent = Number(config.tolerance_percent ?? 0.5);
+    values.batch_config_id = config.id;
+  }
   let saved;
   if (form.dataset.editId) saved = await store.update(schema.collection, form.dataset.editId, values);
   else saved = await store.add(schema.collection, values);
