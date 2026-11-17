@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
+from ..config import PLC_HISTORY_RETENTION_DAYS
 from ..database import connect, json_dump, json_load, utc_now, audit
 from ..dependencies import get_current_user
 from ..security import token_hash
@@ -192,22 +193,23 @@ def latest(user: dict = Depends(get_current_user)):
     items = []
     for tag in tags:
         sample = samples.get(tag["id"])
+        physical_plc = str(tag.get("last_source") or "").startswith("plc:")
         items.append({
             "tag_id": tag["id"],
             "name": tag.get("name"),
-            "value": json_load(sample["value_json"]) if sample else tag.get("value"),
+            "value": tag.get("value") if physical_plc else json_load(sample["value_json"]) if sample else tag.get("value"),
             "unit": tag.get("unit", ""),
             "type": tag.get("type"),
-            "quality": sample["quality"] if sample else "UNSAMPLED",
-            "source": sample["source"] if sample else "seed",
-            "sampled_at": sample["sampled_at"] if sample else tag["updated_at"],
+            "quality": tag.get("last_quality") if physical_plc else sample["quality"] if sample else "UNSAMPLED",
+            "source": tag.get("last_source") if physical_plc else sample["source"] if sample else "seed",
+            "sampled_at": (tag.get("last_poll_at") or tag["updated_at"]) if physical_plc else sample["sampled_at"] if sample else tag["updated_at"],
         })
     qualities = {item["quality"] for item in items}
     return {
         "items": items,
         "edges": [dict(edge) for edge in edges],
         "quality": next(iter(qualities)) if len(qualities) == 1 else "MIXED",
-        "note": "کیفیت هر مقدار از آخرین نمونه ذخیره‌شده خوانده می‌شود؛ مقدار seed به‌عنوان UNSAMPLED مشخص است.",
+        "note": "برای PLC فیزیکی مقدار جاری از آخرین Poll و تاریخچه از نمونه‌های زمان‌بندی‌شده خوانده می‌شود؛ مقدار seed به‌عنوان UNSAMPLED مشخص است.",
     }
 
 
@@ -376,12 +378,21 @@ async def demo_simulator_loop(stop_event: asyncio.Event) -> None:
         try:
             with connect() as db:
                 tags=_tag_rows(db)
+                plc_rows = db.execute(
+                    "SELECT id,payload FROM resources WHERE collection='plcs'"
+                ).fetchall()
+                physical_plc_ids = {
+                    row["id"] for row in plc_rows
+                    if (json_load(row["payload"], {}) or {}).get("protocol") in {"modbus-tcp", "modbus-rtu", "s7"}
+                }
                 now=utc_now()
                 for tag in tags:
                     if tag.get("access") != "read" or tag.get("type") not in {"float32","int16","uint16","int32","uint32"}:
                         continue
-                    # A live Edge has authority over its assigned tag; never replace it with DEMO values.
-                    if str(tag.get("last_source") or "").startswith("edge:"):
+                    # Edge and physical PLC sources own their tags; never replace them with DEMO values.
+                    if str(tag.get("last_source") or "").startswith(("edge:", "plc:")):
+                        continue
+                    if str(tag.get("plc") or "") in physical_plc_ids:
                         continue
                     old=_numeric_value(tag.get("value"))
                     if old is None:
@@ -401,7 +412,7 @@ async def demo_simulator_loop(stop_event: asyncio.Event) -> None:
                     _evaluate_tag_alarms(db, tag["id"], value, now)
                 db.execute(
                     "DELETE FROM telemetry_samples WHERE sampled_at < ?",
-                    ((datetime.now(timezone.utc)-timedelta(days=30)).isoformat(timespec="seconds"),),
+                    ((datetime.now(timezone.utc)-timedelta(days=PLC_HISTORY_RETENTION_DAYS)).isoformat(timespec="seconds"),),
                 )
         except Exception:
             # A transient storage failure must not terminate the application loop.
@@ -445,23 +456,54 @@ async def live_socket(websocket: WebSocket):
                 factory_id = None if user["role"] == "Organization Admin" else user.get("factory_id")
                 tags = _tag_rows(db, factory_id)
                 samples = _latest_sample_map(db)
+                if factory_id:
+                    plc_rows = db.execute(
+                        "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection='plcs' AND (factory_id=? OR factory_id IS NULL)",
+                        (factory_id,),
+                    ).fetchall()
+                    alarm_rows = db.execute(
+                        "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection='alarms' AND (factory_id=? OR factory_id IS NULL)",
+                        (factory_id,),
+                    ).fetchall()
+                else:
+                    plc_rows = db.execute(
+                        "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection='plcs'"
+                    ).fetchall()
+                    alarm_rows = db.execute(
+                        "SELECT id,factory_id,payload,created_at,updated_at FROM resources WHERE collection='alarms'"
+                    ).fetchall()
+                plcs = [
+                    {"id": row["id"], **(json_load(row["payload"], {}) or {}),
+                     **({"factory_id": row["factory_id"]} if row["factory_id"] else {}),
+                     "created_at": row["created_at"], "updated_at": row["updated_at"]}
+                    for row in plc_rows
+                ]
+                alarms = [
+                    {"id": row["id"], **(json_load(row["payload"], {}) or {}),
+                     **({"factory_id": row["factory_id"]} if row["factory_id"] else {}),
+                     "created_at": row["created_at"], "updated_at": row["updated_at"]}
+                    for row in alarm_rows
+                ]
             items = []
             for tag in tags:
                 sample = samples.get(tag["id"])
+                physical_plc = str(tag.get("last_source") or "").startswith("plc:")
                 items.append({
                     "tag_id": tag["id"],
                     "name": tag.get("name"),
-                    "value": json_load(sample["value_json"]) if sample else tag.get("value"),
+                    "value": tag.get("value") if physical_plc else json_load(sample["value_json"]) if sample else tag.get("value"),
                     "unit": tag.get("unit", ""),
-                    "quality": sample["quality"] if sample else "UNSAMPLED",
-                    "source": sample["source"] if sample else "seed",
-                    "sampled_at": sample["sampled_at"] if sample else tag.get("updated_at"),
+                    "quality": tag.get("last_quality") if physical_plc else sample["quality"] if sample else "UNSAMPLED",
+                    "source": tag.get("last_source") if physical_plc else sample["source"] if sample else "seed",
+                    "sampled_at": (tag.get("last_poll_at") or tag.get("updated_at")) if physical_plc else sample["sampled_at"] if sample else tag.get("updated_at"),
                 })
             qualities = {item["quality"] for item in items}
             await websocket.send_json({
                 "type": "telemetry.snapshot",
                 "quality": next(iter(qualities)) if len(qualities) == 1 else "MIXED",
                 "items": items,
+                "plcs": plcs,
+                "alarms": alarms,
             })
             await asyncio.sleep(5)
     except WebSocketDisconnect:

@@ -6,11 +6,12 @@ function liveDataPage() {
   const rows = store.list("tags");
   const columns = [
     { key: "name", label: "تگ" }, { key: "value", label: "مقدار", render: row => row.quality === "UNSAMPLED" ? "—" : row.value ?? "—" },
-    { key: "unit", label: "واحد" }, { key: "quality", label: "کیفیت", render: row => pill(row.quality || "UNSAMPLED", row.quality === "GOOD" ? "success" : row.quality === "DEMO" ? "warning" : "muted") },
+    { key: "unit", label: "واحد" }, { key: "quality", label: "کیفیت", render: row => pill(row.quality || "UNSAMPLED", row.quality === "GOOD" ? "success" : row.quality === "DEMO" ? "warning" : row.quality === "BAD" ? "danger" : "muted") },
+    { key: "source", label: "منبع", render: row => escapeHtml(row.source || "—") },
     { key: "time", label: "زمان", render: row => (row.sampled_at || row.updated_at) ? new Date(row.sampled_at || row.updated_at).toLocaleTimeString("fa-IR") : "—" },
     { key: "write", label: "نوشتن", render: row => row.access === "read_write" ? `<button class="btn btn-light btn-sm" data-action="write-tag" data-id="${row.id}">Write</button>` : "—" }
   ];
-  return `<div>${pageHeader("مقادیر زنده تگ", "مقادیر، زمان نمونه و کیفیت از آخرین داده ذخیره‌شده در Backend دریافت می‌شوند.", pill("API · Live", "success"))}${panel("مقادیر لحظه‌ای", dataTable(columns, rows))}</div>`;
+  return `<div>${pageHeader("مقادیر زنده تگ", "مقدار، منبع، زمان و کیفیت داده از PLC یا Edge متصل نمایش داده می‌شود؛ DEMO مقدار واقعی سخت‌افزار نیست.", pill("API · Live", "success"))}${panel("مقادیر لحظه‌ای", dataTable(columns, rows))}</div>`;
 }
 
 function hmiPagesPage() {
@@ -60,7 +61,7 @@ function hmiRuntimePage(pageId) {
       return `<section class="panel hmi-widget"><div class="panel-heading"><h3>${label}</h3>${qualityPill}</div><div class="panel-body"><div class="hmi-gauge-value">${valid ? numeric.toLocaleString("fa-IR") : "—"} <small>${escapeHtml(tag.unit || "")}</small></div><div class="hmi-gauge-track"><span style="width:${percent}%"></span></div><div class="hmi-gauge-limits"><small>${min.toLocaleString("fa-IR")}</small><small>${max.toLocaleString("fa-IR")}</small></div></div></section>`;
     }
     if (component.type === "write") {
-      return `<section class="panel hmi-widget"><div class="panel-heading"><h3>${label}</h3>${qualityPill}</div><div class="panel-body"><div class="hmi-gauge-value">${sampleAvailable ? escapeHtml(value) : "—"} <small>${escapeHtml(tag.unit || "")}</small></div><button class="btn btn-primary" data-action="hmi-write-tag" data-id="${tag.id}" ${!active || tag.access !== "read_write" ? "disabled" : ""}>نوشتن مقدار (شبیه‌سازی)</button><p class="muted-note">این عملیات فقط مقدار ثبت‌شده در دیتابیس دمو را تغییر می‌دهد و به PLC فرمان نمی‌فرستد.</p></div></section>`;
+      return `<section class="panel hmi-widget"><div class="panel-heading"><h3>${label}</h3>${qualityPill}</div><div class="panel-body"><div class="hmi-gauge-value">${sampleAvailable ? escapeHtml(value) : "—"} <small>${escapeHtml(tag.unit || "")}</small></div><button class="btn btn-primary" data-action="hmi-write-tag" data-id="${tag.id}" ${!active || tag.access !== "read_write" ? "disabled" : ""}>نوشتن مقدار</button><p class="muted-note">برای PLC واقعی، ارسال فرمان فقط با فعال‌بودن مجوز سراسری سرور، مجوز همین PLC، تأیید ایمنی و تأیید نهایی اپراتور انجام می‌شود. در حالت شبیه‌ساز فقط دیتابیس Demo تغییر می‌کند.</p></div></section>`;
     }
     return `<section class="panel hmi-widget"><div class="panel-heading"><h3>${label}</h3>${qualityPill}</div><div class="panel-body"><div class="hmi-gauge-value">${sampleAvailable ? escapeHtml(value) : "—"} <small>${escapeHtml(tag.unit || "")}</small></div><small>${escapeHtml(tag.name)} · ${escapeHtml(tag.type)}</small><p class="muted-note">آخرین نمونه: ${tag.sampled_at ? new Date(tag.sampled_at).toLocaleString("fa-IR") : "—"}</p></div></section>`;
   }).join("");

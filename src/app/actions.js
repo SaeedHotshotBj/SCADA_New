@@ -5,8 +5,8 @@ import { escapeHtml } from "../core/format.js";
 const schemas = {
   "new-user": { title: "کاربر جدید", collection: "users", fields: [["name", "نام", "text"], ["email", "ایمیل", "email"], ["role", "نقش", "select", ["Engineer", "Operator", "Production Planner", "Quality Control", "Production Manager"]], ["factory_id", "کارخانه", "select", []], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
   "new-factory": { title: "کارخانه جدید", collection: "factories", fields: [["name", "نام کارخانه", "text"], ["code", "کد", "text"], ["edge", "Edge", "text"], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
-  "new-plc": { title: "PLC جدید", collection: "plcs", fields: [["factory_id", "کارخانه", "select", []], ["name", "نام", "text"], ["protocol", "پروتکل", "select", ["modbus-tcp", "modbus-rtu", "s7", "simulator"]], ["address", "آدرس", "text"], ["unit", "شناسه Unit", "text"], ["poll", "Poll interval", "text"]] },
-  "new-tag": { title: "تگ جدید", collection: "tags", fields: [["name", "نام تگ", "text"], ["plc", "PLC", "select", []], ["type", "نوع", "select", ["bool", "int16", "uint16", "int32", "uint32", "float32", "string"]], ["address", "آدرس", "text"], ["access", "دسترسی", "select", ["read", "read_write"]], ["unit", "واحد", "text"]] },
+  "new-plc": { title: "PLC جدید", collection: "plcs", optional: ["unit","poll","history_interval","rack","slot","baudrate","bytesize","parity","stopbits"], fields: [["factory_id", "کارخانه", "select", []], ["name", "نام", "text"], ["protocol", "پروتکل", "select", ["modbus-tcp", "modbus-rtu", "s7", "simulator"]], ["address", "IP:Port یا COM Port", "text"], ["unit", "شناسه Unit / Slave", "number"], ["poll", "Poll interval (مثل 500 ms)", "text"], ["history_interval", "فاصله ذخیره تاریخچه (مثل 5 s)", "text"], ["enabled", "فعال‌سازی ارتباط", "select", ["بله","خیر"]], ["rack", "S7 Rack", "number"], ["slot", "S7 Slot", "number"], ["baudrate", "RTU Baud rate", "number"], ["bytesize", "RTU Data bits", "number"], ["parity", "RTU Parity", "select", ["N","E","O"]], ["stopbits", "RTU Stop bits", "number"], ["allow_writes", "اجازه نوشتن فیزیکی", "select", ["بله","خیر"]], ["safety_confirmed", "تأیید بررسی ایمنی", "select", ["بله","خیر"]]] },
+  "new-tag": { title: "تگ جدید", collection: "tags", optional: ["address_area","address_base","byte_order","word_order","scale","offset","bit","length","string_format"], fields: [["name", "نام تگ", "text"], ["plc", "PLC", "select", []], ["type", "نوع داده", "select", ["bool", "int16", "uint16", "int32", "uint32", "float32", "string"]], ["address", "آدرس (مثل 40001 یا DB5.DBD4)", "text"], ["address_area", "ناحیه Modbus", "select", ["auto","coil","discrete_input","input_register","holding_register"]], ["address_base", "مبنای آدرس", "select", ["0","1"]], ["bit", "شماره Bit (برای BOOL)", "number"], ["length", "طول داده (برای S7 به بایت)", "number"], ["string_format", "قالب رشته", "select", ["raw","s7"]], ["byte_order", "Byte order", "select", ["big","little"]], ["word_order", "Word order", "select", ["big","little"]], ["scale", "Scale (اختیاری)", "number"], ["offset", "Offset (اختیاری)", "number"], ["access", "دسترسی", "select", ["read", "read_write"]], ["unit", "واحد مهندسی", "text"]] },
   "new-alarm": { title: "قانون آلارم جدید", collection: "alarms", fields: [["name", "نام آلارم", "text"], ["severity", "شدت", "select", ["بحرانی", "زیاد", "متوسط", "کم"]], ["tag", "تگ مرتبط", "select", []], ["operator", "شرط مقایسه", "select", [">", ">=", "<", "<=", "==", "!="]], ["threshold", "حد آستانه", "number"], ["status", "وضعیت قانون", "select", ["فعال", "غیرفعال"]]] },
   "new-trend": { title: "روند جدید", collection: "trends", fields: [["name", "نام روند", "text"], ["tags", "تگ‌ها", "text"], ["period", "بازه نمونه‌برداری", "select", ["۱ دقیقه", "۵ دقیقه", "۱۵ دقیقه", "۱ ساعت"]], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
   "new-report": { title: "گزارش جدید", collection: "reports", fields: [["name", "نام گزارش", "text"], ["type", "دوره", "select", ["ساعتی", "روزانه", "هفتگی", "ماهانه"]], ["tags", "تعداد تگ", "number"]] },
@@ -35,7 +35,8 @@ function openModal(action, record = null) {
   const schema = schemas[action];
   if (!schema) return;
   const fields = schema.fields.map(([name, label, type, options]) => {
-    const value = record?.[name] ?? "";
+    const value = record?.[name] ?? (name === "enabled" || name === "allow_writes" || name === "safety_confirmed" ? "خیر" : name === "history_interval" ? "5 s" : name === "address_area" ? "auto" : name === "address_base" ? "0" : name === "byte_order" || name === "word_order" ? "big" : name === "string_format" ? "raw" : "");
+    const selectedValue = typeof value === "boolean" ? (value ? "بله" : "خیر") : value;
     if (type === "textarea") {
       return `<label class="field"><span>${escapeHtml(label)}</span><textarea name="${name}" rows="8" required placeholder='[{"type":"value","tag_id":"t3","label":"مقدار"}]'>${escapeHtml(typeof value === "string" ? value : JSON.stringify(value || [], null, 2))}</textarea></label>`;
     }
@@ -53,9 +54,11 @@ function openModal(action, record = null) {
                 : name === "order" && schema.collection === "productionRuns"
                   ? store.list("orders").map(order => ({ value: order.code, label: `${order.code} · ${order.product}` }))
                   : (options || []).map(option => ({ value: option, label: option }));
-      return `<label class="field"><span>${escapeHtml(label)}</span><select name="${name}" required>${sourceOptions.map(option => `<option value="${escapeHtml(option.value)}" ${String(option.value) === String(value) ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label>`;
+      const optional = (schema.optional || []).includes(name);
+      return `<label class="field"><span>${escapeHtml(label)}</span><select name="${name}" ${optional ? "" : "required"}>${optional ? '<option value="">—</option>' : ""}${sourceOptions.map(option => `<option value="${escapeHtml(option.value)}" ${String(option.value) === String(selectedValue) ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label>`;
     }
-    return `<label class="field"><span>${escapeHtml(label)}</span><input name="${name}" type="${type}" value="${escapeHtml(value)}" ${type === "number" ? "min=0 step=any" : ""} required /></label>`;
+    const optional = (schema.optional || []).includes(name);
+    return `<label class="field"><span>${escapeHtml(label)}</span><input name="${name}" type="${type}" value="${escapeHtml(value)}" ${type === "number" ? "step=any" : ""} ${optional ? "" : "required"} /></label>`;
   }).join("");
   document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(schema.title)}"><header class="modal-header"><h2>${escapeHtml(record ? "ویرایش " + schema.title : schema.title)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="record-form" data-collection="${schema.collection}" data-edit-id="${record?.id ?? ""}" data-schema="${action}"><div class="modal-fields">${fields}</div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ذخیره</button></footer></form></section></div>`;
   document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
@@ -204,6 +207,18 @@ export async function handleAction(action, element) {
       toast("از سامانه خارج شدید.");
       break;
     case "refresh-demo": await store.refresh(); toast("اطلاعات از سرور دریافت شد."); break;
+    case "test-plc": {
+      const result = await api.testPLC(element.dataset.id);
+      toast(result.connected ? "ارتباط PLC برقرار شد." : `ارتباط برقرار نشد: ${result.error || result.status}`, result.connected ? "success" : "warning");
+      await store.refresh();
+      break;
+    }
+    case "poll-plc": {
+      const result = await api.pollPLC(element.dataset.id);
+      await store.refresh();
+      toast(`خواندن تگ‌ها انجام شد: ${result.read_count}/${result.tag_count} موفق · ${result.status}`, result.status === "ONLINE" ? "success" : "warning");
+      break;
+    }
     case "export-csv": downloadCsv(); break;
     case "reset-demo": toast("بازنشانی دیتابیس سرور از این پنل غیرفعال است.", "info"); break;
     case "toggle-status": {
@@ -364,7 +379,39 @@ export async function handleAction(action, element) {
       break;
     }
     case "hmi-write-tag":
-    case "write-tag": { const tag = store.list("tags").find(item => item.id === element.dataset.id); if (!tag) break; const raw = prompt(`مقدار جدید برای ${tag.name} (${tag.type})`, String(tag.value ?? "")); if (raw === null) break; let value = raw; if (tag.type === "bool") { const normalized = raw.trim().toLowerCase(); if (!["true","false","1","0"].includes(normalized)) throw new Error("Boolean باید true / false یا 1 / 0 باشد."); value = normalized === "true" || normalized === "1"; } else if (["int16","uint16","int32","uint32"].includes(tag.type)) { if (!/^-?\d+$/.test(raw.trim())) throw new Error("مقدار این تگ باید عدد صحیح باشد."); value = Number.parseInt(raw, 10); } else if (tag.type === "float32") { value = Number(raw); if (!Number.isFinite(value)) throw new Error("مقدار این تگ باید عدد معتبر باشد."); } await api.writeTag(tag.id, value); await store.refresh(); toast("مقدار در دیتابیس شبیه‌سازی تغییر کرد؛ PLC واقعی نوشته نشد.", "info"); break; }
+    case "write-tag": {
+      const tag = store.list("tags").find(item => item.id === element.dataset.id);
+      if (!tag) break;
+      const raw = prompt(`مقدار جدید برای ${tag.name} (${tag.type})`, String(tag.value ?? ""));
+      if (raw === null) break;
+      let value = raw;
+      if (tag.type === "bool") {
+        const normalized = raw.trim().toLowerCase();
+        if (!["true","false","1","0"].includes(normalized)) throw new Error("Boolean باید true / false یا 1 / 0 باشد.");
+        value = normalized === "true" || normalized === "1";
+      } else if (["int16","uint16","int32","uint32"].includes(tag.type)) {
+        if (!/^-?\d+$/.test(raw.trim())) throw new Error("مقدار این تگ باید عدد صحیح باشد.");
+        value = Number.parseInt(raw, 10);
+      } else if (tag.type === "float32") {
+        value = Number(raw);
+        if (!Number.isFinite(value)) throw new Error("مقدار این تگ باید عدد معتبر باشد.");
+      }
+      const plc = store.list("plcs").find(item => item.id === tag.plc);
+      if (!plc) throw new Error("PLC مربوط به این تگ پیدا نشد؛ نوشتن انجام نشد.");
+      if (plc.protocol !== "simulator") {
+        if (!confirm("توجه: این عملیات فرمان فیزیکی به PLC واقعی ارسال می‌کند. آیا مدار فرمان و وضعیت ایمن دستگاه را بررسی کرده‌اید؟")) break;
+        const confirmation = prompt('برای تأیید نهایی دقیقاً عبارت WRITE TO PLC را وارد کنید:');
+        if (confirmation !== "WRITE TO PLC") throw new Error("تأیید نوشتن فیزیکی انجام نشد.");
+        await api.writePLC(tag.id, value, confirmation, "HMI manual operator write");
+        await store.refresh();
+        toast("مقدار به PLC ارسال و با بازخوانی تأیید شد.", "success");
+      } else {
+        await api.writeTag(tag.id, value);
+        await store.refresh();
+        toast("مقدار در دیتابیس شبیه‌سازی تغییر کرد؛ PLC واقعی نوشته نشد.", "info");
+      }
+      break;
+    }
     case "open-modal-info": openActionInfo(element.textContent.trim(), "برای این کنترل هنوز سرویس عملیاتی و تنظیمات مستقل در Backend تعریف نشده است. هیچ تغییری در داده‌های سامانه انجام نشده است."); break;
     default: toast("این فرمان در نسخه نمایشی تعریف نشده است.", "info");
   }
@@ -493,6 +540,25 @@ export async function handleSubmit(event) {
   const form = event.target;
   const values = Object.fromEntries(new FormData(form).entries());
   const schema = schemas[form.dataset.schema];
+  if (schema.collection === "plcs") {
+    for (const field of ["enabled","allow_writes","safety_confirmed"]) {
+      values[field] = values[field] === "بله";
+    }
+    for (const field of ["unit","rack","slot","baudrate","bytesize","stopbits"]) {
+      if (values[field] === "") delete values[field];
+      else values[field] = Number(values[field]);
+    }
+    if (values.poll === "") delete values.poll;
+    if (values.history_interval === "") delete values.history_interval;
+  }
+  if (schema.collection === "tags") {
+    for (const field of ["address_base","bit","length","scale","offset"]) {
+      if (values[field] === "") delete values[field];
+      else values[field] = Number(values[field]);
+    }
+    if (values.address_area === "") delete values.address_area;
+    for (const field of ["byte_order","word_order"]) if (!values[field]) delete values[field];
+  }
   if (values.steps) values.steps = values.steps.split(/[،,]/).map(step => step.trim()).filter(Boolean);
   if (values.fields) values.fields = Number(values.fields);
   if (schema.collection === "hmiPages") {

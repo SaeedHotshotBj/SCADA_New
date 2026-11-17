@@ -80,7 +80,8 @@ document.addEventListener("submit", async event => {
 
 function syncLiveConnection() {
   const path = currentPath();
-  const needsLive = path === "/live/data" || path === "/live/trends";
+  const needsLive = ["/live/data", "/live/trends", "/live/alarms", "/live/classic", "/batch/run", "/batch/compare"].includes(path)
+    || path.startsWith("/live/hmi/");
   if (path === "/live/trends" && store.isConnected()) {
     const configuredTrend = store.list("trends").find(item => item.id === store.trendId()) || store.list("trends")[0];
     const configuredNames = String(configuredTrend?.tags || "").split(/[،,]/).map(name => name.trim()).filter(Boolean);
@@ -122,6 +123,8 @@ function syncLiveConnection() {
         } : tag;
       });
       store.replaceCollection("tags", next);
+      if (Array.isArray(message.plcs)) store.replaceCollection("plcs", message.plcs);
+      if (Array.isArray(message.alarms)) store.replaceCollection("alarms", message.alarms);
     } catch (error) {
       console.error("Invalid telemetry message", error);
     }
@@ -142,6 +145,7 @@ async function initialize() {
       try { await api.logout(); } catch { /* The API may be offline. */ }
     }
   }
+  syncLiveConnection();
   render();
 }
 

@@ -5,6 +5,7 @@ TEST_DB = Path(__file__).parent / "test_scada.sqlite3"
 os.environ["SCADA_DB_PATH"] = str(TEST_DB)
 os.environ["SCADA_SECRET_KEY"] = "test-secret-key-which-is-long-enough-for-ci"
 os.environ["SCADA_DEMO_TELEMETRY"] = "false"
+os.environ["SCADA_PLC_WRITES_ENABLED"] = "false"
 
 from fastapi.testclient import TestClient
 from app.main import app
@@ -653,3 +654,159 @@ def test_factory_user_cannot_operate_on_foreign_factory_runs_batches_or_reports(
         assert client.post(f"/api/operations/reports/{report_id}/run",
                            json={"parameters": {}}).status_code == 404
         assert client.get(f"/api/operations/reports/{report_id}/executions").status_code == 404
+
+
+
+def test_physical_plc_routes_test_connection_and_manual_poll_without_hardware(monkeypatch):
+    from app.routers import plc as plc_router
+
+    with TestClient(app) as client:
+        login = client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local", "password": "demo1234"
+        })
+        assert login.status_code == 200
+
+        created = client.post("/api/resources/plcs", json={
+            "name": "PLC TCP QA",
+            "protocol": "modbus-tcp",
+            "address": "127.0.0.1:502",
+            "unit": 1,
+            "poll": "500 ms",
+            "enabled": False,
+            "allow_writes": False,
+            "safety_confirmed": False,
+            "factory_id": "f1",
+        })
+        assert created.status_code == 201, created.text
+        plc_id = created.json()["id"]
+
+        unsafe_plc = client.post("/api/resources/plcs", json={
+            "name": "PLC Unsafe Write",
+            "protocol": "modbus-tcp",
+            "address": "127.0.0.1:502",
+            "unit": 1,
+            "allow_writes": True,
+            "safety_confirmed": False,
+            "factory_id": "f1",
+        })
+        assert unsafe_plc.status_code == 422
+
+        bad_map = client.post("/api/resources/tags", json={
+            "name": "Bad coil float",
+            "plc": plc_id,
+            "type": "float32",
+            "address": "00001",
+            "access": "read",
+            "unit": "A",
+        })
+        assert bad_map.status_code == 422
+
+        monkeypatch.setattr(
+            plc_router, "test_plc_connection",
+            lambda plc: {"connected": True, "protocol": plc["protocol"]},
+        )
+        tested = client.post(f"/api/plc/{plc_id}/test")
+        assert tested.status_code == 200, tested.text
+        assert tested.json()["connected"] is True
+        assert tested.json()["status"] == "ONLINE"
+
+        monkeypatch.setattr(
+            plc_router, "poll_plc_once",
+            lambda selected, factory: {
+                "plc_id": selected, "status": "ONLINE", "read_count": 3,
+                "tag_count": 3, "errors": [], "sampled_at": "2026-01-01T00:00:00+00:00",
+            },
+        )
+        polled = client.post(f"/api/plc/{plc_id}/poll")
+        assert polled.status_code == 200, polled.text
+        assert polled.json()["read_count"] == 3
+
+        status = client.get(f"/api/plc/{plc_id}/status")
+        assert status.status_code == 200
+        assert status.json()["connection_status"] == "ONLINE"
+
+
+def test_physical_plc_write_is_disabled_by_default():
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local", "password": "demo1234"
+        })
+        response = client.post("/api/plc/tags/t1/write", json={
+            "value": True,
+            "confirmation": "WRITE TO PLC",
+            "reason": "CI safety gate test",
+        })
+        assert response.status_code == 403
+        assert "غیرفعال" in response.json()["detail"]
+
+
+
+def test_plc_poller_persists_good_and_bad_quality_and_latest_live_value(monkeypatch):
+    from app import plc_service
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local", "password": "demo1234"
+        })
+        plc_response = client.post("/api/resources/plcs", json={
+            "name": "PLC Polling QA",
+            "protocol": "modbus-tcp",
+            "address": "127.0.0.1:502",
+            "unit": 1,
+            "poll": "500 ms",
+            "history_interval": "5 s",
+            "enabled": False,
+            "allow_writes": False,
+            "safety_confirmed": False,
+            "factory_id": "f1",
+        })
+        assert plc_response.status_code == 201, plc_response.text
+        plc_id = plc_response.json()["id"]
+
+        good_tag = client.post("/api/resources/tags", json={
+            "name": "QA temperature",
+            "plc": plc_id,
+            "type": "float32",
+            "address": "40001",
+            "access": "read",
+            "unit": "°C",
+        })
+        bad_tag = client.post("/api/resources/tags", json={
+            "name": "QA pressure",
+            "plc": plc_id,
+            "type": "int16",
+            "address": "40003",
+            "access": "read",
+            "unit": "bar",
+        })
+        assert good_tag.status_code == 201, good_tag.text
+        assert bad_tag.status_code == 201, bad_tag.text
+        good_id, bad_id = good_tag.json()["id"], bad_tag.json()["id"]
+
+        monkeypatch.setattr(plc_service, "read_plc_tags", lambda _plc, _tags: {
+            good_id: {"ok": True, "value": 25.5},
+            bad_id: {"ok": False, "error": "simulated read timeout"},
+        })
+        result = plc_service.poll_plc_once(plc_id, "f1")
+        assert result["status"] == "DEGRADED"
+        assert result["read_count"] == 1
+        assert result["tag_count"] == 2
+
+        latest = client.get("/api/telemetry/latest")
+        assert latest.status_code == 200, latest.text
+        by_id = {item["tag_id"]: item for item in latest.json()["items"]}
+        assert by_id[good_id]["value"] == 25.5
+        assert by_id[good_id]["quality"] == "GOOD"
+        assert by_id[good_id]["source"] == f"plc:{plc_id}"
+        assert by_id[bad_id]["quality"] == "BAD"
+        assert by_id[bad_id]["source"] == f"plc:{plc_id}"
+
+
+
+def test_plc_history_interval_throttles_persistent_samples():
+    from app.plc_service import _history_due
+
+    saved = {"last_history_at": "2026-11-17T10:00:00+00:00"}
+    assert _history_due(saved, "2026-11-17T10:00:04+00:00", 5) is False
+    assert _history_due(saved, "2026-11-17T10:00:05+00:00", 5) is True
+    assert _history_due({}, "2026-11-17T10:00:00+00:00", 5) is True

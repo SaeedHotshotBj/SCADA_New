@@ -6,11 +6,12 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import ALLOW_ORIGINS, DEMO_TELEMETRY
+from .config import ALLOW_ORIGINS, DEMO_TELEMETRY, PLC_POLLING_ENABLED
 from .database import connect, initialize_schema, json_load
 from .dependencies import get_current_user
 from .seed import seed_database
-from .routers import analytics, auth, edges, operations, resources, telemetry
+from .routers import analytics, auth, edges, operations, plc, resources, telemetry
+from .plc_service import plc_poll_loop
 
 
 @asynccontextmanager
@@ -19,21 +20,26 @@ async def lifespan(app: FastAPI):
     seed_database()
     stop_event = asyncio.Event()
     simulator_task = None
+    plc_poll_task = None
     if DEMO_TELEMETRY:
         simulator_task = asyncio.create_task(telemetry.demo_simulator_loop(stop_event))
+    if PLC_POLLING_ENABLED:
+        plc_poll_task = asyncio.create_task(plc_poll_loop(stop_event))
     app.state.simulator_stop = stop_event
+    app.state.plc_poll_stop = stop_event
     try:
         yield
     finally:
         stop_event.set()
-        if simulator_task:
-            await simulator_task
+        pending = [task for task in (simulator_task, plc_poll_task) if task is not None]
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
 
 app = FastAPI(
     title="SCADA_New Backend",
     version="0.2.0",
-    description="Application backend for SCADA_New. Live values are explicitly labelled DEMO unless connected through a commissioned adapter.",
+    description="SCADA_New application backend with Modbus TCP/RTU and Siemens S7 drivers. Live hardware values require an explicitly enabled PLC and site commissioning.",
     lifespan=lifespan,
 )
 
@@ -54,12 +60,13 @@ app.include_router(resources.router)
 app.include_router(operations.router)
 app.include_router(edges.router)
 app.include_router(telemetry.router)
+app.include_router(plc.router)
 app.include_router(analytics.router)
 
 
 @app.get("/health")
 def health():
-    return {"status":"ok","service":"scada-new-api","telemetry_mode":"DEMO" if DEMO_TELEMETRY else "STORED_ONLY"}
+    return {"status":"ok","service":"scada-new-api","telemetry_mode":"DEMO" if DEMO_TELEMETRY else "STORED_ONLY","plc_polling":PLC_POLLING_ENABLED}
 
 
 @app.get("/api/bootstrap")

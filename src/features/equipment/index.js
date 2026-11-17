@@ -1,4 +1,5 @@
 import { store } from "../../services/demo-store.js";
+import { escapeHtml } from "../../core/format.js";
 import { button, dataTable, pageHeader, panel, pill, tabs } from "../../shared/ui.js";
 
 function plcsPage() {
@@ -9,12 +10,21 @@ function plcsPage() {
     { key: "address", label: "آدرس" },
     { key: "unit", label: "Unit" },
     { key: "poll", label: "Poll" },
-    { key: "active", label: "فعال" },
-    { key: "status", label: "وضعیت", render: () => pill("تعریف‌شده — بدون درایور", "warning") },
+    { key: "enabled", label: "Polling", render: row => row.enabled === true ? pill("فعال", "success") : row.protocol === "simulator" ? pill("شبیه‌ساز", "warning") : pill("غیرفعال", "muted") },
+    { key: "last_poll", label: "آخرین قرائت", render: row => row.last_poll ? new Date(row.last_poll).toLocaleString("fa-IR") : "—" },
+    { key: "connection_status", label: "وضعیت ارتباط", render: row => {
+      const state = row.connection_status || (row.protocol === "simulator" ? "SIMULATOR" : "NOT_TESTED");
+      const tone = state === "ONLINE" ? "success" : state === "DEGRADED" ? "warning" : state === "OFFLINE" ? "danger" : "muted";
+      return pill(state, tone);
+    } },
+    { key: "last_error", label: "آخرین خطا", render: row => escapeHtml(row.last_error || "—") },
+    { key: "hardware_actions", label: "ارتباط", render: row => row.protocol === "simulator"
+      ? pill("DEMO", "warning")
+      : `${button("آزمایش اتصال", "test-plc", { variant: "light", small: true, attrs: `data-id="${row.id}"` })} ${button("خواندن فوری", "poll-plc", { variant: "light", small: true, attrs: `data-id="${row.id}"` })}` },
   ];
-  return `<div data-collection-name="plcs" data-edit-action="new-plc">${pageHeader("PLC ها", "تعریف مشخصات کنترلرها؛ وضعیت ارتباط سخت‌افزاری فقط پس از نصب و تأیید آداپتور معتبر می‌شود.", button("PLC جدید", "new-plc", { icon: "+" }))}
+  return `<div data-collection-name="plcs" data-edit-action="new-plc">${pageHeader("PLC ها", "تعریف اتصال Modbus TCP/RTU یا Siemens S7، آزمایش ارتباط و خواندن تگ‌ها.", `${button("به‌روزرسانی", "refresh-demo", { variant: "light" })} ${button("PLC جدید", "new-plc", { icon: "+" })}`)}
     ${panel("فهرست PLC ها", dataTable(columns, rows, { actions: true }))}
-    <p class="muted-note">تعریف PLC در این صفحه به‌تنهایی اتصال Modbus یا S7 ایجاد نمی‌کند. تا زمانی که درایور و نقشه آدرس تأیید نشده باشد، هیچ نوشتن سخت‌افزاری انجام نمی‌شود.</p>
+    <p class="muted-note">آزمایش اتصال و خواندن فوری فقط داده را می‌خواند. Polling خودکار فقط برای PLCهایی فعال می‌شود که گزینه «فعال‌سازی ارتباط» روی «بله» باشد. نوشتن فیزیکی به PLC به‌صورت پیش‌فرض غیرفعال است و مجوزهای جداگانه لازم دارد.</p>
   </div>`;
 }
 

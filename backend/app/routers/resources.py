@@ -28,6 +28,7 @@ ENUMS = {
     "plcs.protocol": {"modbus-tcp", "modbus-rtu", "s7", "simulator"},
     "tags.type": TAG_TYPES,
     "tags.access": {"read", "read_write"},
+    "tags.string_format": {"raw", "s7"},
     "users.role": ROLES,
     "users.status": {"فعال", "غیرفعال"},
     "alarms.operator": {">", ">=", "<", "<=", "==", "!="},
@@ -94,6 +95,8 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
         "batches": ("target",), "productionRuns": ("target",),
         "prices": ("price",), "batchConfigs": ("samples", "tolerance_percent", "stabilization_seconds"),
         "controlPlans": ("sample_count",), "hmiPages": ("components",),
+        "plcs": ("unit", "rack", "slot", "baudrate", "bytesize", "stopbits"),
+        "tags": ("address_base", "bit", "length"),
     }
     if collection in numeric_fields:
         for field in numeric_fields[collection]:
@@ -113,6 +116,69 @@ def clean_payload(collection: str, raw: dict[str, Any], *, creating: bool) -> di
             payload["threshold"] = threshold
         except (ValueError, TypeError):
             raise HTTPException(status_code=422, detail="آستانه آلارم باید عدد محدود و معتبر باشد.")
+
+    if collection == "plcs":
+        for field in ("enabled", "allow_writes", "safety_confirmed"):
+            if field in payload and not isinstance(payload[field], bool):
+                raise HTTPException(status_code=422, detail=f"{field} باید مقدار بولی داشته باشد.")
+        if payload.get("allow_writes") and not payload.get("safety_confirmed"):
+            raise HTTPException(status_code=422, detail="برای اجازه نوشتن فیزیکی باید بررسی ایمنی PLC نیز تأیید شده باشد.")
+        for field in ("poll", "history_interval"):
+            if field in payload and payload[field] not in (None, ""):
+                match = re.fullmatch(r"(\d+(?:\.\d+)?)\s*(ms|millisecond|milliseconds|s|sec|second|seconds)?", str(payload[field]).strip().lower())
+                if not match:
+                    raise HTTPException(status_code=422, detail=f"فرمت {field} معتبر نیست؛ از مقدارهایی مانند 500 ms یا 5 s استفاده کنید.")
+                number = float(match.group(1))
+                seconds = number / 1000 if match.group(2) in (None, "ms", "millisecond", "milliseconds") else number
+                minimum = 0.1 if field == "poll" else 1.0
+                if not minimum <= seconds <= 60:
+                    raise HTTPException(status_code=422, detail=f"مقدار {field} باید بین {minimum} و ۶۰ ثانیه باشد.")
+        if "unit" in payload and not 0 <= payload["unit"] <= 255:
+            raise HTTPException(status_code=422, detail="Unit ID باید بین صفر تا ۲۵۵ باشد.")
+        if "rack" in payload and not 0 <= payload["rack"] <= 7:
+            raise HTTPException(status_code=422, detail="Rack باید بین صفر تا هفت باشد.")
+        if "slot" in payload and not 0 <= payload["slot"] <= 31:
+            raise HTTPException(status_code=422, detail="Slot باید بین صفر تا ۳۱ باشد.")
+        if "baudrate" in payload and not 300 <= payload["baudrate"] <= 115200:
+            raise HTTPException(status_code=422, detail="Baud rate خارج از محدوده پشتیبانی‌شده است.")
+        if "bytesize" in payload and payload["bytesize"] not in {7, 8}:
+            raise HTTPException(status_code=422, detail="Data bits باید ۷ یا ۸ باشد.")
+        if "stopbits" in payload and payload["stopbits"] not in {1, 2}:
+            raise HTTPException(status_code=422, detail="Stop bits باید ۱ یا ۲ باشد.")
+        if "parity" in payload and payload["parity"] not in {"N", "E", "O"}:
+            raise HTTPException(status_code=422, detail="Parity باید N، E یا O باشد.")
+        if payload.get("protocol") == "modbus-rtu":
+            if not payload.get("address"):
+                raise HTTPException(status_code=422, detail="برای Modbus RTU باید پورت سریال مانند COM3 وارد شود.")
+        elif payload.get("protocol") in {"modbus-tcp", "s7"} and not payload.get("address"):
+            raise HTTPException(status_code=422, detail="آدرس IP کنترلر الزامی است.")
+
+    if collection == "tags":
+        if "address_area" in payload and payload["address_area"] not in {
+            "auto", "coil", "discrete_input", "input_register", "holding_register"
+        }:
+            raise HTTPException(status_code=422, detail="ناحیه Modbus معتبر نیست.")
+        if "address_base" in payload and payload["address_base"] not in {0, 1}:
+            raise HTTPException(status_code=422, detail="مبنای آدرس باید صفر یا یک باشد.")
+        for field in ("byte_order", "word_order"):
+            if field in payload and payload[field] not in {"big", "little"}:
+                raise HTTPException(status_code=422, detail=f"{field} باید big یا little باشد.")
+        for field in ("scale", "offset"):
+            if field in payload:
+                number = _finite_number(payload[field])
+                if number is None:
+                    raise HTTPException(status_code=422, detail=f"{field} باید عدد محدود باشد.")
+                payload[field] = number
+        if "scale" in payload and payload["scale"] == 0:
+            raise HTTPException(status_code=422, detail="Scale نمی‌تواند صفر باشد.")
+        if "bit" in payload and not 0 <= payload["bit"] <= 15:
+            raise HTTPException(status_code=422, detail="شماره Bit باید بین صفر تا پانزده باشد.")
+        if "length" in payload and not 1 <= payload["length"] <= 254:
+            raise HTTPException(status_code=422, detail="طول داده باید بین یک تا ۲۵۴ باشد.")
+        if payload.get("string_format") == "s7" and (
+            payload.get("type") != "string" or not payload.get("length")
+        ):
+            raise HTTPException(status_code=422, detail="قالب Siemens STRING فقط برای نوع string و با تعیین طول قابل استفاده است.")
     return payload
 
 
@@ -175,11 +241,33 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
         raise HTTPException(status_code=422, detail="هر PLC باید به یک کارخانه تخصیص داده شود.")
     if collection == "tags" and payload.get("plc"):
         plc = db.execute(
-            "SELECT factory_id FROM resources WHERE collection='plcs' AND id=?",
+            "SELECT factory_id,payload FROM resources WHERE collection='plcs' AND id=?",
             (payload["plc"],),
         ).fetchone()
         if plc is None:
             raise HTTPException(status_code=422, detail="PLC انتخاب‌شده در سامانه ثبت نشده است.")
+        plc_payload = json_load(plc["payload"], {}) or {}
+        protocol = plc_payload.get("protocol")
+        if payload.get("string_format") == "s7" and protocol != "s7":
+            raise HTTPException(status_code=422, detail="قالب Siemens STRING فقط برای PLC با پروتکل S7 مجاز است.")
+        if protocol == "s7" and payload.get("address_area") not in (None, "", "auto"):
+            raise HTTPException(status_code=422, detail="ناحیه Modbus برای تگ S7 کاربرد ندارد.")
+        if protocol == "s7" and payload.get("type") == "string" and not payload.get("length"):
+            raise HTTPException(status_code=422, detail="برای رشته S7 باید طول داده مشخص شود.")
+        if protocol in {"modbus-tcp", "modbus-rtu"}:
+            area = payload.get("address_area")
+            address = str(payload.get("address", "")).strip().upper()
+            aliases = {"COIL": "coil", "DI": "discrete_input", "IR": "input_register", "HR": "holding_register"}
+            if ":" in address:
+                area = aliases.get(address.split(":", 1)[0], area)
+            if not area or area == "auto":
+                area = {"0": "coil", "1": "discrete_input", "3": "input_register", "4": "holding_register"}.get(address[0]) if len(address) >= 5 and address[0] in "0134" else "holding_register"
+            if area in {"coil", "discrete_input"} and payload.get("type") != "bool":
+                raise HTTPException(status_code=422, detail="Coil و Discrete Input فقط برای تگ BOOL قابل استفاده هستند.")
+            if area in {"discrete_input", "input_register"} and payload.get("access") == "read_write":
+                raise HTTPException(status_code=422, detail="ناحیه ورودی Modbus فقط خواندنی است؛ برای نوشتن از Coil یا Holding Register استفاده کنید.")
+            if payload.get("length") and payload.get("type") == "string" and payload["length"] > 120:
+                raise HTTPException(status_code=422, detail="رشته Modbus حداکثر می‌تواند ۱۲۰ رجیستر داشته باشد.")
         plc_factory_id = plc["factory_id"]
         tag_factory_id = payload.get("factory_id")
         if tag_factory_id and plc_factory_id and tag_factory_id != plc_factory_id:
@@ -425,6 +513,10 @@ def create_record(collection: str, body: ResourceInput, user: dict = Depends(get
     else:
         if user["role"] not in ROLES - {"Operator"}:
             raise HTTPException(status_code=403, detail="نقش کاربری اجازه‌ی ایجاد رکورد ندارد.")
+        if collection in {"plcs", "tags"} and user["role"] not in {"Organization Admin", "Factory Admin", "Engineer"}:
+            raise HTTPException(status_code=403, detail="تعریف PLC و نگاشت تگ فقط برای مدیر یا مهندس مجاز است.")
+        if collection == "plcs" and user["role"] == "Engineer" and (payload.get("allow_writes") or payload.get("safety_confirmed")):
+            raise HTTPException(status_code=403, detail="فعال‌سازی نوشتن فیزیکی و تأیید ایمنی فقط برای مدیر کارخانه یا سازمان مجاز است.")
         requested_factory = payload.get("factory_id")
         if not is_org_admin:
             if requested_factory and requested_factory != user.get("factory_id"):
@@ -524,6 +616,10 @@ def update_record(collection: str, record_id: str, body: ResourceInput,
             raise HTTPException(status_code=403, detail="تعیین نقش مدیر کارخانه فقط برای مدیر سازمان مجاز است.")
     elif user["role"] not in ROLES - {"Operator"}:
         raise HTTPException(status_code=403, detail="نقش کاربری اجازه‌ی ویرایش رکورد ندارد.")
+    if collection in {"plcs", "tags"} and user["role"] not in {"Organization Admin", "Factory Admin", "Engineer"}:
+        raise HTTPException(status_code=403, detail="ویرایش PLC و نگاشت تگ فقط برای مدیر یا مهندس مجاز است.")
+    if collection == "plcs" and user["role"] == "Engineer" and (changes.get("allow_writes") is True or changes.get("safety_confirmed") is True):
+        raise HTTPException(status_code=403, detail="فعال‌سازی نوشتن فیزیکی و تأیید ایمنی فقط برای مدیر کارخانه یا سازمان مجاز است.")
     now = utc_now()
     with connect() as db:
         if collection == "users":
