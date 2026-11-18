@@ -82,6 +82,11 @@ function syncLiveConnection() {
   const path = currentPath();
   const needsLive = ["/live/data", "/live/trends", "/live/alarms", "/live/classic", "/batch/run", "/batch/compare"].includes(path)
     || path.startsWith("/live/hmi/");
+  if ((path === "/batch/run" || path === "/batch/compare") && store.isConnected()) {
+    const selectedBatch = store.list("batches")[0];
+    store.loadBatchWeighments(selectedBatch?.id || null)
+      .catch(error => console.error("Batch weighment history load failed", error));
+  }
   if (path === "/live/trends" && store.isConnected()) {
     const configuredTrend = store.list("trends").find(item => item.id === store.trendId()) || store.list("trends")[0];
     const configuredNames = String(configuredTrend?.tags || "").split(/[،,]/).map(name => name.trim()).filter(Boolean);
