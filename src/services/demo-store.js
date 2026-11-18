@@ -65,6 +65,7 @@ const seed = {
     { id: "qc1", code: "QC-CB-001148", product: "سیم 1×10 افشان", machine: "اکسترودر عایق", decision: "قبول", status: "بررسی‌شده" }
   ],
   batches: [],
+  batchWeighments: [],
   productionRuns: []
 };
 
@@ -156,6 +157,17 @@ export const store = {
   },
   loadAfterLogin: hydrate,
   refresh: hydrate,
+  async loadBatchWeighments(batchId) {
+    if (!serverConnected || !batchId) {
+      state.batchWeighments = [];
+      emit();
+      return [];
+    }
+    const result = await api.listBatchWeighments(batchId);
+    state.batchWeighments = Array.isArray(result.items) ? result.items : [];
+    emit();
+    return [...state.batchWeighments];
+  },
   list: name => Array.isArray(state[name]) ? [...state[name]] : [],
   async add(name, record) {
     if (!serverConnected) throw new Error("اتصال به Backend برقرار نیست؛ ابتدا سرور را اجرا کنید.");
