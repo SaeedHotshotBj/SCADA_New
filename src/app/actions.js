@@ -164,6 +164,48 @@ function openProductionQuantityModal(runId) {
   document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
 }
 
+function batchConfigFor(batch) {
+  const configs = store.list("batchConfigs");
+  if (batch?.config_id) return configs.find(item => item.id === batch.config_id) || null;
+  if (batch?.formula) return configs.find(item => item.formula === batch.formula) || null;
+  return null;
+}
+
+function openBatchWeighmentsModal(batchId) {
+  const batch = store.list("batches").find(item => item.id === batchId);
+  if (!batch) { toast("بچ انتخاب‌شده پیدا نشد.", "warning"); return; }
+  if (batch.status !== "در حال توزین") { toast("ثبت وزن فقط برای بچ در حال توزین مجاز است.", "warning"); return; }
+  const config = batchConfigFor(batch);
+  const hoppers = config?.hoppers || batch.hoppers || [];
+  if (!hoppers.length) { toast("برای این بچ فرمول دارای هاپر پیدا نشد؛ ابتدا تنظیمات توزین را کامل کنید.", "warning"); return; }
+  const fields = hoppers.map((hopper, index) => {
+    const target = Number(hopper.target);
+    if (!Number.isFinite(target) || target <= 0) return "";
+    return '<div class="storage-list"><div><span>' + escapeHtml(hopper.bin) + ' · ' + escapeHtml(hopper.material) + '</span><b>هدف: ' + target.toLocaleString("fa-IR") + ' kg</b></div></div>' +
+      '<label class="field"><span>وزن ثبت دستی (kg)</span><input name="actual_' + index + '" type="number" min="0" step="0.001" required></label>';
+  }).join("");
+  if (!fields || hoppers.some(hopper => !Number.isFinite(Number(hopper.target)) || Number(hopper.target) <= 0)) {
+    toast("وزن هدف همه هاپرها باید در تنظیمات فرمول بزرگ‌تر از صفر باشد.", "warning");
+    return;
+  }
+  document.getElementById("modal-root").innerHTML =
+    '<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="ثبت وزن هاپرها">' +
+    '<header class="modal-header"><h2>ثبت وزن هاپرها · ' + escapeHtml(batch.code || batch.formula) + '</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header>' +
+    '<form id="batch-weighments-form" data-id="' + escapeHtml(batchId) + '"><div class="modal-fields">' + fields +
+    '<label class="field"><span>یادداشت</span><input name="note" maxlength="1000"></label></div>' +
+    '<p class="muted-note">این اعداد دستی و آزمایشی هستند و با کیفیت DEMO ذخیره می‌شوند؛ داده لودسل واقعی نیستند.</p>' +
+    '<footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ذخیره وزن هاپرها</button></footer></form></section></div>';
+  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
+}
+
+function hopperEditorRow(index, bin, material, ratio, target) {
+  return '<tr><td><input name="hopper_' + index + '_bin" value="' + escapeHtml(bin) + '" required></td>' +
+    '<td><input name="hopper_' + index + '_material" value="' + escapeHtml(material) + '" required></td>' +
+    '<td><input type="number" min="0" max="100" step="0.01" name="hopper_' + index + '_ratio" value="' + ratio + '" required></td>' +
+    '<td><input type="number" min="0" step="0.001" name="hopper_' + index + '_target" value="' + target + '" required></td>' +
+    '<td><button type="button" class="btn btn-light btn-sm" data-action="remove-batch-hopper">حذف</button></td></tr>';
+}
+
 function openQcReviewModal(qcId) {
   const row = store.list("qc").find(item => item.id === qcId);
   if (!row) { toast("رکورد کنترل کیفیت پیدا نشد.", "warning"); return; }
@@ -346,6 +388,35 @@ export async function handleAction(action, element) {
       if (document.fullscreenElement) await document.exitFullscreen();
       else await document.documentElement.requestFullscreen();
       break;
+    case "add-batch-hopper": {
+      const tbody = document.getElementById("batch-hopper-rows");
+      if (!tbody) break;
+      if (tbody.querySelectorAll("tr").length >= 20) { toast("حداکثر ۲۰ هاپر قابل تعریف است.", "warning"); break; }
+      const index = Number(tbody.dataset.nextIndex || 0);
+      tbody.insertAdjacentHTML("beforeend", hopperEditorRow(index, "Hopper " + String(index + 1).padStart(2, "0"), "", 0, 0));
+      tbody.dataset.nextIndex = String(index + 1);
+      break;
+    }
+    case "remove-batch-hopper": {
+      const tbody = document.getElementById("batch-hopper-rows");
+      if (!tbody) break;
+      if (tbody.querySelectorAll("tr").length <= 1) { toast("حداقل یک هاپر باید در فرمول باقی بماند.", "warning"); break; }
+      element.closest("tr")?.remove();
+      break;
+    }
+    case "record-batch-weighments":
+      openBatchWeighmentsModal(element.dataset.id);
+      break;
+    case "complete-batch": {
+      const batchId = element.dataset.id;
+      if (!batchId) { toast("بچی برای تکمیل انتخاب نشده است.", "warning"); break; }
+      if (!confirm("بچ پس از بررسی همه وزن‌های ثبت‌شده و تلرانس تکمیل شود؟")) break;
+      await api.completeBatch(batchId);
+      await store.refresh();
+      await store.loadBatchWeighments(batchId);
+      toast("بچ با موفقیت تکمیل شد؛ این عملیات فقط وضعیت نرم‌افزاری را ثبت کرد.");
+      break;
+    }
     case "start-batch": {
       const batchId = element.dataset.id || store.list("batches")[0]?.id;
       if (!batchId) { toast("ابتدا از دکمه «بچ جدید» یک بچ ثبت کنید.", "warning"); break; }
@@ -443,6 +514,8 @@ export async function handleSubmit(event) {
       values.hoppers = [...hoppers.entries()].sort((a,b) => a[0]-b[0]).map(([,hopper]) => hopper);
       const ratioTotal = values.hoppers.reduce((sum, hopper) => sum + Number(hopper.ratio || 0), 0);
       if (!values.hoppers.length || Math.abs(ratioTotal - 100) > 0.01) throw new Error("مجموع درصد مواد باید دقیقاً ۱۰۰٪ باشد.");
+      if (values.hoppers.length > 20) throw new Error("حداکثر ۲۰ هاپر قابل تعریف است.");
+      if (values.hoppers.some(hopper => !hopper.bin || !hopper.material || !Number.isFinite(hopper.target) || hopper.target < 0)) throw new Error("نام، ماده و وزن هدف همه هاپرها را کامل کنید.");
       if (form.dataset.id) await store.update("batchConfigs", form.dataset.id, values);
       else await store.add("batchConfigs", values);
       toast("تنظیمات خط توزین در پایگاه داده ذخیره شد.");
@@ -479,6 +552,36 @@ export async function handleSubmit(event) {
       toast("تنظیمات طرح کنترل کیفیت ذخیره شد.");
     }
     form.reset();
+    return true;
+  }
+  if (event.target.id === "batch-weighments-form") {
+    event.preventDefault();
+    const form = event.target;
+    const batch = store.list("batches").find(item => item.id === form.dataset.id);
+    if (!batch) throw new Error("بچ انتخاب‌شده پیدا نشد.");
+    const config = batchConfigFor(batch);
+    const hoppers = config?.hoppers || batch.hoppers || [];
+    if (!hoppers.length) throw new Error("برای این بچ هاپری در فرمول تعریف نشده است.");
+    const values = Object.fromEntries(new FormData(form).entries());
+    const items = hoppers.map((hopper, index) => {
+      const target = Number(hopper.target);
+      const actual = Number(values["actual_" + index]);
+      if (!Number.isFinite(target) || target <= 0 || !Number.isFinite(actual) || actual < 0) {
+        throw new Error("وزن هدف و وزن واقعی هر هاپر باید عدد معتبر باشند.");
+      }
+      return {
+        hopper_key: String(hopper.bin),
+        material: String(hopper.material),
+        target_weight: target,
+        actual_weight: actual,
+        unit: "kg",
+      };
+    });
+    const result = await api.recordBatchWeighments(batch.id, { items, note: values.note || "" });
+    await store.loadBatchWeighments(batch.id);
+    document.getElementById("modal-root").innerHTML = "";
+    const failed = (result.items || []).filter(item => item.result !== "IN_TOLERANCE").length;
+    toast(failed ? "وزن‌ها ذخیره شدند؛ " + failed + " هاپر خارج از تلرانس است و بچ قابل تکمیل نیست." : "وزن همه هاپرها به‌صورت DEMO ذخیره شد.", failed ? "warning" : "success");
     return true;
   }
   if (event.target.id === "production-quantity-form") {
