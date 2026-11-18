@@ -424,9 +424,6 @@ def record_batch_weighments(batch_id: str, body: BatchWeighmentsRequest,
             raise HTTPException(404, "بچ پیدا نشد.")
         if batch.get("status") != "در حال توزین":
             raise HTTPException(409, "ثبت توزین فقط برای بچ در حال توزین مجاز است.")
-        tolerance = float(batch.get("tolerance_percent", 0.5) or 0.5)
-        if not 0 <= tolerance <= 100:
-            raise HTTPException(422, "درصد تلرانس بچ معتبر نیست.")
         config_id = batch.get("config_id") or batch.get("batch_config_id")
         config = _get_resource(db, "batchConfigs", config_id, user) if config_id else None
         if config is None and batch.get("formula"):
@@ -444,6 +441,15 @@ def record_batch_weighments(batch_id: str, body: BatchWeighmentsRequest,
                 if batch.get("formula") in {candidate.get("formula"), candidate.get("name"), candidate.get("code")}:
                     config = candidate
                     break
+        tolerance_value = batch.get("tolerance_percent")
+        if tolerance_value is None:
+            tolerance_value = (config or {}).get("tolerance_percent", 0.5)
+        try:
+            tolerance = float(tolerance_value)
+        except (TypeError, ValueError):
+            raise HTTPException(422, "درصد تلرانس بچ معتبر نیست.")
+        if not math.isfinite(tolerance) or not 0 <= tolerance <= 100:
+            raise HTTPException(422, "درصد تلرانس بچ معتبر نیست.")
         expected = {str(item.get("bin")) for item in (config or {}).get("hoppers", []) if item.get("bin")}
         submitted = [item.hopper_key for item in body.items]
         if expected and (len(submitted) != len(set(submitted)) or set(submitted) != expected):
