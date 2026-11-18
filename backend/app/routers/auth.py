@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from ..config import SESSION_TTL_HOURS
 from ..database import connect, utc_now, audit
 from ..dependencies import get_current_user
-from ..security import new_token, token_hash, verify_password
+from ..security import hash_password, new_token, token_hash, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
