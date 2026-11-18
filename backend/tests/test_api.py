@@ -810,3 +810,77 @@ def test_plc_history_interval_throttles_persistent_samples():
     assert _history_due(saved, "2026-11-17T10:00:04+00:00", 5) is False
     assert _history_due(saved, "2026-11-17T10:00:05+00:00", 5) is True
     assert _history_due({}, "2026-11-17T10:00:00+00:00", 5) is True
+
+
+def test_batch_weighments_apply_configured_zero_tolerance_and_require_all_hoppers():
+    from uuid import uuid4
+
+    with TestClient(app) as client:
+        login = client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local",
+            "password": "demo1234",
+        })
+        assert login.status_code == 200
+
+        suffix = uuid4().hex[:8]
+        config_response = client.post("/api/resources/batchConfigs", json={
+            "code": f"BATCH-TOL-{suffix}",
+            "name": "Zero tolerance test",
+            "loadcell": "TEST-LOADCELL",
+            "samples": 5,
+            "tolerance_percent": 0,
+            "stabilization_seconds": 1,
+            "formula": f"FORMULA-TOL-{suffix}",
+            "hoppers": [
+                {"bin": "H1", "material": "PVC", "ratio": 60, "target": 60},
+                {"bin": "H2", "material": "Additive", "ratio": 40, "target": 40},
+            ],
+        })
+        assert config_response.status_code == 201, config_response.text
+        config = config_response.json()
+
+        batch_response = client.post("/api/resources/batches", json={
+            "code": f"BATCH-RUN-{suffix}",
+            "formula": config["formula"],
+            "target": 100,
+            "config_id": config["id"],
+            "tolerance_percent": 0,
+            "hoppers": config["hoppers"],
+        })
+        assert batch_response.status_code == 201, batch_response.text
+        batch_id = batch_response.json()["id"]
+        assert client.post(f"/api/operations/batches/{batch_id}/start").status_code == 200
+
+        incomplete = client.post(
+            f"/api/operations/batches/{batch_id}/weighments",
+            json={"items": [
+                {"hopper_key": "H1", "material": "PVC", "target_weight": 60, "actual_weight": 60}
+            ]},
+        )
+        assert incomplete.status_code == 422
+
+        outside_zero_tolerance = client.post(
+            f"/api/operations/batches/{batch_id}/weighments",
+            json={"items": [
+                {"hopper_key": "H1", "material": "PVC", "target_weight": 60, "actual_weight": 60.1},
+                {"hopper_key": "H2", "material": "Additive", "target_weight": 40, "actual_weight": 40},
+            ]},
+        )
+        assert outside_zero_tolerance.status_code == 201, outside_zero_tolerance.text
+        measured = {item["hopper_key"]: item for item in outside_zero_tolerance.json()["items"]}
+        assert measured["H1"]["result"] == "OUT_OF_TOLERANCE"
+        assert measured["H2"]["result"] == "IN_TOLERANCE"
+        assert client.post(f"/api/operations/batches/{batch_id}/complete").status_code == 409
+
+        corrected = client.post(
+            f"/api/operations/batches/{batch_id}/weighments",
+            json={"items": [
+                {"hopper_key": "H1", "material": "PVC", "target_weight": 60, "actual_weight": 60},
+                {"hopper_key": "H2", "material": "Additive", "target_weight": 40, "actual_weight": 40},
+            ]},
+        )
+        assert corrected.status_code == 201, corrected.text
+        assert all(item["result"] == "IN_TOLERANCE" for item in corrected.json()["items"])
+        completed = client.post(f"/api/operations/batches/{batch_id}/complete")
+        assert completed.status_code == 200, completed.text
+        assert completed.json()["status"] == "تکمیل‌شده"
