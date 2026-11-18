@@ -22,6 +22,7 @@ def get_current_user(scada_session: str | None = Cookie(default=None)) -> dict:
     if row is None or row["status"] != "فعال":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="نشست معتبر نیست؛ دوباره وارد شوید.")
     user = dict(row)
+    user["must_change_password"] = bool(user.get("must_change_password", 0))
     if user["role"] != "Organization Admin" and not user.get("factory_id"):
         raise HTTPException(status_code=403, detail="برای این حساب هنوز کارخانه‌ای تخصیص داده نشده است؛ مدیر سامانه باید دسترسی را تنظیم کند.")
     return user
