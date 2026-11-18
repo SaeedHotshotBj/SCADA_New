@@ -16,7 +16,7 @@ const schemas = {
   "new-order": { title: "سفارش تولید جدید", collection: "orders", fields: [["code", "شماره سفارش", "text"], ["product", "محصول", "select", []], ["quantity", "مقدار", "number"], ["unit", "واحد", "select", ["m", "kg", "عدد"]], ["machine", "ماشین تخصیص‌یافته", "select", []], ["planned_date", "تاریخ برنامه‌ریزی", "date"], ["status", "وضعیت", "select", ["در انتظار", "آزادشده", "در حال تولید"]]] },
   "new-unit": { title: "واحد تولید جدید", collection: "units", fields: [["code", "کد واحد", "text"], ["quantity", "مقدار", "number"], ["unit", "واحد", "select", ["m", "kg", "عدد"]], ["status", "وضعیت", "select", ["باز", "بسته"]]] },
   "new-qc": { title: "ثبت کنترل کیفیت", collection: "qc", fields: [["code", "شماره کنترل", "text"], ["product", "محصول", "select", []], ["machine", "ماشین", "select", []], ["decision", "تصمیم", "select", ["قبول", "مشروط", "رد"]]] },
-  "new-batch": { title: "ثبت بچ جدید", collection: "batches", fields: [["code", "کد بچ", "text"], ["formula", "فرمول", "text"], ["target", "وزن هدف (kg)", "number"], ["material", "ماده", "text"]] },
+  "new-batch": { title: "ثبت بچ جدید", collection: "batches", fields: [["code", "کد بچ", "text"], ["formula", "فرمول", "select", []], ["target", "وزن هدف (kg)", "number"], ["material", "ماده", "text"]] },
   "new-run": { title: "شروع اجرای تولید", collection: "productionRuns", fields: [["order", "شماره سفارش", "select", []], ["machine", "ماشین", "select", []], ["product", "محصول", "select", []], ["target", "هدف تولید", "number"]] },
   "new-product": { title: "محصول جدید", collection: "products", fields: [["code", "کد محصول", "text"], ["name", "نام محصول", "text"], ["unit", "واحد اصلی", "select", ["m", "kg", "عدد"]], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
   "new-price": { title: "قیمت یا تعرفه جدید", collection: "prices", fields: [["kind", "نوع", "select", ["مواد اولیه", "تعرفه انرژی"]], ["code", "کد", "text"], ["name", "نام", "text"], ["price", "مبلغ واحد", "number"], ["currency", "واحد پول", "select", ["ریال", "تومان"]], ["unit", "واحد اندازه‌گیری", "select", ["kg", "m", "kWh", "عدد"]], ["valid_from", "تاریخ اعتبار", "text"], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
@@ -53,7 +53,9 @@ function openModal(action, record = null) {
                 ? store.list("products").map(product => ({ value: product.name, label: product.name }))
                 : name === "order" && schema.collection === "productionRuns"
                   ? store.list("orders").map(order => ({ value: order.code, label: `${order.code} · ${order.product}` }))
-                  : (options || []).map(option => ({ value: option, label: option }));
+                  : name === "formula" && schema.collection === "batches"
+                    ? store.list("batchConfigs").map(config => ({ value: config.formula, label: config.name ? `${config.name} · ${config.formula}` : config.formula }))
+                    : (options || []).map(option => ({ value: option, label: option }));
       const optional = (schema.optional || []).includes(name);
       return `<label class="field"><span>${escapeHtml(label)}</span><select name="${name}" ${optional ? "" : "required"}>${optional ? '<option value="">—</option>' : ""}${sourceOptions.map(option => `<option value="${escapeHtml(option.value)}" ${String(option.value) === String(selectedValue) ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label>`;
     }
@@ -224,8 +226,12 @@ function openQcReviewModal(qcId) {
 
 export async function handleAction(action, element) {
   switch (action) {
-    case "new-user": case "new-factory": case "new-plc": case "new-tag": case "new-alarm": case "new-trend": case "new-report": case "new-process": case "new-template": case "new-task": case "new-order": case "new-unit": case "new-qc": case "new-batch": case "new-run": case "new-product": case "new-price": case "new-machine": case "new-hmi-page":
+    case "new-user": case "new-factory": case "new-plc": case "new-tag": case "new-alarm": case "new-trend": case "new-report": case "new-process": case "new-template": case "new-task": case "new-order": case "new-unit": case "new-qc": case "new-run": case "new-product": case "new-price": case "new-machine": case "new-hmi-page":
       openModal(action); break;
+    case "new-batch":
+      if (!store.list("batchConfigs").length) { toast("ابتدا در صفحه تنظیمات توزین، خط و فرمول همراه هاپرها را تعریف کنید.", "warning"); location.hash = "/batch/setup"; }
+      else openModal(action);
+      break;
     case "edit-record": {
       const collection = document.querySelector("[data-collection-name]")?.dataset.collectionName;
       const row = collection ? store.list(collection).find(item => item.id === element.dataset.id) : null;
@@ -653,6 +659,13 @@ export async function handleSubmit(event) {
     }
     if (values.poll === "") delete values.poll;
     if (values.history_interval === "") delete values.history_interval;
+  }
+  if (schema.collection === "batches") {
+    const config = store.list("batchConfigs").find(item => item.formula === values.formula);
+    if (!config) throw new Error("فرمول انتخاب‌شده پیدا نشد؛ ابتدا تنظیمات توزین را بررسی کنید.");
+    values.config_id = config.id;
+    values.tolerance_percent = Number(config.tolerance_percent ?? 0.5);
+    values.hoppers = config.hoppers || [];
   }
   if (schema.collection === "tags") {
     for (const field of ["address_base","bit","length","scale","offset"]) {
