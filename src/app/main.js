@@ -109,7 +109,8 @@ function syncLiveConnection() {
     loadedHmiChartPageId = null;
   }
   const needsLive = ["/live/data", "/live/trends", "/live/alarms", "/live/classic", "/batch/run", "/batch/compare"].includes(path)
-    || path.startsWith("/live/hmi/");
+    || path.startsWith("/live/hmi/")
+    || path.startsWith("/live/hmi-designer/");
   if ((path === "/batch/run" || path === "/batch/compare") && store.isConnected()) {
     const selectedBatch = store.list("batches")[0];
     store.loadBatchWeighments(selectedBatch?.id || null)
