@@ -323,8 +323,9 @@ export function renderHmiWidget(component, tags, options = {}) {
     if (type === "thermometer") return renderThermometer(component, tag, preview);
     if (type === "chart") return renderChart(component, tag, preview, history);
     const quality = qualityOf(tag);
+    const active = options.active !== false;
     const body = '<div class="hmi-value-number">' + escapeHtml(valueText(tag, preview)) + '</div><div class="hmi-value-meta"><span>' + escapeHtml(tag?.unit || "") + '</span><small>' + escapeHtml(tag?.name || "تگ انتخاب نشده") + '</small></div>' +
-      (preview ? '<small class="hmi-widget-subtitle">کنترل با قفل‌های ایمنی موجود</small>' : '<button class="btn btn-light btn-sm" data-action="hmi-write-tag" data-id="' + escapeHtml(tag?.id || "") + '" ' + (!tag || tag.access !== "read_write" ? "disabled" : "") + '>نوشتن مقدار</button>');
+      (preview ? '<small class="hmi-widget-subtitle">کنترل با قفل‌های ایمنی موجود</small>' : '<button class="btn btn-light btn-sm" data-action="hmi-write-tag" data-id="' + escapeHtml(tag?.id || "") + '" ' + (!active || !tag || tag.access !== "read_write" ? "disabled" : "") + '>نوشتن مقدار</button>');
     return componentFrame(component, body, quality, preview);
   }
   if (["motor", "pump", "fan", "conveyor"].includes(type)) return renderMachine(component, tags, preview, type);
