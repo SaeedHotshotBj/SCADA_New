@@ -480,12 +480,13 @@ def test_hmi_layout_validates_tag_bindings_and_write_access():
             "description": "layout validation",
             "layout": [
                 {"type": "gauge", "tag_id": "t3", "label": "Current", "min": 0, "max": 300},
+                {"type": "chart", "tag_id": "t3", "label": "Short trend", "chart_kind": "line", "history_seconds": 5},
                 {"type": "write", "tag_id": "t7", "label": "Speed setpoint"},
             ],
             "status": "فعال",
         })
         assert valid.status_code == 201
-        assert valid.json()["components"] == 2
+        assert valid.json()["components"] == 3
 
         read_only_write = client.post("/api/resources/hmiPages", json={
             "name": "Invalid HMI",
@@ -504,6 +505,15 @@ def test_hmi_layout_validates_tag_bindings_and_write_access():
             "status": "فعال",
         })
         assert missing_tag.status_code == 422
+
+        invalid_chart_range = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid chart range",
+            "machine": "بانچر",
+            "description": "unsupported history window",
+            "layout": [{"type": "chart", "tag_id": "t3", "history_seconds": 7}],
+            "status": "فعال",
+        })
+        assert invalid_chart_range.status_code == 422
 
 
 def test_resource_update_returns_factory_scope_and_user_update_is_safe():
