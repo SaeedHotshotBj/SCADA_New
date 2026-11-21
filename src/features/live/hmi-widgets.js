@@ -1,6 +1,7 @@
 import { escapeHtml } from "../../core/format.js";
 
 let widgetSequence = 0;
+let tankRenderSequence = 0;
 
 export const HMI_WIDGET_LIBRARY = [
   { type: "value", label: "باکس عددی", category: "نمایش مقادیر", icon: "123", help: "نمایش مقدار جاری همراه واحد و کیفیت" },
@@ -291,7 +292,8 @@ function renderTank(component, tag, preview) {
   const value = numberOf(tag?.value, min);
   const percent = rangePercent(value, min, max);
   const height = percent.toFixed(1);
-  const body = '<div class="hmi-tank-layout"><svg class="hmi-tank-svg" viewBox="0 0 116 126" role="img" aria-label="مخزن"><defs><clipPath id="tank-clip-' + escapeHtml(component.widget_id || "preview") + '"><path d="M28 12 Q58 1 88 12 V104 Q58 121 28 104 Z"/></clipPath></defs><path d="M28 12 Q58 1 88 12 V104 Q58 121 28 104 Z" fill="#f5f8fa" stroke="#67869b" stroke-width="3"/><rect x="28" y="' + (104 - 92 * percent / 100).toFixed(1) + '" width="60" height="' + (92 * percent / 100).toFixed(1) + '" fill="#48b5ca" clip-path="url(#tank-clip-' + escapeHtml(component.widget_id || "preview") + ')"/><path d="M20 19 H96 M20 100 H96" stroke="#67869b" stroke-width="2" fill="none"/></svg>' +
+  const tankClipId = "hmi-tank-clip-" + (++tankRenderSequence);
+  const body = '<div class="hmi-tank-layout"><svg class="hmi-tank-svg" viewBox="0 0 116 126" role="img" aria-label="مخزن"><defs><clipPath id="' + tankClipId + '"><path d="M28 12 Q58 1 88 12 V104 Q58 121 28 104 Z"/></clipPath></defs><path d="M28 12 Q58 1 88 12 V104 Q58 121 28 104 Z" fill="#f5f8fa" stroke="#67869b" stroke-width="3"/><rect x="28" y="' + (104 - 92 * percent / 100).toFixed(1) + '" width="60" height="' + (92 * percent / 100).toFixed(1) + '" fill="#48b5ca" clip-path="url(#' + tankClipId + ')"/><path d="M20 19 H96 M20 100 H96" stroke="#67869b" stroke-width="2" fill="none"/></svg>' +
     '<div><strong>' + escapeHtml(valueText(tag, preview)) + '</strong><span>' + escapeHtml(tag?.unit || "%") + '</span><small>' + escapeHtml(height) + '%</small></div></div>';
   return componentFrame(component, body, quality, preview);
 }
