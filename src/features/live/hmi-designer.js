@@ -1,7 +1,7 @@
 import { api } from "../../services/api-client.js";
 import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
-import { HMI_BINDINGS, HMI_WIDGET_LIBRARY, createHmiWidget, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
+import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_WIDGET_LIBRARY, createHmiWidget, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
 
 let activePageKey = null;
 let draft = null;
@@ -36,6 +36,13 @@ function initializeDraft(pageId) {
 
 function selectedWidget() {
   return draft?.layout?.find(item => item.widget_id === selectedWidgetId) || null;
+}
+
+function chartHistorySeconds(component) {
+  const seconds = Number(component?.history_seconds);
+  if (Number.isFinite(seconds) && seconds > 0) return seconds;
+  const legacyHours = Number(component?.history_hours);
+  return Number.isFinite(legacyHours) && legacyHours > 0 ? legacyHours * 3600 : 3600;
 }
 
 function tagOptions(binding, selectedId) {
@@ -90,11 +97,7 @@ function propertiesMarkup() {
       { value: "line", label: "خطی" },
       { value: "bar", label: "ستونی" },
     ], component.chart_kind || "line");
-    fields += selectMarkup("بازه تاریخچه", "history_hours", [
-      { value: 1, label: "۱ ساعت" },
-      { value: 6, label: "۶ ساعت" },
-      { value: 24, label: "۲۴ ساعت" },
-    ], component.history_hours || 1);
+    fields += selectMarkup("بازه تاریخچه", "history_seconds", HMI_CHART_RANGES, chartHistorySeconds(component));
   }
   const warning = component.type === "write"
     ? '<div class="hmi-designer-warning">این جزء قابلیت ارسال مقدار دارد. نوشتن روی PLC واقعی فقط از مسیر مجوزهای ایمنی موجود و با تأیید صریح ممکن است؛ هیچ مجوزی از این صفحه فعال نمی‌شود.</div>'
@@ -111,7 +114,7 @@ function canvasMarkup() {
   }
   return draft.layout.map((component, index) => {
     const selected = component.widget_id === selectedWidgetId;
-    const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, component.history_hours) : [];
+    const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, chartHistorySeconds(component)) : [];
     const widget = renderHmiWidget(component, tags, { preview: true, history });
     return '<div class="hmi-designer-item ' + (selected ? "is-selected" : "") + '" data-action="hmi-select-widget" data-widget-id="' + escapeHtml(component.widget_id) + '">' +
       '<div class="hmi-designer-item-toolbar"><small>' + String(index + 1).toLocaleString("fa-IR") + ' · ' + escapeHtml(component.type) + '</small>' +
@@ -244,8 +247,8 @@ function validateDraftLayout() {
         throw new Error("محدوده حداقل و حداکثر در جزء «" + (component.label || number) + "» معتبر نیست.");
       }
     }
-    if (component.type === "chart" && ![1, 6, 24].includes(Number(component.history_hours || 1))) {
-      throw new Error("بازه تاریخچه نمودار باید ۱، ۶ یا ۲۴ ساعت باشد.");
+    if (component.type === "chart" && !HMI_CHART_RANGES.some(range => range.value === chartHistorySeconds(component))) {
+      throw new Error("بازه زمانی انتخاب‌شده برای نمودار معتبر نیست.");
     }
   }
 }
@@ -262,12 +265,18 @@ export async function handleHmiDesignerSubmit(form) {
     throw new Error("ماشین انتخاب‌شده در سامانه وجود ندارد.");
   }
   validateDraftLayout();
-  const normalizedLayout = clone(draft.layout).map(component => ({
-    ...component,
-    ...(component.min !== undefined ? { min: Number(component.min) } : {}),
-    ...(component.max !== undefined ? { max: Number(component.max) } : {}),
-    ...(component.history_hours !== undefined ? { history_hours: Number(component.history_hours) } : {}),
-  }));
+  const normalizedLayout = clone(draft.layout).map(component => {
+    const normalized = {
+      ...component,
+      ...(component.min !== undefined ? { min: Number(component.min) } : {}),
+      ...(component.max !== undefined ? { max: Number(component.max) } : {}),
+    };
+    if (component.type === "chart") {
+      normalized.history_seconds = chartHistorySeconds(component);
+      delete normalized.history_hours;
+    }
+    return normalized;
+  });
   const payload = {
     name: draft.name,
     machine: draft.machine,
@@ -319,7 +328,7 @@ export function handleHmiDesignerInput(event) {
   if (!property) return true;
   const component = selectedWidget();
   if (!component) return true;
-  const numeric = target.type === "number" || ["min", "max", "history_hours"].includes(property);
+  const numeric = target.type === "number" || ["min", "max", "history_seconds"].includes(property);
   component[property] = numeric ? (target.value === "" ? "" : Number(target.value)) : target.value;
   const canvas = document.getElementById("hmi-designer-canvas");
   if (canvas) canvas.innerHTML = canvasMarkup();
@@ -365,22 +374,25 @@ export function handleHmiDesignerAction(action, element) {
   return false;
 }
 
-export function getHmiChartHistory(tagId, hours = 1) {
-  return chartHistory.get(String(tagId) + ":" + String(hours)) || [];
+export function getHmiChartHistory(tagId, seconds = 3600) {
+  return chartHistory.get(String(tagId) + ":" + String(seconds)) || [];
 }
 
 export async function loadHmiPageChartData(pageId) {
   const page = store.list("hmiPages").find(item => item.id === pageId);
   if (!page) return [];
   const chartComponents = (Array.isArray(page.layout) ? page.layout : []).filter(item => item.type === "chart" && item.tag_id);
-  const keys = [...new Map(chartComponents.map(item => [
-    String(item.tag_id) + ":" + String(item.history_hours || 1),
-    { tagId: item.tag_id, hours: Number(item.history_hours || 1) },
-  ])).values()];
+  const keys = [...new Map(chartComponents.map(item => {
+    const seconds = chartHistorySeconds(item);
+    return [
+      String(item.tag_id) + ":" + String(seconds),
+      { tagId: item.tag_id, seconds },
+    ];
+  })).values()];
   const results = await Promise.all(keys.map(async item => {
     try {
-      const response = await api.telemetryHistory(item.tagId, item.hours);
-      return [String(item.tagId) + ":" + String(item.hours), response.items || []];
+      const response = await api.telemetryHistorySeconds(item.tagId, item.seconds);
+      return [String(item.tagId) + ":" + String(item.seconds), response.items || []];
     } catch {
       return [String(item.tagId) + ":" + String(item.hours), []];
     }
