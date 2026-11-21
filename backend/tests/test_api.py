@@ -158,6 +158,37 @@ def test_hmi_and_operational_configuration_resources():
         })
         assert invalid_gauge.status_code == 422
 
+        industrial_layout = [
+            {"type":"motor","label":"Motor M1","run_tag_id":"t1","fault_tag_id":"t4","speed_tag_id":"t6"},
+            {"type":"pump","label":"Pump P1","run_tag_id":"t1"},
+            {"type":"tank","label":"Tank T1","level_tag_id":"t6","min":0,"max":250},
+            {"type":"valve","label":"Valve V1","open_tag_id":"t1","fault_tag_id":"t4"},
+            {"type":"needle","label":"Pressure","tag_id":"t6","min":0,"max":16},
+            {"type":"chart","label":"Speed trend","tag_id":"t6","chart_kind":"line","history_hours":6},
+            {"type":"indicator","label":"Ready","tag_id":"t1"},
+            {"type":"thermometer","label":"Temperature","tag_id":"t6","min":0,"max":200},
+            {"type":"conveyor","label":"Conveyor","run_tag_id":"t1","fault_tag_id":"t4"},
+            {"type":"fan","label":"Fan","run_tag_id":"t1","speed_tag_id":"t6"},
+        ]
+        industrial_hmi = client.post("/api/resources/hmiPages", json={
+            "name":"صفحه شماتیک صنعتی","machine":"بانچر","description":"Industrial widget validation",
+            "layout":industrial_layout,"status":"فعال"
+        })
+        assert industrial_hmi.status_code == 201, industrial_hmi.text
+        assert industrial_hmi.json()["components"] == len(industrial_layout)
+
+        invalid_motor_binding = client.post("/api/resources/hmiPages", json={
+            "name":"موتور با تگ نامعتبر","machine":"بانچر","description":"A motor run binding must be BOOL",
+            "layout":[{"type":"motor","run_tag_id":"t6"}],"status":"فعال"
+        })
+        assert invalid_motor_binding.status_code == 422
+
+        invalid_component = client.post("/api/resources/hmiPages", json={
+            "name":"جزء ناشناخته","machine":"بانچر","description":"Unknown component is rejected",
+            "layout":[{"type":"robot","tag_id":"t6"}],"status":"فعال"
+        })
+        assert invalid_component.status_code == 422
+
         days = [
             {"day":day,"enabled":True,"start":"08:00","end":"17:00","break":"01:00"}
             for day in ["شنبه","یکشنبه","دوشنبه","سه‌شنبه","چهارشنبه","پنجشنبه","جمعه"]
