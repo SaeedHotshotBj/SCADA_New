@@ -921,3 +921,71 @@ def test_batch_weighments_apply_configured_zero_tolerance_and_require_all_hopper
         completed = client.post(f"/api/operations/batches/{batch_id}/complete")
         assert completed.status_code == 200, completed.text
         assert completed.json()["status"] == "تکمیل‌شده"
+
+
+def test_telemetry_history_supports_seconds_and_legacy_hours_windows():
+    from datetime import datetime, timedelta, timezone
+
+    with TestClient(app) as client:
+        login = client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local",
+            "password": "demo1234",
+        })
+        assert login.status_code == 200
+
+        plc = client.post("/api/resources/plcs", json={
+            "name": "History range test PLC",
+            "protocol": "simulator",
+            "address": "127.0.0.1:1505",
+            "unit": 1,
+            "factory_id": "f1",
+        })
+        assert plc.status_code == 201, plc.text
+
+        tag = client.post("/api/resources/tags", json={
+            "name": "History range test tag",
+            "plc": plc.json()["id"],
+            "type": "float32",
+            "address": "40001",
+            "access": "read",
+            "unit": "bar",
+        })
+        assert tag.status_code == 201, tag.text
+        tag_id = tag.json()["id"]
+
+        edge = client.post("/api/edge/register", json={
+            "name": "History range test edge",
+            "factory_id": "f1",
+        })
+        assert edge.status_code == 201, edge.text
+
+        now = datetime.now(timezone.utc)
+        old_sample = (now - timedelta(seconds=90)).isoformat()
+        recent_sample = (now - timedelta(seconds=20)).isoformat()
+        ingested = client.post(
+            "/api/telemetry/edge/ingest",
+            headers={"X-Edge-Token": edge.json()["edge_token"]},
+            json={"samples": [
+                {"tag_id": tag_id, "value": 11.5, "sampled_at": old_sample},
+                {"tag_id": tag_id, "value": 22.5, "sampled_at": recent_sample},
+            ]},
+        )
+        assert ingested.status_code == 200, ingested.text
+
+        short = client.get(f"/api/telemetry/history?tag_id={tag_id}&seconds=60")
+        assert short.status_code == 200, short.text
+        assert [item["value"] for item in short.json()["items"]] == [22.5]
+
+        minute_window = client.get(f"/api/telemetry/history?tag_id={tag_id}&seconds=120")
+        assert minute_window.status_code == 200, minute_window.text
+        assert [item["value"] for item in minute_window.json()["items"]] == [11.5, 22.5]
+
+        legacy_hours = client.get(f"/api/telemetry/history?tag_id={tag_id}&hours=1")
+        assert legacy_hours.status_code == 200, legacy_hours.text
+        assert [item["value"] for item in legacy_hours.json()["items"]] == [11.5, 22.5]
+
+        invalid = client.get(f"/api/telemetry/history?tag_id={tag_id}&seconds=0")
+        assert invalid.status_code == 422
+
+        ambiguous = client.get(f"/api/telemetry/history?tag_id={tag_id}&seconds=60&hours=1")
+        assert ambiguous.status_code == 422
