@@ -71,6 +71,7 @@ export const api = {
   listEdges: () => request("/api/edge"),
   telemetryLatest: () => request("/api/telemetry/latest"),
   telemetryHistory: (tagId, hours = 24) => request(`/api/telemetry/history?tag_id=${encodeURIComponent(tagId)}&hours=${encodeURIComponent(hours)}`),
+  telemetryHistorySeconds: (tagId, seconds, limit = 100000) => request(`/api/telemetry/history?tag_id=${encodeURIComponent(tagId)}&seconds=${encodeURIComponent(seconds)}&limit=${encodeURIComponent(limit)}`),
   ingestEdgeTelemetry: (token, samples) => request("/api/telemetry/edge/ingest", {
     method: "POST", headers: { "X-Edge-Token": token }, body: { samples },
   }),
