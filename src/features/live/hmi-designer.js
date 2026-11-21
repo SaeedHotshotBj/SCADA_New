@@ -250,12 +250,18 @@ export async function handleHmiDesignerSubmit(form) {
     throw new Error("ماشین انتخاب‌شده در سامانه وجود ندارد.");
   }
   validateDraftLayout();
+  const normalizedLayout = clone(draft.layout).map(component => ({
+    ...component,
+    ...(component.min !== undefined ? { min: Number(component.min) } : {}),
+    ...(component.max !== undefined ? { max: Number(component.max) } : {}),
+    ...(component.history_hours !== undefined ? { history_hours: Number(component.history_hours) } : {}),
+  }));
   const payload = {
     name: draft.name,
     machine: draft.machine,
     description: draft.description,
     status: draft.status,
-    layout: clone(draft.layout),
+    layout: normalizedLayout,
   };
   const saved = form.dataset.pageId
     ? await store.update("hmiPages", form.dataset.pageId, payload)
@@ -312,6 +318,7 @@ export function handleHmiDesignerInput(event) {
 export function handleHmiDesignerAction(action, element) {
   if (!element?.closest(".hmi-designer-page")) return false;
   if (action === "hmi-add-widget") {
+    if (draft.layout.length >= 50) throw new Error("حداکثر ۵۰ جزء در هر صفحه HMI قابل افزودن است.");
     const component = createHmiWidget(element.dataset.widgetType);
     draft.layout.push(component);
     selectedWidgetId = component.widget_id;
