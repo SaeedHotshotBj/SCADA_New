@@ -24,6 +24,7 @@ ROLES = {"Organization Admin", "Factory Admin", "Engineer", "Operator",
          "Production Planner", "Quality Control", "Production Manager"}
 ADMIN_ROLES = {"Organization Admin", "Factory Admin"}
 TAG_TYPES = {"bool", "int16", "uint16", "int32", "uint32", "float32", "string"}
+HMI_CHART_RANGE_SECONDS = {5, 10, 30, 60, 300, 600, 900, 1800, 3600, 21600, 43200, 86400}
 ENUMS = {
     "plcs.protocol": {"modbus-tcp", "modbus-rtu", "s7", "simulator"},
     "tags.type": TAG_TYPES,
@@ -385,7 +386,11 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                 if component_type == "chart":
                     if component.get("chart_kind", "line") not in {"line", "bar"}:
                         raise HTTPException(status_code=422, detail=f"نوع نمودار جزء شماره {number_in_layout} معتبر نیست.")
-                    if component.get("history_hours", 1) not in (1, 6, 24):
+                    if "history_seconds" in component:
+                        history_seconds = component.get("history_seconds")
+                        if type(history_seconds) is not int or history_seconds not in HMI_CHART_RANGE_SECONDS:
+                            raise HTTPException(status_code=422, detail=f"بازه زمانی نمودار جزء شماره {number_in_layout} معتبر نیست.")
+                    elif component.get("history_hours", 1) not in (1, 6, 24):
                         raise HTTPException(status_code=422, detail=f"بازه تاریخچه نمودار جزء شماره {number_in_layout} معتبر نیست.")
             payload["components"] = len(layout)
     if collection == "machineCalendars":
