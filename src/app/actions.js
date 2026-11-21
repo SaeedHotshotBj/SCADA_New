@@ -1,6 +1,7 @@
 import { store } from "../services/demo-store.js";
 import { api } from "../services/api-client.js";
 import { escapeHtml } from "../core/format.js";
+import { handleHmiDesignerAction, handleHmiDesignerSubmit, loadHmiPageChartData } from "../features/live/hmi-designer.js";
 
 const schemas = {
   "new-user": { title: "کاربر جدید", collection: "users", fields: [["name", "نام", "text"], ["email", "ایمیل", "email"], ["role", "نقش", "select", ["Engineer", "Operator", "Production Planner", "Quality Control", "Production Manager"]], ["factory_id", "کارخانه", "select", []], ["status", "وضعیت", "select", ["فعال", "غیرفعال"]]] },
@@ -225,6 +226,7 @@ function openQcReviewModal(qcId) {
 }
 
 export async function handleAction(action, element) {
+  if (handleHmiDesignerAction(action, element)) return;
   switch (action) {
     case "new-user": case "new-factory": case "new-plc": case "new-tag": case "new-alarm": case "new-trend": case "new-report": case "new-process": case "new-template": case "new-task": case "new-order": case "new-unit": case "new-qc": case "new-run": case "new-product": case "new-price": case "new-machine": case "new-hmi-page":
       openModal(action); break;
@@ -255,6 +257,12 @@ export async function handleAction(action, element) {
       toast("از سامانه خارج شدید.");
       break;
     case "refresh-demo": await store.refresh(); toast("اطلاعات از سرور دریافت شد."); break;
+    case "hmi-refresh-charts": {
+      const pageId = element.dataset.pageId || location.hash.replace(/^#\/live\/hmi\//, "");
+      await loadHmiPageChartData(pageId);
+      toast("تاریخچه نمودارهای HMI به‌روزرسانی شد.", "info");
+      break;
+    }
     case "test-plc": {
       const result = await api.testPLC(element.dataset.id);
       toast(result.connected ? "ارتباط PLC برقرار شد." : `ارتباط برقرار نشد: ${result.error || result.status}`, result.connected ? "success" : "warning");
@@ -495,6 +503,12 @@ export async function handleAction(action, element) {
 }
 
 export async function handleSubmit(event) {
+  if (event.target.id === "hmi-designer-form") {
+    event.preventDefault();
+    const saved = await handleHmiDesignerSubmit(event.target);
+    toast("صفحه HMI «" + saved.name + "» ذخیره شد.");
+    return true;
+  }
   if (event.target.matches("[data-local-form]")) {
     event.preventDefault();
     const form = event.target;
