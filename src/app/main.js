@@ -55,7 +55,20 @@ window.addEventListener("scada:hmi-chart-updated", scheduleRender);
 
 document.addEventListener("click", event => {
   const routeLink = event.target.closest("a[href^='#/']");
-  if (routeLink) return;
+  if (routeLink) {
+    const targetHash = routeLink.getAttribute("href");
+    if (targetHash && targetHash.startsWith("#/")) {
+      event.preventDefault();
+      if (location.hash === targetHash) {
+        // Clicking the current route must still re-render it (notably HMI Designer).
+        render();
+        syncLiveConnection();
+      } else {
+        location.hash = targetHash;
+      }
+    }
+    return;
+  }
   const actionElement = event.target.closest("[data-action]");
   if (!actionElement) return;
   const action = actionElement.dataset.action;
