@@ -43,7 +43,7 @@ function hmiRuntimePage(pageId) {
   const active = page.status !== "غیرفعال";
   const components = layout.map(component => renderHmiWidget(component, tags, {
     active,
-    history: component.type === "chart" ? getHmiChartHistory(component.tag_id, component.history_hours) : [],
+    history: component.type === "chart" ? getHmiChartHistory(component.tag_id, component.history_seconds ?? Number(component.history_hours || 1) * 3600) : [],
   })).join("");
   return `<div class="hmi-runtime">
     ${pageHeader(page.name, `${page.description || ""} · ${page.machine || "بدون ماشین"}`, `${button("به‌روزرسانی نمودارها", "hmi-refresh-charts", { variant: "light", attrs: "data-page-id=\"" + pageId + "\"" })}<a class="btn btn-light" href="#/live/hmi-pages">بازگشت به صفحات HMI</a>`)}
