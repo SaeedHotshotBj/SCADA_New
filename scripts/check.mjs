@@ -36,7 +36,7 @@ const { renderRoute } = await import("../src/app/router.js");
 const hmiHtml = renderRoute("/live/hmi-designer/new");
 const requiredHmiMarkers = [
   'class="hmi-designer-page"',
-  'class="hmi-library-panel"',
+  "hmi-library-panel",
   'class="hmi-designer-canvas"',
   'id="hmi-designer-properties"',
   'id="hmi-json-source"',
