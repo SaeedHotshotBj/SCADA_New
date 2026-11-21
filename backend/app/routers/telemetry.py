@@ -214,10 +214,14 @@ def latest(user: dict = Depends(get_current_user)):
 
 
 @router.get("/history")
-def history(tag_id: str, hours: int = Query(24, ge=1, le=744),
-            limit: int = Query(2000, ge=1, le=10000),
+def history(tag_id: str, hours: int | None = Query(None, ge=1, le=744),
+            seconds: int | None = Query(None, ge=1, le=2678400),
+            limit: int = Query(2000, ge=1, le=100000),
             user: dict = Depends(get_current_user)):
-    since=(datetime.now(timezone.utc)-timedelta(hours=hours)).isoformat(timespec="seconds")
+    if hours is not None and seconds is not None:
+        raise HTTPException(422, "بازه تاریخچه را فقط با ساعت یا ثانیه ارسال کنید.")
+    window = timedelta(seconds=seconds) if seconds is not None else timedelta(hours=hours or 24)
+    since = (datetime.now(timezone.utc) - window).isoformat(timespec="seconds")
     with connect() as db:
         tag = db.execute(
             "SELECT factory_id FROM resources WHERE collection='tags' AND id=?", (tag_id,)
