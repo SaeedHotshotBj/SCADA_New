@@ -3,7 +3,7 @@ import { handleAction, handleSubmit, showToast } from "./actions.js";
 import { bindShellEvents } from "../layouts/shell.js";
 import { api } from "../services/api-client.js";
 import { store } from "../services/demo-store.js";
-import { handleHmiDesignerInput, loadHmiPageChartData } from "../features/live/hmi-designer.js";
+import { handleHmiDesignerInput, loadHmiPageChartData, refreshHmiDesignerLivePreview } from "../features/live/hmi-designer.js";
 
 const root = document.getElementById("app");
 let renderQueued = false;
@@ -18,7 +18,14 @@ function render() {
 function scheduleRender() {
   if (renderQueued) return;
   renderQueued = true;
-  requestAnimationFrame(() => { renderQueued = false; render(); });
+  requestAnimationFrame(() => {
+    renderQueued = false;
+    if (currentPath().startsWith("/live/hmi-designer/")) {
+      refreshHmiDesignerLivePreview();
+      return;
+    }
+    render();
+  });
 }
 
 window.addEventListener("hashchange", () => { render(); syncLiveConnection(); });
