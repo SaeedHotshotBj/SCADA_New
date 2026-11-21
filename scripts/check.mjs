@@ -72,7 +72,8 @@ const needleHtml = renderHmiWidget({
 }, [{
   id: "test-pressure", name: "Pressure", value: 42.5, type: "float32", unit: "bar", quality: "GOOD",
 }]);
-if (!needleHtml.includes('class="hmi-dial-reading"') || !needleHtml.includes("42") || !needleHtml.includes("bar")) {
+const expectedNeedleValue = (42.5).toLocaleString("fa-IR", { maximumFractionDigits: 2 });
+if (!needleHtml.includes('class="hmi-dial-reading"') || !needleHtml.includes(expectedNeedleValue) || !needleHtml.includes("bar")) {
   throw new Error("Needle widget must render a numeric value and its unit.");
 }
 console.log("HMI chart range and needle numeric readout checks passed.");
