@@ -183,6 +183,12 @@ def test_hmi_and_operational_configuration_resources():
         })
         assert invalid_motor_binding.status_code == 422
 
+        invalid_needle_binding = client.post("/api/resources/hmiPages", json={
+            "name":"گیج با تگ بولی","machine":"بانچر","description":"A needle requires numeric data",
+            "layout":[{"type":"needle","tag_id":"t1","min":0,"max":100}],"status":"فعال"
+        })
+        assert invalid_needle_binding.status_code == 422
+
         invalid_component = client.post("/api/resources/hmiPages", json={
             "name":"جزء ناشناخته","machine":"بانچر","description":"Unknown component is rejected",
             "layout":[{"type":"robot","tag_id":"t6"}],"status":"فعال"
