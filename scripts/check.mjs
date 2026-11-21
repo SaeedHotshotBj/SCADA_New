@@ -22,3 +22,35 @@ for (const file of files) {
   }
 }
 console.log(`Syntax check passed for ${files.length} JavaScript files.`);
+
+
+// Render-level smoke test for the Industrial HMI Designer route.
+// This executes the actual router and page renderer with a minimal browser environment.
+globalThis.window = { SCADA_API_BASE: "http://127.0.0.1:8000" };
+globalThis.location = { hostname: "127.0.0.1", protocol: "http:", hash: "#/live/hmi-designer/new" };
+globalThis.sessionStorage = {
+  getItem: key => key === "scada-demo-auth" ? "1" : null,
+};
+
+const { renderRoute } = await import("../src/app/router.js");
+const hmiHtml = renderRoute("/live/hmi-designer/new");
+const requiredHmiMarkers = [
+  'class="hmi-designer-page"',
+  'class="hmi-library-panel"',
+  'class="hmi-designer-canvas"',
+  'id="hmi-designer-properties"',
+  'id="hmi-json-source"',
+  "طراحی صفحه HMI",
+  "کتابخانه اجزا",
+  "ویژگی‌های جزء",
+];
+for (const marker of requiredHmiMarkers) {
+  if (!hmiHtml.includes(marker)) {
+    throw new Error(`HMI Designer render smoke test failed: missing ${marker}`);
+  }
+}
+const hmiWidgetCount = (hmiHtml.match(/class="hmi-library-item"/g) || []).length;
+if (hmiWidgetCount !== 14) {
+  throw new Error(`HMI Designer must render 14 library items; got ${hmiWidgetCount}`);
+}
+console.log("HMI Designer route render passed (14 library widgets, canvas, properties and JSON editor).");
