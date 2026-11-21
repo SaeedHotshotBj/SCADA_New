@@ -530,6 +530,8 @@ tbody tr:last-child td { border-bottom: 0; }
 .hmi-status-display--fault i, .hmi-indicator-light--fault i { background: #dd4f5c; box-shadow: 0 0 0 4px rgba(221,79,92,.12); }
 .hmi-status-display--fault strong, .hmi-indicator-light--fault b { color: #c24652; }
 .hmi-gauge-visual { width: min(100%, 220px); }
+.hmi-dial-reading { display: flex; align-items: center; justify-content: center; min-height: 28px; margin-top: -3px; }
+.hmi-dial-reading strong { color: #214a67; font: 800 23px/1.1 "Segoe UI", Arial, sans-serif; direction: ltr; }
 .hmi-gauge-svg, .hmi-dial-svg { width: 100%; height: auto; display: block; overflow: visible; }
 .hmi-gauge-svg text, .hmi-dial-svg text { fill: #8b9dab; font-size: 8px; }
 .hmi-gauge-svg .hmi-gauge-number { fill: #214d69; font-size: 21px; font-weight: 800; }
