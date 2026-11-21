@@ -20,6 +20,21 @@ export const HMI_WIDGET_LIBRARY = [
   { type: "write", label: "کنترل تگ", category: "کنترل", icon: "↕", help: "کنترل تعاملی؛ نوشتن واقعی تابع تمام قفل‌های ایمنی است" },
 ];
 
+export const HMI_CHART_RANGES = [
+  { value: 5, label: "۵ ثانیه" },
+  { value: 10, label: "۱۰ ثانیه" },
+  { value: 30, label: "۳۰ ثانیه" },
+  { value: 60, label: "۱ دقیقه" },
+  { value: 300, label: "۵ دقیقه" },
+  { value: 600, label: "۱۰ دقیقه" },
+  { value: 900, label: "۱۵ دقیقه" },
+  { value: 1800, label: "۳۰ دقیقه" },
+  { value: 3600, label: "۱ ساعت" },
+  { value: 21600, label: "۶ ساعت" },
+  { value: 43200, label: "۱۲ ساعت" },
+  { value: 86400, label: "۲۴ ساعت" },
+];
+
 export const HMI_BINDINGS = {
   value: [{ key: "tag_id", label: "تگ مقدار", required: true, kind: "any" }],
   status: [{ key: "tag_id", label: "تگ وضعیت", required: true, kind: "any" }],
@@ -89,7 +104,7 @@ export function createHmiWidget(type) {
   }
   if (type === "chart") {
     widget.chart_kind = "line";
-    widget.history_hours = 1;
+    widget.history_seconds = 3600;
   }
   return widget;
 }
@@ -209,7 +224,11 @@ function renderGauge(component, tag, preview, needleMode) {
       '<text x="90" y="73" text-anchor="middle" class="hmi-gauge-number">' + escapeHtml(display) + '</text>' +
       '<text x="18" y="107">' + escapeHtml(String(min)) + '</text><text x="162" y="107" text-anchor="end">' + escapeHtml(String(max)) + '</text></svg>';
   }
-  const body = '<div class="hmi-gauge-visual">' + visual + '</div><div class="hmi-value-meta"><span>' + escapeHtml(tag?.unit || "") + '</span><small>' + escapeHtml(tag?.name || "تگ انتخاب نشده") + '</small></div>';
+  const numericReading = needleMode
+    ? '<div class="hmi-dial-reading"><strong>' + escapeHtml(display) + '</strong></div>'
+    : "";
+  const body = '<div class="hmi-gauge-visual">' + visual + '</div>' + numericReading +
+    '<div class="hmi-value-meta"><span>' + escapeHtml(tag?.unit || "") + '</span><small>' + escapeHtml(tag?.name || "تگ انتخاب نشده") + '</small></div>';
   return componentFrame(component, body, quality, preview);
 }
 
