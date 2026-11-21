@@ -394,7 +394,7 @@ export async function loadHmiPageChartData(pageId) {
       const response = await api.telemetryHistorySeconds(item.tagId, item.seconds);
       return [String(item.tagId) + ":" + String(item.seconds), response.items || []];
     } catch {
-      return [String(item.tagId) + ":" + String(item.hours), []];
+      return [String(item.tagId) + ":" + String(item.seconds), []];
     }
   }));
   for (const [key, items] of results) chartHistory.set(key, items);
