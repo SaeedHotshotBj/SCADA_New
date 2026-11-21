@@ -21,10 +21,16 @@ export function panel(title, content, subtitle = "", action = "") {
   return `<section class="panel"><div class="panel-heading"><div><h3>${escapeHtml(title)}</h3>${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}</div>${action ? `<div>${action}</div>` : ""}</div><div class="panel-body">${content}</div></section>`;
 }
 
-export function statCard(label, value, unit = "", tone = "blue", delta = "", detail = "") {
-  const points = [8, 10, 7, 14, 12, 17, 11, 15, 13, 18, 14, 20, 16, 18, 15, 22];
-  const line = points.map((v, i) => `${i * 14},${30 - v}`).join(" ");
-  return `<article class="stat-card tone-${tone}"><div class="stat-top"><span>${escapeHtml(label)}</span><span class="stat-mark">${tone === "red" ? "◷" : tone === "green" ? "◉" : tone === "orange" ? "♧" : "▥"}</span></div><div class="stat-value">${escapeHtml(value)} <small>${escapeHtml(unit)}</small></div><div class="stat-bottom">${delta ? `<span class="delta">${escapeHtml(delta)}</span>` : ""}<span>${escapeHtml(detail)}</span></div><svg class="sparkline" viewBox="0 0 210 34" preserveAspectRatio="none"><polyline points="${line}" fill="none" stroke="currentColor" stroke-width="2" /></svg></article>`;
+export function statCard(label, value, unit = "", tone = "blue", delta = "", detail = "", sparklineValues = null) {
+  let sparkline = "";
+  if (Array.isArray(sparklineValues) && sparklineValues.length > 1 && sparklineValues.every(value => Number.isFinite(Number(value)))) {
+    const numbers = sparklineValues.map(Number);
+    const min = Math.min(...numbers);
+    const range = Math.max(...numbers) - min || 1;
+    const points = numbers.map((number, index) => `${index * 210 / (numbers.length - 1)},${30 - ((number - min) / range) * 24}`).join(" ");
+    sparkline = `<svg class="sparkline" viewBox="0 0 210 34" preserveAspectRatio="none"><polyline points="${points}" fill="none" stroke="currentColor" stroke-width="2" /></svg>`;
+  }
+  return `<article class="stat-card tone-${tone}"><div class="stat-top"><span>${escapeHtml(label)}</span><span class="stat-mark">${tone === "red" ? "◷" : tone === "green" ? "◉" : tone === "orange" ? "♧" : "▥"}</span></div><div class="stat-value">${escapeHtml(value)} <small>${escapeHtml(unit)}</small></div><div class="stat-bottom">${delta ? `<span class="delta">${escapeHtml(delta)}</span>` : ""}<span>${escapeHtml(detail)}</span></div>${sparkline}</article>`;
 }
 
 export function dataTable(columns, rows, options = {}) {
@@ -81,6 +87,60 @@ export function donutChart(title, values = [52, 27, 14, 7]) {
     return item;
   }).join("");
   return `<section class="panel donut-panel"><div class="panel-heading"><h3>${escapeHtml(title)}</h3></div><div class="panel-body donut-content"><svg viewBox="0 0 130 130">${circles}<text x="65" y="70" text-anchor="middle" class="donut-center">${faNumber(values[0])}٪</text></svg><div class="donut-legend">${["عملکرد", "دسترسی‌پذیری", "کیفیت", "توقف"].map((label, i) => `<div><i style="background:${colors[i]}"></i>${label}<b>${faNumber(values[i])}٪</b></div>`).join("")}</div></div></section>`;
+}
+
+export function distributionDonutChart(title, items = []) {
+  const colors = ["#16b98c", "#2c8bdc", "#efaa3d", "#8058db", "#de5b6d", "#18a4b6"];
+  const valid = items.map(item => ({
+    name: String(item.name ?? "نامشخص"),
+    count: Math.max(0, Number(item.count) || 0),
+  })).filter(item => item.count > 0);
+  const total = valid.reduce((sum, item) => sum + item.count, 0);
+  if (!total) {
+    return `<section class="panel donut-panel"><div class="panel-heading"><h3>${escapeHtml(title)}</h3></div><div class="panel-body">${emptyState("برای این نمودار هنوز داده‌ای ثبت نشده است.")}</div></section>`;
+  }
+  let offset = 0;
+  const circles = valid.map((item, index) => {
+    const percent = item.count * 100 / total;
+    const circle = `<circle cx="65" cy="65" r="48" fill="none" stroke="${colors[index % colors.length]}" stroke-width="15" pathLength="100" stroke-dasharray="${percent} ${100 - percent}" stroke-dashoffset="${-offset}" transform="rotate(-90 65 65)"/>`;
+    offset += percent;
+    return circle;
+  }).join("");
+  const legend = valid.map((item, index) => {
+    const percent = item.count * 100 / total;
+    return `<div><i style="background:${colors[index % colors.length]}"></i>${escapeHtml(item.name)}<b>${faNumber(item.count)} · ${faNumber(percent.toFixed(1))}٪</b></div>`;
+  }).join("");
+  return `<section class="panel donut-panel"><div class="panel-heading"><h3>${escapeHtml(title)}</h3></div><div class="panel-body donut-content"><svg viewBox="0 0 130 130">${circles}<text x="65" y="70" text-anchor="middle" class="donut-center">${faNumber(total)}</text></svg><div class="donut-legend">${legend}</div></div></section>`;
+}
+
+export function distributionBarChart(title, items = []) {
+  const valid = items.map(item => ({
+    name: String(item.name ?? "نامشخص"),
+    count: Math.max(0, Number(item.count) || 0),
+  }));
+  if (!valid.length || valid.every(item => item.count === 0)) {
+    return `<section class="panel chart-panel"><div class="panel-heading"><h3>${escapeHtml(title)}</h3></div><div class="panel-body">${emptyState("برای این نمودار هنوز داده‌ای ثبت نشده است.")}</div></section>`;
+  }
+  const width = 740;
+  const height = 220;
+  const left = 36;
+  const right = 16;
+  const usable = width - left - right;
+  const slot = usable / valid.length;
+  const barWidth = Math.min(58, slot * 0.58);
+  const max = Math.max(1, ...valid.map(item => item.count));
+  const bars = valid.map((item, index) => {
+    const barHeight = item.count / max * 132;
+    const x = left + slot * index + (slot - barWidth) / 2;
+    const y = 166 - barHeight;
+    const label = item.name.length > 14 ? item.name.slice(0, 13) + "…" : item.name;
+    return `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="5" fill="#2789c8"/><text x="${x + barWidth / 2}" y="184" text-anchor="middle">${escapeHtml(label)}</text><text x="${x + barWidth / 2}" y="${Math.max(12,y-6)}" text-anchor="middle">${faNumber(item.count)}</text>`;
+  }).join("");
+  const grids = [0,1,2,3].map(index => {
+    const y = 34 + index * 44;
+    return `<line x1="${left}" x2="${width-right}" y1="${y}" y2="${y}"/>`;
+  }).join("");
+  return `<section class="panel chart-panel"><div class="panel-heading"><h3>${escapeHtml(title)}</h3></div><div class="panel-body"><svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(title)}"><g class="chart-grid">${grids}</g>${bars}</svg></div></section>`;
 }
 
 export function emptyState(message = "داده‌ای برای نمایش وجود ندارد.") {

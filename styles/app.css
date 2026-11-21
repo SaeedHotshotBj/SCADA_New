@@ -437,3 +437,151 @@ tbody tr:last-child td { border-bottom: 0; }
   body { background: white; }
   .panel, .stat-card { box-shadow: none; break-inside: avoid; }
 }
+
+
+/* Data-bound HMI runtime widgets */
+.hmi-runtime-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0 18px;color:var(--muted);font-size:12px}
+.hmi-runtime-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:16px 0}
+.hmi-widget{min-width:0}
+.hmi-widget .panel-body{min-height:118px}
+.hmi-gauge-value{font-size:27px;font-weight:800;color:var(--navy);margin:8px 0 14px;overflow-wrap:anywhere}
+.hmi-gauge-value small{font-size:12px;font-weight:500;color:var(--muted)}
+.hmi-gauge-track{height:12px;border-radius:20px;background:#e9eff5;overflow:hidden}
+.hmi-gauge-track span{display:block;height:100%;border-radius:20px;background:linear-gradient(90deg,var(--cyan),var(--green))}
+.hmi-gauge-limits{display:flex;justify-content:space-between;margin-top:7px;color:var(--muted);font-size:11px}
+.hmi-status-value{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:20px;font-weight:700}
+.hmi-status-value small{font-size:12px;font-weight:400;color:var(--muted)}
+.hmi-widget .muted-note{margin:10px 0 0;font-size:11px;line-height:1.8}
+.hmi-preview .preview-info{display:flex;flex-direction:column;gap:5px;padding:10px;color:var(--navy);font-size:12px}
+.hmi-preview .preview-info small{color:var(--muted);font-size:10px}
+.hmi-card-footer>div{display:flex;gap:7px;flex-wrap:wrap}
+@media(max-width:640px){.hmi-runtime-grid{grid-template-columns:1fr}.hmi-runtime-toolbar{align-items:flex-start;flex-direction:column}}
+
+
+/* Industrial HMI Designer and reusable industrial widgets */
+.hmi-designer-page { min-width: 0; }
+.hmi-designer-settings, .hmi-designer-side-panel, .hmi-json-panel { background: var(--surface, #fff); border: 1px solid #e3ebf2; border-radius: 10px; box-shadow: var(--shadow); margin-bottom: 13px; min-width: 0; }
+.hmi-designer-settings { padding: 13px 15px; }
+.hmi-designer-settings-title, .hmi-designer-side-heading, .hmi-json-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hmi-designer-settings-title { margin-bottom: 11px; }
+.hmi-designer-settings-title b, .hmi-designer-side-heading b, .hmi-json-heading b { color: #31536d; font-size: 11px; }
+.hmi-designer-settings-title small, .hmi-designer-side-heading small, .hmi-json-heading small { color: #95a5b2; font-size: 9px; }
+.hmi-designer-settings-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.hmi-designer-description { grid-column: span 2; }
+.hmi-designer-workspace { display: grid; grid-template-columns: minmax(205px, 245px) minmax(300px, 1fr) minmax(235px, 285px); gap: 12px; align-items: start; }
+.hmi-designer-side-panel { overflow: hidden; }
+.hmi-designer-side-heading { min-height: 43px; padding: 10px 12px; border-bottom: 1px solid #edf1f5; }
+.hmi-library-panel { max-height: 780px; overflow: auto; }
+.hmi-library-category { padding: 10px; border-bottom: 1px solid #f0f3f6; }
+.hmi-library-category:last-child { border-bottom: 0; }
+.hmi-library-category h4 { margin: 0 0 8px; color: #75899a; font-size: 9px; }
+.hmi-library-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.hmi-library-item { display: flex; min-height: 70px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; padding: 7px 8px; border: 1px solid #e7edf2; border-radius: 7px; background: #fbfdfe; text-align: right; color: #4e6a80; transition: border-color .15s, background .15s, transform .15s; }
+.hmi-library-item:hover { border-color: #9bc9df; background: #f0f8fc; transform: translateY(-1px); }
+.hmi-library-item > span { display: grid; place-items: center; min-width: 25px; height: 25px; border-radius: 6px; background: #e9f4f8; color: #257a9c; font-size: 15px; font-weight: 800; }
+.hmi-library-item b { font-size: 9px; color: #3e5f78; }
+.hmi-library-item small { color: #8da0af; font-size: 8px; }
+.hmi-canvas-panel { min-height: 400px; }
+.hmi-designer-canvas { min-height: 350px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 10px; padding: 12px; background-color: #f4f7f9; background-image: linear-gradient(rgba(83,115,139,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(83,115,139,.045) 1px, transparent 1px); background-size: 18px 18px; }
+.hmi-designer-item { min-width: 0; border: 1px solid #dce6ed; border-radius: 9px; padding: 6px; background: rgba(255,255,255,.94); cursor: pointer; transition: border-color .14s, box-shadow .14s; }
+.hmi-designer-item.is-selected { border-color: #268ac0; box-shadow: 0 0 0 2px rgba(38,138,192,.13); }
+.hmi-designer-item-toolbar { height: 25px; display: flex; align-items: center; justify-content: space-between; gap: 7px; padding: 0 2px 5px; }
+.hmi-designer-item-toolbar small { color: #8da0af; font-size: 8px; }
+.hmi-designer-item-toolbar span { display: flex; gap: 3px; }
+.hmi-designer-item-toolbar button { width: 21px; height: 20px; padding: 0; border: 1px solid #e2eaf0; border-radius: 4px; background: #f8fafb; color: #5e7c91; font-size: 11px; }
+.hmi-designer-item-toolbar button:disabled { opacity: .35; cursor: not-allowed; }
+.hmi-designer-properties { display: flex; flex-direction: column; gap: 11px; padding: 12px; }
+.hmi-designer-properties .field { min-width: 0; }
+.hmi-field-help { color: #91a2af; font-size: 8px; }
+.hmi-required-mark { color: #d65a62; }
+.hmi-designer-empty { min-height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 18px; color: #94a4b1; text-align: center; font-size: 10px; }
+.hmi-designer-empty > span { font-size: 28px; color: #8bb8cb; }
+.hmi-designer-empty b { color: #58758b; font-size: 11px; }
+.hmi-designer-empty small { max-width: 230px; color: #9aabb7; font-size: 9px; }
+.hmi-designer-warning { padding: 9px 10px; border-radius: 6px; background: #fff7e8; color: #986d27; font-size: 9px; line-height: 1.7; }
+.hmi-json-panel { padding: 12px; }
+.hmi-json-heading { margin-bottom: 9px; }
+.hmi-json-heading > div { display: flex; flex-direction: column; gap: 3px; }
+.hmi-json-panel textarea { display: block; width: 100%; min-height: 235px; resize: vertical; direction: ltr; text-align: left; border: 1px solid #1c3d59; border-radius: 7px; background: #102b43; color: #c6f4e7; font: 11px/1.65 Consolas, "Courier New", monospace; tab-size: 2; }
+.hmi-json-status { padding: 4px 8px; border-radius: 999px; font-size: 8px; white-space: nowrap; }
+.hmi-json-status--success { color: #127653; background: #e7f7f0; }
+.hmi-json-status--error { color: #af3947; background: #fff0f1; }
+.hmi-runtime { min-width: 0; }
+.hmi-runtime-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 12px; color: #8598a8; font-size: 9px; }
+.hmi-runtime-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+.hmi-widget { min-width: 0; height: 100%; overflow: hidden; border: 1px solid #dfe8ee; border-radius: 9px; background: #fff; box-shadow: 0 3px 12px rgba(25,55,78,.055); }
+.hmi-widget.is-preview { box-shadow: none; }
+.hmi-widget-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; padding: 7px 10px; border-bottom: 1px solid #edf1f4; }
+.hmi-widget-header b { overflow: hidden; color: #3b5c75; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.hmi-quality { flex: 0 0 auto; padding: 3px 6px; border-radius: 99px; background: #f0f3f5; color: #81919e; font-size: 8px; }
+.hmi-quality--good { background: #e6f7f0; color: #12835f; }
+.hmi-quality--demo { background: #fff5e2; color: #a97825; }
+.hmi-quality--bad { background: #fff0f1; color: #bd4552; }
+.hmi-widget-body { min-height: 105px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 10px; }
+.hmi-value-number { max-width: 100%; overflow: hidden; color: #173e5a; font: 700 29px/1.1 "Segoe UI", Arial, sans-serif; letter-spacing: .4px; text-align: center; text-overflow: ellipsis; direction: ltr; }
+.hmi-value-meta { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; color: #7f95a5; font-size: 8px; }
+.hmi-value-meta small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hmi-widget-subtitle { color: #93a3af; font-size: 8px; text-align: center; }
+.hmi-status-display, .hmi-indicator-light { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 43px; }
+.hmi-status-display i, .hmi-indicator-light i { width: 15px; height: 15px; display: inline-block; flex: 0 0 15px; border-radius: 50%; background: #aeb9c1; box-shadow: inset 0 0 0 2px rgba(255,255,255,.4); }
+.hmi-status-display strong, .hmi-indicator-light b { color: #667e90; font: 800 12px/1.2 "Segoe UI", Arial, sans-serif; }
+.hmi-status-display--running i, .hmi-indicator-light--running i { background: #17b887; box-shadow: 0 0 0 4px rgba(23,184,135,.12), 0 0 12px rgba(23,184,135,.25); }
+.hmi-status-display--running strong, .hmi-indicator-light--running b { color: #13845f; }
+.hmi-status-display--fault i, .hmi-indicator-light--fault i { background: #dd4f5c; box-shadow: 0 0 0 4px rgba(221,79,92,.12); }
+.hmi-status-display--fault strong, .hmi-indicator-light--fault b { color: #c24652; }
+.hmi-gauge-visual { width: min(100%, 220px); }
+.hmi-dial-reading { display: flex; align-items: center; justify-content: center; min-height: 28px; margin-top: -3px; }
+.hmi-dial-reading strong { color: #214a67; font: 800 23px/1.1 "Segoe UI", Arial, sans-serif; direction: ltr; }
+.hmi-gauge-svg, .hmi-dial-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.hmi-gauge-svg text, .hmi-dial-svg text { fill: #8b9dab; font-size: 8px; }
+.hmi-gauge-svg .hmi-gauge-number { fill: #214d69; font-size: 21px; font-weight: 800; }
+.hmi-thermometer-layout { width: 100%; display: flex; align-items: center; justify-content: center; gap: 15px; min-height: 105px; }
+.hmi-thermometer { position: relative; width: 17px; height: 87px; display: flex; align-items: flex-end; overflow: hidden; border: 2px solid #83a0b3; border-radius: 99px; background: #edf3f6; }
+.hmi-thermometer i { display: block; width: 100%; min-height: 2px; border-radius: 99px; background: linear-gradient(0deg, #e58a55, #e6bf62); }
+.hmi-thermometer-reading { display: flex; flex-direction: column; gap: 3px; color: #8498a7; font-size: 9px; }
+.hmi-thermometer-reading strong { color: #214a67; font: 700 20px "Segoe UI", Arial, sans-serif; }
+.hmi-chart-svg { width: 100%; height: auto; min-height: 75px; display: block; }
+.hmi-chart-empty { width: 100%; padding: 15px 8px; color: #98a7b3; font-size: 9px; text-align: center; }
+.hmi-machine-graphic { width: 100%; display: flex; justify-content: center; padding: 1px 0; }
+.hmi-machine-svg { width: min(100%, 180px); height: 94px; display: block; }
+.hmi-machine-graphic--running .hmi-machine-rotor { transform-box: fill-box; transform-origin: center; animation: hmi-rotate 1.5s linear infinite; }
+.hmi-machine-graphic--running .hmi-conveyor-belt { animation: hmi-conveyor 1.2s linear infinite; }
+.hmi-machine-graphic--fault .hmi-machine-svg { filter: drop-shadow(0 0 3px rgba(210,65,78,.24)); }
+.hmi-machine-footer { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #8296a5; font-size: 8px; }
+.hmi-machine-footer b { overflow: hidden; color: #648094; font-size: 8px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.hmi-machine-state { padding: 4px 8px; border-radius: 99px; background: #edf1f4; color: #738796; font: 800 8px "Segoe UI", Arial, sans-serif; }
+.hmi-machine-state--running { background: #e5f7ef; color: #12825d; }
+.hmi-machine-state--fault { background: #fff0f1; color: #c34452; }
+.hmi-machine-state--stopped { background: #eef1f3; color: #758592; }
+.hmi-tank-layout { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; }
+.hmi-tank-svg { width: 88px; height: 105px; }
+.hmi-tank-layout > div { display: flex; flex-direction: column; gap: 3px; color: #899ba9; font-size: 9px; }
+.hmi-tank-layout strong { color: #23516d; font: 700 20px "Segoe UI", Arial, sans-serif; }
+.hmi-tank-layout small { color: #2194ad; font-weight: 800; }
+.hmi-valve-graphic { width: 100%; display: flex; justify-content: center; }
+.hmi-valve-graphic svg { width: min(100%, 175px); height: 92px; }
+.hmi-valve-graphic--running svg { filter: drop-shadow(0 0 3px rgba(20,166,126,.3)); }
+.hmi-valve-graphic--fault svg { filter: drop-shadow(0 0 4px rgba(209,62,75,.35)); }
+.hmi-designer-page .hmi-widget { pointer-events: none; }
+@keyframes hmi-rotate { to { transform: rotate(360deg); } }
+@keyframes hmi-conveyor { to { stroke-dashoffset: -26; } }
+
+@media (max-width: 1200px) {
+  .hmi-designer-workspace { grid-template-columns: minmax(190px, 230px) minmax(0, 1fr); }
+  .hmi-designer-workspace > #hmi-designer-properties { grid-column: 1 / -1; }
+  .hmi-designer-properties { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; }
+  .hmi-designer-side-panel.hmi-library-panel { max-height: 720px; }
+}
+@media (max-width: 760px) {
+  .hmi-designer-workspace { grid-template-columns: 1fr; }
+  .hmi-designer-workspace > #hmi-designer-properties { grid-column: auto; }
+  .hmi-designer-settings-grid { grid-template-columns: 1fr; }
+  .hmi-designer-description { grid-column: auto; }
+  .hmi-designer-properties { display: flex; }
+  .hmi-designer-canvas { grid-template-columns: 1fr; }
+  .hmi-runtime-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hmi-json-heading { align-items: flex-start; flex-direction: column; }
+}
+@media (max-width: 480px) {
+  .hmi-runtime-grid { grid-template-columns: 1fr; }
+}

@@ -1,37 +1,199 @@
 import { store } from "../../services/demo-store.js";
-import { button, dataTable, pageHeader, panel, pill, statCard, lineChart, emptyState } from "../../shared/ui.js";
+import { escapeHtml } from "../../core/format.js";
+import { button, dataTable, pageHeader, panel, pill, statCard, emptyState } from "../../shared/ui.js";
+
+function currentConfig(batch) {
+  const configs = store.list("batchConfigs");
+  if (batch?.config_id) return configs.find(item => item.id === batch.config_id) || null;
+  if (batch?.formula) return configs.find(item => item.formula === batch.formula) || null;
+  return null;
+}
+
+function latestWeighments(rows) {
+  const latest = new Map();
+  for (const item of rows) latest.set(item.hopper_key, item);
+  return latest;
+}
 
 function batchRunPage() {
-  const latest = store.list("batches")[0];
-  return `<div class="batch-page">${pageHeader("توزین و اجرای بچ", "انتخاب فرمول، تعیین وزن هدف و کنترل توالی توزین مواد", button("بچ جدید", "new-batch", { icon: "+" }))}
-    <div class="batch-control-layout"><section class="panel"><div class="panel-heading"><h3>تنظیم بچ جاری</h3>${pill(latest ? "آماده اجرا" : "بدون بچ فعال", latest ? "info" : "muted")}</div><div class="panel-body"><div class="form-grid"><label class="field"><span>فرمول</span><select><option>کابل NYY 4×16</option><option>سیم PVC 1×10</option><option>فرمول تست</option></select></label><label class="field"><span>خط تولید</span><select><option>خط ترکیب مواد ۱</option><option>خط ترکیب مواد ۲</option></select></label><label class="field"><span>وزن هدف (kg)</span><input type="number" value="500"></label><label class="field"><span>شماره بچ</span><input value="BATCH-1405-00021" readonly></label></div><div class="batch-main-actions"><button class="btn btn-primary" data-action="start-batch">شروع توزین</button><button class="btn btn-light" data-action="stop-batch">توقف</button><button class="btn btn-light" data-action="open-modal-info">ادامه</button><button class="btn btn-danger" data-action="open-modal-info">لغو بچ</button></div></div></section>
-      <section class="panel batch-weight-panel"><div class="panel-heading"><h3>وزن لحظه‌ای</h3>${pill("شبیه‌سازی", "warning")}</div><div class="panel-body"><div class="weight-display"><small>وزن کل</small><strong id="batch-weight">۰٫۰۰</strong><span>kg</span></div><div class="weight-progress"><i></i></div><div class="weight-meta"><span>هدف: ۵۰۰ kg</span><b>۰٪</b></div><div class="weight-status"><span class="online-dot"></span> <span data-batch-status>آماده به کار</span></div></div></section></div>
-    ${panel("مواد و هاپرها", dataTable([{ key: "bin", label: "هاپر" }, { key: "material", label: "ماده" }, { key: "target", label: "وزن هدف" }, { key: "actual", label: "وزن واقعی" }, { key: "status", label: "وضعیت", render: row => pill(row.status, "info") }], [{ bin: "Hopper 01", material: "گرانول PVC", target: "250.00 kg", actual: "0.00 kg", status: "در انتظار" }, { bin: "Hopper 02", material: "کربنات کلسیم", target: "150.00 kg", actual: "0.00 kg", status: "در انتظار" }, { bin: "Hopper 03", material: "افزودنی", target: "100.00 kg", actual: "0.00 kg", status: "در انتظار" }]))}
-    ${panel("وضعیت مراحل توزین", `<div class="batch-steps"><div class="active"><span>۱</span><b>آماده‌سازی</b></div><div><span>۲</span><b>توزین مواد</b></div><div><span>۳</span><b>تخلیه</b></div><div><span>۴</span><b>تکمیل بچ</b></div></div>`)}
+  const batches = store.list("batches");
+  const latest = batches[0] || null;
+  const config = currentConfig(latest);
+  const tags = store.list("tags");
+  const weightTag = config?.weight_tag_id ? tags.find(tag => tag.id === config.weight_tag_id) : null;
+  const hoppers = config?.hoppers || latest?.hoppers || [];
+  const isRunning = latest?.status === "در حال توزین";
+  const target = Number(latest?.target ?? hoppers.reduce((sum, hopper) => sum + Number(hopper.target || 0), 0)) || null;
+  const weightValue = weightTag && weightTag.value !== undefined ? Number(weightTag.value) : null;
+  const weightQuality = weightTag?.quality || "UNSAMPLED";
+  const weightAvailable = Number.isFinite(weightValue) && weightQuality === "GOOD";
+  const weighments = latestWeighments(store.list("batchWeighments").filter(item => item.batch_id === latest?.id));
+  const hopperRows = hoppers.map(hopper => {
+    const reading = weighments.get(String(hopper.bin));
+    return {
+      bin: hopper.bin,
+      material: hopper.material,
+      ratio: hopper.ratio,
+      target: hopper.target,
+      actual: reading ? reading.actual_weight : "ثبت نشده",
+      result: reading ? reading.result : "—",
+      quality: reading ? reading.quality : "—",
+      created_at: reading?.created_at || "",
+    };
+  });
+  return `<div class="batch-page">${pageHeader("توزین و اجرای بچ", "ثبت وضعیت بچ، ثبت وزن دستی آزمایشی هر هاپر و مشاهده قرائت تگ لودسل", button("بچ جدید", "new-batch", { icon: "+" }))}
+    <div class="batch-control-layout">
+      <section class="panel">
+        <div class="panel-heading"><h3>بچ جاری</h3>${pill(latest?.status || "بدون بچ ثبت‌شده", isRunning ? "success" : latest ? "info" : "muted")}</div>
+        <div class="panel-body">
+          <div class="storage-list">
+            <div><span>شماره بچ</span><b>${escapeHtml(latest?.code || "—")}</b></div>
+            <div><span>فرمول</span><b>${escapeHtml(latest?.formula || config?.formula || "—")}</b></div>
+            <div><span>خط توزین</span><b>${escapeHtml(config?.name || "—")}</b></div>
+            <div><span>وزن هدف</span><b>${target === null ? "—" : target.toLocaleString("fa-IR") + " kg"}</b></div>
+            <div><span>شروع</span><b>${latest?.started_at ? new Date(latest.started_at).toLocaleString("fa-IR") : "—"}</b></div>
+          </div>
+          <div class="batch-main-actions">
+            <button class="btn btn-primary" data-action="start-batch" data-id="${latest?.id || ""}" ${!latest || isRunning || ["لغوشده","تکمیل‌شده"].includes(latest?.status) ? "disabled" : ""}>شروع / ادامه وضعیت</button>
+            <button class="btn btn-light" data-action="stop-batch" data-id="${latest?.id || ""}" ${!latest || !isRunning ? "disabled" : ""}>توقف وضعیت</button>
+            <button class="btn btn-light" data-action="record-batch-weighments" data-id="${latest?.id || ""}" ${!latest || !isRunning || !hoppers.length ? "disabled" : ""}>ثبت وزن هاپرها (DEMO)</button>
+            <button class="btn btn-primary" data-action="complete-batch" data-id="${latest?.id || ""}" ${!latest || !isRunning || !hoppers.length ? "disabled" : ""}>تکمیل بچ</button>
+            <button class="btn btn-danger" data-action="cancel-batch" data-id="${latest?.id || ""}" ${!latest || isRunning || ["لغوشده","تکمیل‌شده"].includes(latest?.status) ? "disabled" : ""}>لغو بچ</button>
+          </div>
+          <p class="muted-note">تکمیل فقط پس از ثبت وزن همه هاپرها و قرارگرفتن آخرین وزن هر هاپر در تلرانس مجاز پذیرفته می‌شود.</p>
+        </div>
+      </section>
+      <section class="panel batch-weight-panel">
+        <div class="panel-heading"><h3>مقدار تگ لودسل</h3>${pill(weightQuality, weightQuality === "GOOD" ? "success" : weightQuality === "DEMO" ? "warning" : "muted")}</div>
+        <div class="panel-body">
+          <div class="weight-display"><small>${escapeHtml(weightTag?.name || "تگ لودسل تخصیص داده نشده")}</small><strong>${weightAvailable ? weightValue.toLocaleString("fa-IR", { maximumFractionDigits: 3 }) : "—"}</strong><span>${escapeHtml(weightTag?.unit || "")}</span></div>
+          <div class="weight-status"><span class="online-dot"></span><span>${weightAvailable ? `منبع: ${escapeHtml(weightTag.source || "ثبت‌شده")}` : "داده وزن از تگ مشخص‌شده دریافت نشده است."}</span></div>
+          <p class="muted-note">مقدار فقط زمانی معتبر است که تگ به منبع Edge/PLC تأییدشده متصل باشد و کیفیت آن GOOD باشد. حالت DEMO مقدار واقعی لودسل نیست.</p>
+        </div>
+      </section>
+    </div>
+    ${panel("مواد و هاپرهای فرمول", hoppers.length ? dataTable([
+      { key: "bin", label: "هاپر" },
+      { key: "material", label: "ماده" },
+      { key: "ratio", label: "درصد فرمول", render: row => row.ratio === undefined ? "—" : `${Number(row.ratio).toLocaleString("fa-IR")}%` },
+      { key: "target", label: "وزن هدف", render: row => row.target === undefined ? "—" : `${Number(row.target).toLocaleString("fa-IR")} kg` },
+      { key: "actual", label: "آخرین وزن ثبت‌شده", render: row => typeof row.actual === "number" ? `${row.actual.toLocaleString("fa-IR")} kg` : row.actual },
+      { key: "result", label: "نتیجه", render: row => row.result === "IN_TOLERANCE" ? pill("داخل تلرانس", "success") : row.result === "OUT_OF_TOLERANCE" ? pill("خارج تلرانس", "danger") : "—" },
+    ], hopperRows) : emptyState("برای این بچ فرمول دارای هاپر پیدا نشد. در صفحه تنظیمات توزین، فرمول را ذخیره و نام آن را دقیقاً با فرمول بچ یکسان کنید."))}
+    ${panel("سوابق آخرین توزین هر هاپر", weighments.size ? dataTable([
+      { key: "bin", label: "هاپر" },
+      { key: "material", label: "ماده" },
+      { key: "target_weight", label: "هدف (kg)" },
+      { key: "actual_weight", label: "واقعی (kg)" },
+      { key: "result", label: "نتیجه", render: row => pill(row.result, row.result === "IN_TOLERANCE" ? "success" : "danger") },
+      { key: "quality", label: "کیفیت" },
+      { key: "created_at", label: "زمان", render: row => row.created_at ? new Date(row.created_at).toLocaleString("fa-IR") : "—" },
+    ], [...weighments.values()]) : emptyState("هنوز برای این بچ وزن هاپری ثبت نشده است."))}
+    ${panel("وضعیت مراحل توزین", latest?.steps?.length ? dataTable([
+      { key: "name", label: "مرحله" },
+      { key: "status", label: "وضعیت" },
+      { key: "started_at", label: "شروع" },
+      { key: "completed_at", label: "پایان" },
+    ], latest.steps) : emptyState("برای این بچ هنوز داده مرحله‌ای از سیستم توزین ثبت نشده است."))}
   </div>`;
 }
 
 function batchSetupPage() {
-  return `<div>${pageHeader("تنظیمات توزین بچ", "پیکربندی خط، لودسل، تعداد نمونه و نسبت مواد در هر هاپر", button("ذخیره تنظیمات", "open-modal-info"))}
-    <div class="two-col-grid">${panel("اطلاعات خط توزین", `<div class="form-grid"><label class="field"><span>کد خط</span><input value="BATCH-01"></label><label class="field"><span>نام خط</span><input value="خط ترکیب مواد ۱"></label><label class="field"><span>لودسل</span><select><option>Loadcell-01</option><option>Loadcell-02</option></select></label><label class="field"><span>تعداد نمونه</span><input type="number" value="5"></label><label class="field"><span>حد مجاز خطا (%)</span><input type="number" value="0.5"></label><label class="field"><span>زمان پایدارسازی (ثانیه)</span><input type="number" value="3"></label></div>`)}${panel("انتخاب فرمول", `<label class="field"><span>فرمول فعال</span><select><option>کابل NYY 4×16</option><option>سیم PVC 1×10</option></select></label><label class="field"><span>توضیحات</span><textarea rows="3">فرمول پایه ترکیب مواد عایق</textarea></label><div class="storage-list"><div><span>تعداد مواد</span><b>۳ ماده</b></div><div><span>تعداد هاپرها</span><b>۳ هاپر</b></div></div>`)}</div>
-    ${panel("مواد و هاپرها", dataTable([{ key: "bin", label: "هاپر" }, { key: "material", label: "ماده" }, { key: "ratio", label: "درصد فرمول" }, { key: "target", label: "وزن در بچ ۵۰۰kg" }, { key: "calibration", label: "کالیبراسیون" }], [{ bin: "Hopper 01", material: "گرانول PVC", ratio: "۵۰٪", target: "۲۵۰ kg", calibration: pill("تأیید", "success") }, { bin: "Hopper 02", material: "کربنات کلسیم", ratio: "۳۰٪", target: "۱۵۰ kg", calibration: pill("تأیید", "success") }, { bin: "Hopper 03", material: "افزودنی", ratio: "۲۰٪", target: "۱۰۰ kg", calibration: pill("تأیید", "success") }]))}
+  const config = store.list("batchConfigs")[0] || {
+    code: "", name: "", loadcell: "", samples: 5,
+    tolerance_percent: 0.5, stabilization_seconds: 3,
+    formula: "", description: "", weight_tag_id: "", hoppers: [],
+  };
+  const numericTags = store.list("tags").filter(tag =>
+    ["float32","int16","uint16","int32","uint32"].includes(tag.type)
+  );
+  const hoppers = config.hoppers?.length ? config.hoppers : [{ bin: "Hopper 01", material: "", ratio: 100, target: 0 }];
+  return `<div>${pageHeader("تنظیمات توزین بچ", "پیکربندی خط، تعداد نمونه، تگ لودسل و نسبت مواد در هر هاپر", `<button class="btn btn-primary" type="submit" form="batch-config-form">ذخیره تنظیمات</button>`)}
+    <form id="batch-config-form" data-local-form="batch-config" data-id="${config.id || ""}">
+      <div class="two-col-grid">
+        ${panel("اطلاعات خط توزین", `<div class="form-grid">
+          <label class="field"><span>کد خط</span><input name="code" value="${escapeHtml(config.code || "")}" required></label>
+          <label class="field"><span>نام خط</span><input name="name" value="${escapeHtml(config.name || "")}" required></label>
+          <label class="field"><span>شناسه لودسل</span><input name="loadcell" value="${escapeHtml(config.loadcell || "")}" placeholder="شناسه تجهیز / باسکول" required></label>
+          <label class="field"><span>تگ وزن در Backend</span><select name="weight_tag_id"><option value="">بدون تخصیص</option>${numericTags.map(tag => `<option value="${tag.id}" ${tag.id === config.weight_tag_id ? "selected" : ""}>${escapeHtml(tag.name)} · ${tag.type} · ${escapeHtml(tag.unit || "بدون واحد")}</option>`).join("")}</select></label>
+          <label class="field"><span>تعداد نمونه</span><input name="samples" type="number" min="1" max="100" value="${config.samples ?? 5}" required></label>
+          <label class="field"><span>حد مجاز خطا (%)</span><input name="tolerance_percent" type="number" min="0" max="100" step="0.01" value="${config.tolerance_percent ?? 0.5}" required></label>
+          <label class="field"><span>زمان پایدارسازی (ثانیه)</span><input name="stabilization_seconds" type="number" min="0" max="600" value="${config.stabilization_seconds ?? 3}" required></label>
+        </div>`)}
+        ${panel("انتخاب فرمول", `<label class="field"><span>فرمول فعال</span><input name="formula" value="${escapeHtml(config.formula || "")}" required></label><label class="field"><span>توضیحات</span><textarea name="description" rows="3">${escapeHtml(config.description || "")}</textarea></label><div class="storage-list"><div><span>تعداد هاپرهای تعریف‌شده</span><b>${hoppers.length.toLocaleString("fa-IR")}</b></div><div><span>مجموع درصد مواد</span><b>${hoppers.reduce((sum, hopper) => sum + Number(hopper.ratio || 0), 0).toLocaleString("fa-IR")}%</b></div></div>`)}
+      </div>
+      ${panel("مواد و هاپرها", `<div class="table-wrap"><table class="data-table"><thead><tr><th>هاپر</th><th>ماده</th><th>درصد فرمول</th><th>وزن هدف (kg)</th><th>عملیات</th></tr></thead><tbody id="batch-hopper-rows" data-next-index="${hoppers.length}">${hoppers.map((hopper,index) => hopperEditorRow(hopper,index)).join("")}</tbody></table></div><button type="button" class="btn btn-light" data-action="add-batch-hopper">افزودن هاپر</button>`)}
+    </form>
+    <p class="muted-note">درصد همه هاپرها باید در مجموع دقیقاً ۱۰۰ باشد. وزن‌ها و تلرانس این بخش تنظیمات فرمول هستند؛ ثبت وزن دستی در زمان اجرای بچ با برچسب DEMO ذخیره می‌شود و جایگزین داده باسکول واقعی نیست.</p>
   </div>`;
+}
+
+function hopperEditorRow(hopper, index) {
+  return `<tr>
+    <td><input name="hopper_${index}_bin" value="${escapeHtml(hopper.bin || "")}" required></td>
+    <td><input name="hopper_${index}_material" value="${escapeHtml(hopper.material || "")}" required></td>
+    <td><input type="number" min="0" max="100" step="0.01" name="hopper_${index}_ratio" value="${hopper.ratio ?? 0}" required></td>
+    <td><input type="number" min="0" step="0.001" name="hopper_${index}_target" value="${hopper.target ?? 0}" required></td>
+    <td><button type="button" class="btn btn-light btn-sm" data-action="remove-batch-hopper">حذف</button></td>
+  </tr>`;
 }
 
 function batchReportPage() {
   const rows = store.list("batches");
-  return `<div>${pageHeader("گزارش بچ‌ها", "سوابق عملیات توزین، مقدار هدف و وزن نهایی", button("خروجی CSV", "export-csv", { variant: "light" }))}
-    <div class="filter-bar"><label class="field"><span>فرمول</span><select><option>همه فرمول‌ها</option><option>کابل NYY 4×16</option></select></label><label class="field"><span>وضعیت</span><select><option>همه</option><option>تکمیل‌شده</option><option>لغوشده</option></select></label><button class="btn btn-primary btn-sm" data-action="apply-filter">جستجو</button></div>
-    ${panel("سوابق بچ", rows.length ? dataTable([{ key: "code", label: "کد بچ" }, { key: "formula", label: "فرمول" }, { key: "target", label: "وزن هدف" }, { key: "material", label: "ماده" }, { key: "status", label: "وضعیت", render: row => pill(row.status || "ثبت‌شده", "success") }], rows) : emptyState("هنوز بچی در فضای نمایشی ثبت نشده است."))}
+  return `<div>${pageHeader("گزارش بچ‌ها", "سوابق ذخیره‌شده عملیات بچ، مقدار هدف و وضعیت اجرا", button("خروجی CSV", "export-csv", { variant: "light" }))}
+    <div class="filter-bar"><label class="field"><span>فرمول</span><select><option>همه فرمول‌ها</option>${[...new Set(rows.map(row => row.formula).filter(Boolean))].map(formula => `<option>${escapeHtml(formula)}</option>`).join("")}</select></label><label class="field"><span>وضعیت</span><select><option>همه</option><option>در حال توزین</option><option>متوقف‌شده</option><option>لغوشده</option><option>تکمیل‌شده</option></select></label><button class="btn btn-primary btn-sm" data-action="apply-filter">جستجو</button></div>
+    ${panel("سوابق بچ", rows.length ? dataTable([
+      { key: "code", label: "کد بچ" },
+      { key: "formula", label: "فرمول" },
+      { key: "target", label: "وزن هدف" },
+      { key: "status", label: "وضعیت", render: row => pill(row.status || "ثبت‌شده", row.status === "در حال توزین" ? "success" : row.status === "لغوشده" ? "danger" : "warning") },
+      { key: "created_at", label: "زمان ثبت", render: row => row.created_at ? new Date(row.created_at).toLocaleString("fa-IR") : "—" },
+    ], rows) : emptyState("هنوز بچی ثبت نشده است."))}
   </div>`;
 }
 
 function batchComparePage() {
-  return `<div>${pageHeader("مقایسه مقدار اسمی و واقعی بچ", "مقایسه وزن مورد انتظار فرمول با مقادیر ثبت‌شده در توزین")}
-    <div class="filter-bar"><label class="field"><span>انتخاب بچ</span><select><option>BATCH-1405-00021</option><option>BATCH-1405-00020</option></select></label><button class="btn btn-primary btn-sm" data-action="apply-filter">نمایش مقایسه</button></div>
-    <div class="stats-grid stats-grid-4">${statCard("وزن اسمی", "۵۰۰٫۰۰", "kg", "blue")}${statCard("وزن واقعی", "۴۹۹٫۶۲", "kg", "green")}${statCard("اختلاف", "۰٫۳۸-", "kg", "orange")}${statCard("انحراف", "۰٫۰۸", "%", "purple")}</div>
-    ${lineChart("مقایسه وزن اسمی و واقعی مواد", undefined, "#1699c8", [50, 30, 20, 50, 30, 20, 50])}
-    <div class="two-col-grid">${panel("مقایسه بر اساس ماده", dataTable([{ key: "material", label: "ماده" }, { key: "nominal", label: "وزن اسمی" }, { key: "actual", label: "وزن واقعی" }, { key: "deviation", label: "انحراف" }], [{ material: "گرانول PVC", nominal: "250.00", actual: "249.82", deviation: "-0.18 kg" }, { material: "کربنات کلسیم", nominal: "150.00", actual: "149.92", deviation: "-0.08 kg" }, { material: "افزودنی", nominal: "100.00", actual: "99.88", deviation: "-0.12 kg" }]))}${panel("مقایسه بر اساس هاپر", dataTable([{ key: "bin", label: "هاپر" }, { key: "target", label: "هدف" }, { key: "actual", label: "واقعی" }, { key: "result", label: "نتیجه", render: () => pill("در محدوده", "success") }], [{ bin: "Hopper 01", target: "250.00", actual: "249.82" }, { bin: "Hopper 02", target: "150.00", actual: "149.92" }, { bin: "Hopper 03", target: "100.00", actual: "99.88" }]))}</div>
+  const batches = store.list("batches");
+  const batch = batches[0] || null;
+  const config = currentConfig(batch);
+  const hoppers = config?.hoppers || batch?.hoppers || [];
+  const tag = config?.weight_tag_id ? store.list("tags").find(item => item.id === config.weight_tag_id) : null;
+  const target = Number(batch?.target ?? hoppers.reduce((sum, item) => sum + Number(item.target || 0), 0)) || null;
+  const actual = tag && tag.quality === "GOOD" && Number.isFinite(Number(tag.value)) ? Number(tag.value) : null;
+  const difference = actual !== null && target !== null ? actual - target : null;
+  const deviation = difference !== null && target ? difference * 100 / target : null;
+  const weighments = latestWeighments(store.list("batchWeighments").filter(item => item.batch_id === batch?.id));
+  const rows = hoppers.map(item => {
+    const measured = weighments.get(String(item.bin));
+    const actualWeight = measured ? Number(measured.actual_weight) : null;
+    return {
+      bin: item.bin,
+      material: item.material,
+      target: item.target ?? "—",
+      actual: actualWeight === null ? "ثبت نشده" : actualWeight,
+      deviation: actualWeight === null || item.target === undefined ? "—" :
+        `${(actualWeight - Number(item.target)).toLocaleString("fa-IR", { maximumFractionDigits: 3 })} kg`,
+      quality: measured?.quality || "—",
+    };
+  });
+  return `<div>${pageHeader("مقایسه مقدار اسمی و واقعی بچ", "مقایسه وزن کل تگ لودسل و وزن ثبت‌شده هر هاپر")}
+    <div class="filter-bar"><label class="field"><span>بچ انتخاب‌شده</span><select disabled><option>${escapeHtml(batch?.code || "بچی ثبت نشده است")}</option></select></label><label class="field"><span>تگ لودسل</span><input value="${escapeHtml(tag?.name || "تگ لودسل تخصیص داده نشده")}" readonly></label></div>
+    <div class="stats-grid stats-grid-4">
+      ${statCard("وزن هدف", target === null ? "—" : target.toLocaleString("fa-IR"), "kg", "blue")}
+      ${statCard("وزن دریافتی", actual === null ? "داده معتبر موجود نیست" : actual.toLocaleString("fa-IR"), actual === null ? "" : "kg", "green")}
+      ${statCard("اختلاف", difference === null ? "—" : difference.toLocaleString("fa-IR"), difference === null ? "" : "kg", "orange")}
+      ${statCard("انحراف", deviation === null ? "—" : deviation.toLocaleString("fa-IR", { maximumFractionDigits: 3 }), deviation === null ? "" : "%", "purple")}
+    </div>
+    ${panel("آخرین قرائت معتبر لودسل", actual !== null ? `<div class="storage-list"><div><span>مقدار</span><b>${actual.toLocaleString("fa-IR", { maximumFractionDigits: 3 })} ${escapeHtml(tag?.unit || "")}</b></div><div><span>زمان نمونه</span><b>${tag?.sampled_at ? new Date(tag.sampled_at).toLocaleString("fa-IR") : "—"}</b></div><div><span>منبع</span><b>${escapeHtml(tag?.source || "—")}</b></div></div>` : emptyState("تا این لحظه مقدار واقعی با کیفیت GOOD از Edge برای تگ لودسل ثبت نشده است."))}
+    ${panel("مقایسه بر اساس ماده و هاپر", rows.length ? dataTable([
+      { key: "bin", label: "هاپر" },
+      { key: "material", label: "ماده" },
+      { key: "target", label: "وزن هدف" },
+      { key: "actual", label: "وزن واقعی" },
+      { key: "deviation", label: "اختلاف" },
+      { key: "quality", label: "کیفیت" },
+    ], rows) : emptyState("برای فرمول بچ، هاپری ثبت نشده است."))}
+    <p class="muted-note">وزن کلی فقط از تگ تخصیص‌یافته خوانده می‌شود. وزن جداگانه هر هاپر در این صفحه با برچسب DEMO از API نمایش داده می‌شود و تا اتصال درایور توزین، مقدار واقعی سخت‌افزار محسوب نمی‌شود.</p>
   </div>`;
 }
 
