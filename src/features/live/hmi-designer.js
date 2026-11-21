@@ -173,6 +173,12 @@ function pageSettingsMarkup() {
 }
 
 export function renderHmiDesigner(pageId = null) {
+  if (pageId && !store.list("hmiPages").some(item => item.id === pageId)) {
+    return '<div>' +
+      '<div class="page-heading"><div><h1>صفحه HMI پیدا نشد</h1><p>شناسه صفحه در Backend موجود نیست یا حذف شده است.</p></div>' +
+      '<a class="btn btn-light" href="#/live/hmi-pages">بازگشت به صفحات HMI</a></div>' +
+      '</div>';
+  }
   initializeDraft(pageId);
   const editing = Boolean(pageId);
   return '<div class="hmi-designer-page">' +
