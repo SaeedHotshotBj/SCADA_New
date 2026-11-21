@@ -39,8 +39,9 @@ function selectedWidget() {
 }
 
 function chartHistorySeconds(component) {
-  const seconds = Number(component?.history_seconds);
-  if (Number.isFinite(seconds) && seconds > 0) return seconds;
+  if (component?.history_seconds !== undefined && component?.history_seconds !== null) {
+    return Number(component.history_seconds);
+  }
   const legacyHours = Number(component?.history_hours);
   return Number.isFinite(legacyHours) && legacyHours > 0 ? legacyHours * 3600 : 3600;
 }
