@@ -53,4 +53,26 @@ const hmiWidgetCount = (hmiHtml.match(/class="hmi-library-item"/g) || []).length
 if (hmiWidgetCount !== 14) {
   throw new Error(`HMI Designer must render 14 library items; got ${hmiWidgetCount}`);
 }
+
 console.log("HMI Designer route render passed (14 library widgets, canvas, properties and JSON editor).");
+
+const { HMI_CHART_RANGES, createHmiWidget, renderHmiWidget } = await import("../src/features/live/hmi-widgets.js");
+const chart = createHmiWidget("chart");
+if (chart.history_seconds !== 3600) {
+  throw new Error("New HMI trend charts must default to a one-hour range in seconds.");
+}
+const requiredRanges = [5, 10, 30, 60, 300, 600, 900, 1800, 3600, 21600, 43200, 86400];
+for (const seconds of requiredRanges) {
+  if (!HMI_CHART_RANGES.some(range => range.value === seconds)) {
+    throw new Error(`HMI trend chart is missing the ${seconds}-second range.`);
+  }
+}
+const needleHtml = renderHmiWidget({
+  type: "needle", label: "فشار", tag_id: "test-pressure", min: 0, max: 100,
+}, [{
+  id: "test-pressure", name: "Pressure", value: 42.5, type: "float32", unit: "bar", quality: "GOOD",
+}]);
+if (!needleHtml.includes('class="hmi-dial-reading"') || !needleHtml.includes("42") || !needleHtml.includes("bar")) {
+  throw new Error("Needle widget must render a numeric value and its unit.");
+}
+console.log("HMI chart range and needle numeric readout checks passed.");
