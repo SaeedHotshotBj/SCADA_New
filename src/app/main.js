@@ -11,8 +11,29 @@ let liveSocket = null;
 let loadedHmiChartPageId = null;
 
 function render() {
-  root.innerHTML = renderRoute(currentPath());
-  bindShellEvents();
+  const path = currentPath();
+  try {
+    root.innerHTML = renderRoute(path);
+    bindShellEvents();
+  } catch (error) {
+    console.error("SCADA page render failed:", path, error);
+    root.innerHTML = "";
+    const panel = document.createElement("section");
+    panel.className = "panel";
+    panel.style.cssText = "margin:24px;padding:20px;border:1px solid #d65a62;border-radius:10px;background:#fff";
+    const title = document.createElement("h2");
+    title.textContent = "خطا در نمایش این صفحه";
+    const message = document.createElement("p");
+    message.textContent = error?.message || String(error);
+    const hint = document.createElement("p");
+    hint.textContent = "جزئیات فنی خطا در Console مرورگر ثبت شده است. به صفحه قبل برگردید و متن خطا را برای پشتیبانی ارسال کنید.";
+    const back = document.createElement("a");
+    back.href = "#/live/hmi-pages";
+    back.className = "btn btn-light";
+    back.textContent = "بازگشت به صفحات HMI";
+    panel.append(title, message, hint, back);
+    root.append(panel);
+  }
 }
 
 function scheduleRender() {
