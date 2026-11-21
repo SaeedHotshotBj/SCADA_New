@@ -146,6 +146,12 @@ function refreshDesignerPanels() {
   syncJsonEditor();
 }
 
+export function refreshHmiDesignerLivePreview() {
+  if (!document.querySelector(".hmi-designer-page")) return;
+  const canvas = document.getElementById("hmi-designer-canvas");
+  if (canvas) canvas.innerHTML = canvasMarkup();
+}
+
 function libraryMarkup() {
   const categories = [...new Set(HMI_WIDGET_LIBRARY.map(item => item.category))];
   return '<aside class="hmi-designer-side-panel hmi-library-panel"><div class="hmi-designer-side-heading"><b>کتابخانه اجزا</b><small>' +
