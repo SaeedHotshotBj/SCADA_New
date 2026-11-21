@@ -349,12 +349,18 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                             detail=f"تگ اتصال‌یافته به جزء شماره {number_in_layout} پیدا نشد یا متعلق به کارخانه دیگری است.",
                         )
                     tag_payload = json_load(tag_row["payload"], {}) or {}
-                    if field in boolean_bindings and tag_payload.get("type") != "bool":
+                    must_be_boolean = field in boolean_bindings or (
+                        component_type == "indicator" and field == "tag_id"
+                    )
+                    must_be_numeric = field in numeric_bindings or (
+                        component_type in {"gauge", "needle", "thermometer", "chart"} and field == "tag_id"
+                    )
+                    if must_be_boolean and tag_payload.get("type") != "bool":
                         raise HTTPException(
                             status_code=422,
                             detail=f"اتصال {field} در جزء شماره {number_in_layout} باید از نوع BOOL باشد.",
                         )
-                    if field in numeric_bindings and tag_payload.get("type") not in {"int16", "uint16", "int32", "uint32", "float32"}:
+                    if must_be_numeric and tag_payload.get("type") not in {"int16", "uint16", "int32", "uint32", "float32"}:
                         raise HTTPException(
                             status_code=422,
                             detail=f"اتصال {field} در جزء شماره {number_in_layout} باید عددی باشد.",
