@@ -46,7 +46,7 @@ function hmiRuntimePage(pageId) {
     history: component.type === "chart" ? getHmiChartHistory(component.tag_id, component.history_hours) : [],
   })).join("");
   return `<div class="hmi-runtime">
-    ${pageHeader(page.name, `${page.description || ""} · ${page.machine || "بدون ماشین"}`, `${button("به‌روزرسانی نمودارها", "hmi-refresh-charts", { variant: "light" })}<a class="btn btn-light" href="#/live/hmi-pages">بازگشت به صفحات HMI</a>`)}
+    ${pageHeader(page.name, `${page.description || ""} · ${page.machine || "بدون ماشین"}`, `${button("به‌روزرسانی نمودارها", "hmi-refresh-charts", { variant: "light", attrs: "data-page-id=\"" + pageId + "\"" })}<a class="btn btn-light" href="#/live/hmi-pages">بازگشت به صفحات HMI</a>`)}
     <div class="hmi-runtime-toolbar">${pill(active ? "صفحه فعال" : "صفحه غیرفعال", active ? "success" : "muted")}<span>نمایش از Backend · مقادیر UNSAMPLED به‌عنوان مقدار زنده نمایش داده نمی‌شوند.</span></div>
     ${layout.length ? `<div class="hmi-runtime-grid">${components}</div>` : emptyState("برای این صفحه هنوز جزء صنعتی تعریف نشده است. صفحه را در طراح HMI ویرایش کنید و اجزا را به تگ‌ها متصل کنید.")}
     <p class="muted-note">کیفیت GOOD از Edge احراز‌شده می‌آید؛ DEMO از شبیه‌ساز داخلی است. برای فرمان فیزیکی، درایور و نقشه آدرس PLC هنوز تأیید و راه‌اندازی نشده است.</p>
