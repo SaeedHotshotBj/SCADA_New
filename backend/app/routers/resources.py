@@ -304,31 +304,83 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
         if layout is not None:
             if not isinstance(layout, list) or len(layout) > 50:
                 raise HTTPException(status_code=422, detail="چیدمان HMI باید آرایه‌ای با حداکثر ۵۰ جزء باشد.")
-            supported = {"value", "status", "gauge", "write"}
+            supported = {
+                "value", "status", "gauge", "write", "indicator", "needle",
+                "thermometer", "chart", "motor", "pump", "fan", "conveyor",
+                "tank", "valve",
+            }
+            required_bindings = {
+                "value": {"tag_id"}, "status": {"tag_id"}, "gauge": {"tag_id"},
+                "write": {"tag_id"}, "indicator": {"tag_id"}, "needle": {"tag_id"},
+                "thermometer": {"tag_id"}, "chart": {"tag_id"},
+                "motor": {"run_tag_id"}, "pump": {"run_tag_id"},
+                "fan": {"run_tag_id"}, "conveyor": {"run_tag_id"},
+                "tank": {"level_tag_id"}, "valve": {"open_tag_id"},
+            }
+            boolean_bindings = {"run_tag_id", "fault_tag_id", "open_tag_id"}
+            numeric_bindings = {"speed_tag_id", "level_tag_id"}
             for index, component in enumerate(layout):
+                number_in_layout = index + 1
                 if not isinstance(component, dict) or component.get("type") not in supported:
-                    raise HTTPException(status_code=422, detail=f"نوع جزء شماره {index + 1} پشتیبانی نمی‌شود.")
-                tag_id = component.get("tag_id")
-                tag_row = db.execute(
-                    "SELECT payload,factory_id FROM resources WHERE collection='tags' AND id=?",
-                    (tag_id,),
-                ).fetchone()
-                if tag_row is None or (scope_factory and tag_row["factory_id"] not in {None, scope_factory}):
-                    raise HTTPException(status_code=422, detail=f"تگ جزء شماره {index + 1} پیدا نشد یا متعلق به کارخانه دیگری است.")
-                tag_payload = json_load(tag_row["payload"], {}) or {}
-                if component["type"] == "write" and tag_payload.get("access") != "read_write":
-                    raise HTTPException(status_code=422, detail=f"تگ جزء شماره {index + 1} فقط خواندنی است.")
+                    raise HTTPException(status_code=422, detail=f"نوع جزء شماره {number_in_layout} پشتیبانی نمی‌شود.")
+                component_type = component["type"]
+                fields = set(required_bindings[component_type])
+                if component_type in {"motor", "pump", "fan", "conveyor", "valve"}:
+                    fields.update({"fault_tag_id"})
+                if component_type in {"motor", "pump", "fan"}:
+                    fields.add("speed_tag_id")
+                fields.update(required_bindings[component_type])
+                for field in fields:
+                    tag_id = component.get(field)
+                    if not tag_id:
+                        if field in required_bindings[component_type]:
+                            raise HTTPException(
+                                status_code=422,
+                                detail=f"اتصال الزامی {field} برای جزء شماره {number_in_layout} انتخاب نشده است.",
+                            )
+                        continue
+                    tag_row = db.execute(
+                        "SELECT payload,factory_id FROM resources WHERE collection='tags' AND id=?",
+                        (tag_id,),
+                    ).fetchone()
+                    if tag_row is None or (scope_factory and tag_row["factory_id"] not in {None, scope_factory}):
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"تگ اتصال‌یافته به جزء شماره {number_in_layout} پیدا نشد یا متعلق به کارخانه دیگری است.",
+                        )
+                    tag_payload = json_load(tag_row["payload"], {}) or {}
+                    if field in boolean_bindings and tag_payload.get("type") != "bool":
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"اتصال {field} در جزء شماره {number_in_layout} باید از نوع BOOL باشد.",
+                        )
+                    if field in numeric_bindings and tag_payload.get("type") not in {"int16", "uint16", "int32", "uint32", "float32"}:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"اتصال {field} در جزء شماره {number_in_layout} باید عددی باشد.",
+                        )
+                    if component_type == "write" and tag_payload.get("access") != "read_write":
+                        raise HTTPException(status_code=422, detail=f"تگ جزء شماره {number_in_layout} فقط خواندنی است.")
                 bounds = {}
                 for bound in ("min", "max"):
                     if bound in component:
-                        number = _finite_number(component[bound])
-                        if number is None:
-                            raise HTTPException(status_code=422, detail=f"حد {bound} در جزء شماره {index + 1} معتبر نیست.")
-                        bounds[bound] = number
-                if component["type"] == "gauge" and (
-                    "min" not in bounds or "max" not in bounds or bounds["max"] <= bounds["min"]
-                ):
-                    raise HTTPException(status_code=422, detail=f"حداقل و حداکثر گیج شماره {index + 1} معتبر نیست.")
+                        bound_value = _finite_number(component[bound])
+                        if bound_value is None:
+                            raise HTTPException(status_code=422, detail=f"حد {bound} در جزء شماره {number_in_layout} معتبر نیست.")
+                        bounds[bound] = bound_value
+                if component_type in {"gauge", "needle", "thermometer", "tank"}:
+                    lower = bounds.get("min", 0)
+                    upper = bounds.get("max", 100)
+                    if upper <= lower:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"حداقل و حداکثر در جزء شماره {number_in_layout} معتبر نیست.",
+                        )
+                if component_type == "chart":
+                    if component.get("chart_kind", "line") not in {"line", "bar"}:
+                        raise HTTPException(status_code=422, detail=f"نوع نمودار جزء شماره {number_in_layout} معتبر نیست.")
+                    if component.get("history_hours", 1) not in (1, 6, 24):
+                        raise HTTPException(status_code=422, detail=f"بازه تاریخچه نمودار جزء شماره {number_in_layout} معتبر نیست.")
             payload["components"] = len(layout)
     if collection == "machineCalendars":
         machine_name = payload.get("machine")
