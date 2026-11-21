@@ -3,10 +3,12 @@ import { handleAction, handleSubmit, showToast } from "./actions.js";
 import { bindShellEvents } from "../layouts/shell.js";
 import { api } from "../services/api-client.js";
 import { store } from "../services/demo-store.js";
+import { handleHmiDesignerInput, loadHmiPageChartData } from "../features/live/hmi-designer.js";
 
 const root = document.getElementById("app");
 let renderQueued = false;
 let liveSocket = null;
+let loadedHmiChartPageId = null;
 
 function render() {
   root.innerHTML = renderRoute(currentPath());
@@ -21,6 +23,7 @@ function scheduleRender() {
 
 window.addEventListener("hashchange", () => { render(); syncLiveConnection(); });
 window.addEventListener("scada:state-changed", scheduleRender);
+window.addEventListener("scada:hmi-chart-updated", scheduleRender);
 
 document.addEventListener("click", event => {
   const routeLink = event.target.closest("a[href^='#/']");
@@ -42,6 +45,22 @@ document.addEventListener("click", event => {
     console.error(error);
     showToast(error.message || "عملیات انجام نشد.", "error");
   });
+});
+
+document.addEventListener("input", event => {
+  try {
+    handleHmiDesignerInput(event);
+  } catch (error) {
+    console.error("HMI designer input failed", error);
+    showToast(error.message || "به‌روزرسانی طراح HMI ناموفق بود.", "error");
+  }
+});
+
+document.addEventListener("change", event => {
+  if (event.target.matches(".hmi-designer-page select")) {
+    try { handleHmiDesignerInput(event); }
+    catch (error) { showToast(error.message || "به‌روزرسانی ویژگی HMI ناموفق بود.", "error"); }
+  }
 });
 
 document.addEventListener("submit", async event => {
@@ -80,6 +99,15 @@ document.addEventListener("submit", async event => {
 
 function syncLiveConnection() {
   const path = currentPath();
+  const hmiRuntimeMatch = path.match(/^\/live\/hmi\/([^/]+)$/);
+  if (hmiRuntimeMatch && store.isConnected()) {
+    if (loadedHmiChartPageId !== hmiRuntimeMatch[1]) {
+      loadedHmiChartPageId = hmiRuntimeMatch[1];
+      loadHmiPageChartData(loadedHmiChartPageId).catch(error => console.error("HMI chart history load failed", error));
+    }
+  } else {
+    loadedHmiChartPageId = null;
+  }
   const needsLive = ["/live/data", "/live/trends", "/live/alarms", "/live/classic", "/batch/run", "/batch/compare"].includes(path)
     || path.startsWith("/live/hmi/");
   if ((path === "/batch/run" || path === "/batch/compare") && store.isConnected()) {
