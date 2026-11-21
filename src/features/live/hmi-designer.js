@@ -303,7 +303,9 @@ export function handleHmiDesignerInput(event) {
   if (!component) return true;
   const numeric = target.type === "number" || ["min", "max", "history_hours"].includes(property);
   component[property] = numeric ? (target.value === "" ? "" : Number(target.value)) : target.value;
-  refreshDesignerPanels();
+  const canvas = document.getElementById("hmi-designer-canvas");
+  if (canvas) canvas.innerHTML = canvasMarkup();
+  syncJsonEditor();
   return true;
 }
 
