@@ -1,6 +1,8 @@
 import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
 import { button, dataTable, pageHeader, panel, pill, tabs, lineChart, statCard, gradientBanner, emptyState, barChart } from "../../shared/ui.js";
+import { renderHmiDesigner, getHmiChartHistory } from "./hmi-designer.js";
+import { renderHmiWidget } from "./hmi-widgets.js";
 
 function liveDataPage() {
   const rows = store.list("tags");
@@ -16,7 +18,7 @@ function liveDataPage() {
 
 function hmiPagesPage() {
   const designs = store.list("hmiPages");
-  return `<div class="hmi-page-collection" data-collection-name="hmiPages" data-edit-action="new-hmi-page">${pageHeader("صفحات HMI", "تعریف چیدمان خواندن/نمایش تگ و اجرای مستقل هر صفحه", button("صفحه جدید", "new-hmi-page", { icon: "+" }))}
+  return `<div class="hmi-page-collection" data-collection-name="hmiPages" data-edit-action="new-hmi-page">${pageHeader("صفحات HMI", "طراحی گرافیکی شماتیک صنعتی، اتصال تگ‌ها و اجرای مستقل هر صفحه", '<a class="btn btn-primary" href="#/live/hmi-designer/new">＋ صفحه جدید</a>')}
     ${designs.length ? `<div class="hmi-gallery">${designs.map(page => {
       const layout = Array.isArray(page.layout) ? page.layout : [];
       const componentNames = layout.map(item => item.label || item.type).slice(0, 4);
@@ -26,7 +28,7 @@ function hmiPagesPage() {
           <div class="preview-tiles">${componentNames.map(name => `<i title="${escapeHtml(name)}"></i>`).join("")}</div>
         </div></div>
         <div class="hmi-card-footer"><span><b>${escapeHtml(page.name)}</b></span><small>${escapeHtml(page.machine || "بدون ماشین")} · ${layout.length.toLocaleString("fa-IR")} جزء · ${escapeHtml(page.status || "پیش‌نویس")}</small>
-          <div><button class="btn btn-light btn-sm" data-action="edit-record" data-id="${page.id}">ویرایش</button><button class="btn btn-light btn-sm" data-action="delete-record" data-collection="hmiPages" data-id="${page.id}">حذف</button><a class="btn btn-link btn-sm" href="#/live/hmi/${page.id}">اجرای صفحه ›</a></div>
+          <div><a class="btn btn-light btn-sm" href="#/live/hmi-designer/${page.id}">ویرایش</a><button class="btn btn-light btn-sm" data-action="delete-record" data-collection="hmiPages" data-id="${page.id}">حذف</button><a class="btn btn-link btn-sm" href="#/live/hmi/${page.id}">اجرای صفحه ›</a></div>
         </div>
       </article>`;
     }).join("")}</div>` : emptyState("هنوز صفحه HMI تعریف نشده است. با تعریف layout به شکل JSON می‌توانید تگ‌ها را به اجزای صفحه متصل کنید.")}
@@ -39,36 +41,14 @@ function hmiRuntimePage(pageId) {
   const tags = store.list("tags");
   const layout = Array.isArray(page.layout) ? page.layout : [];
   const active = page.status !== "غیرفعال";
-  const components = layout.map((component, index) => {
-    const tag = tags.find(item => item.id === component.tag_id);
-    const label = escapeHtml(component.label || tag?.name || `جزء ${index + 1}`);
-    if (!tag) return `<section class="panel"><div class="panel-body"><b>${label}</b><p class="muted-note">تگ متصل‌شده پیدا نشد.</p></div></section>`;
-    const quality = tag.quality || "UNSAMPLED";
-    const sampleAvailable = quality !== "UNSAMPLED";
-    const value = sampleAvailable ? tag.value : null;
-    const qualityPill = pill(quality, quality === "GOOD" ? "success" : quality === "DEMO" ? "warning" : "muted");
-    if (component.type === "status") {
-      const stateLabel = value === null ? "بدون نمونه" : typeof value === "boolean" ? (value ? "روشن" : "خاموش") : String(value);
-      const color = value === true || value === 1 ? "success" : value === false || value === 0 ? "muted" : "warning";
-      return `<section class="panel hmi-widget"><div class="panel-heading"><h3>${label}</h3>${qualityPill}</div><div class="panel-body"><div class="hmi-status-value">${pill(escapeHtml(stateLabel), color)}<small>${escapeHtml(tag.name)}</small></div></div></section>`;
-    }
-    if (component.type === "gauge") {
-      const numeric = Number(value);
-      const min = Number(component.min ?? 0);
-      const max = Number(component.max ?? 100);
-      const valid = sampleAvailable && Number.isFinite(numeric) && Number.isFinite(min) && Number.isFinite(max) && max > min;
-      const percent = valid ? Math.max(0, Math.min(100, (numeric - min) * 100 / (max - min))) : 0;
-      return `<section class="panel hmi-widget"><div class="panel-heading"><h3>${label}</h3>${qualityPill}</div><div class="panel-body"><div class="hmi-gauge-value">${valid ? numeric.toLocaleString("fa-IR") : "—"} <small>${escapeHtml(tag.unit || "")}</small></div><div class="hmi-gauge-track"><span style="width:${percent}%"></span></div><div class="hmi-gauge-limits"><small>${min.toLocaleString("fa-IR")}</small><small>${max.toLocaleString("fa-IR")}</small></div></div></section>`;
-    }
-    if (component.type === "write") {
-      return `<section class="panel hmi-widget"><div class="panel-heading"><h3>${label}</h3>${qualityPill}</div><div class="panel-body"><div class="hmi-gauge-value">${sampleAvailable ? escapeHtml(value) : "—"} <small>${escapeHtml(tag.unit || "")}</small></div><button class="btn btn-primary" data-action="hmi-write-tag" data-id="${tag.id}" ${!active || tag.access !== "read_write" ? "disabled" : ""}>نوشتن مقدار</button><p class="muted-note">برای PLC واقعی، ارسال فرمان فقط با فعال‌بودن مجوز سراسری سرور، مجوز همین PLC، تأیید ایمنی و تأیید نهایی اپراتور انجام می‌شود. در حالت شبیه‌ساز فقط دیتابیس Demo تغییر می‌کند.</p></div></section>`;
-    }
-    return `<section class="panel hmi-widget"><div class="panel-heading"><h3>${label}</h3>${qualityPill}</div><div class="panel-body"><div class="hmi-gauge-value">${sampleAvailable ? escapeHtml(value) : "—"} <small>${escapeHtml(tag.unit || "")}</small></div><small>${escapeHtml(tag.name)} · ${escapeHtml(tag.type)}</small><p class="muted-note">آخرین نمونه: ${tag.sampled_at ? new Date(tag.sampled_at).toLocaleString("fa-IR") : "—"}</p></div></section>`;
-  }).join("");
+  const components = layout.map(component => renderHmiWidget(component, tags, {
+    active,
+    history: component.type === "chart" ? getHmiChartHistory(component.tag_id, component.history_hours) : [],
+  })).join("");
   return `<div class="hmi-runtime">
-    ${pageHeader(page.name, `${page.description || ""} · ${page.machine || "بدون ماشین"}`, `<a class="btn btn-light" href="#/live/hmi-pages">بازگشت به صفحات HMI</a>`)}
+    ${pageHeader(page.name, `${page.description || ""} · ${page.machine || "بدون ماشین"}`, `${button("به‌روزرسانی نمودارها", "hmi-refresh-charts", { variant: "light" })}<a class="btn btn-light" href="#/live/hmi-pages">بازگشت به صفحات HMI</a>`)}
     <div class="hmi-runtime-toolbar">${pill(active ? "صفحه فعال" : "صفحه غیرفعال", active ? "success" : "muted")}<span>نمایش از Backend · مقادیر UNSAMPLED به‌عنوان مقدار زنده نمایش داده نمی‌شوند.</span></div>
-    ${layout.length ? `<div class="hmi-runtime-grid">${components}</div>` : emptyState("برای این صفحه هنوز layout تعریف نشده است. صفحه را ویرایش کنید و اجزای value، status، gauge یا write را به شناسه تگ وصل کنید.")}
+    ${layout.length ? `<div class="hmi-runtime-grid">${components}</div>` : emptyState("برای این صفحه هنوز جزء صنعتی تعریف نشده است. صفحه را در طراح HMI ویرایش کنید و اجزا را به تگ‌ها متصل کنید.")}
     <p class="muted-note">کیفیت GOOD از Edge احراز‌شده می‌آید؛ DEMO از شبیه‌ساز داخلی است. برای فرمان فیزیکی، درایور و نقشه آدرس PLC هنوز تأیید و راه‌اندازی نشده است.</p>
   </div>`;
 }
@@ -192,6 +172,8 @@ function trendsPage() {
 }
 
 export function renderLive(path) {
+  if (path === "/live/hmi-designer/new") return renderHmiDesigner();
+  if (path.startsWith("/live/hmi-designer/")) return renderHmiDesigner(path.slice("/live/hmi-designer/".length));
   if (path.startsWith("/live/hmi/")) return hmiRuntimePage(path.slice("/live/hmi/".length));
   if (path === "/live/data") return liveDataPage();
   if (path === "/live/hmi-pages") return hmiPagesPage();
