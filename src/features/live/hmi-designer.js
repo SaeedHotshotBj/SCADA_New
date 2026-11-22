@@ -697,7 +697,6 @@ function updateHmiLayoutGesture(event) {
     event.clientY - layoutGesture.startY,
   ));
   updateLayoutCardStyle(component);
-  event.preventDefault?.();
   return true;
 }
 
@@ -739,9 +738,7 @@ export function handleHmiDesignerMouseDown(event) {
   // Pointer-capable browsers send pointerdown before mousedown. Do not restart
   // an already active pointer gesture; use mousedown only when pointerdown failed.
   if (layoutGesture) return false;
-  const started = handleHmiDesignerPointerDown(event);
-  if (started) event.preventDefault?.();
-  return started;
+  return handleHmiDesignerPointerDown(event);
 }
 
 export function handleHmiDesignerMouseMove(event) {
