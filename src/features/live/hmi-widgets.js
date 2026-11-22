@@ -121,7 +121,7 @@ export function normalizeHmiWidgetGeometry(component, index = 0) {
   const defaultColumn = (index % 3) * 4 + 1;
   const defaultRow = Math.floor(index / 3) * 3 + 1;
   const grid_col = boundedInteger(component?.grid_col, defaultColumn, 1, 13 - grid_w);
-  const grid_row = boundedInteger(component?.grid_row, defaultRow, 1, 200);
+  const grid_row = boundedInteger(component?.grid_row, defaultRow, 1, 1000);
   return { ...component, grid_col, grid_row, grid_w, grid_h };
 }
 
@@ -137,12 +137,27 @@ export function applyHmiWidgetGridGesture(component, mode, deltaColumn = 0, delt
   const rows = Number.isFinite(Number(deltaRow)) ? Math.trunc(Number(deltaRow)) : 0;
   if (mode === "move") {
     next.grid_col = Math.max(1, Math.min(13 - next.grid_w, next.grid_col + columns));
-    next.grid_row = Math.max(1, Math.min(200, next.grid_row + rows));
+    next.grid_row = Math.max(1, Math.min(1000, next.grid_row + rows));
   } else if (mode === "resize") {
     next.grid_w = Math.max(1, Math.min(13 - next.grid_col, next.grid_w + columns));
     next.grid_h = Math.max(1, Math.min(12, next.grid_h + rows));
   }
   return normalizeHmiWidgetGeometry(next);
+}
+
+export function arrangeHmiWidgetsSingleColumn(components) {
+  let nextRow = 1;
+  return (Array.isArray(components) ? components : []).map((component, index) => {
+    const normalized = normalizeHmiWidgetGeometry(component, index);
+    const placed = normalizeHmiWidgetGeometry({
+      ...normalized,
+      grid_col: 1,
+      grid_row: nextRow,
+      grid_w: 12,
+    }, index);
+    nextRow += placed.grid_h;
+    return placed;
+  });
 }
 
 export function hmiChartRefreshIntervalMs(components) {
