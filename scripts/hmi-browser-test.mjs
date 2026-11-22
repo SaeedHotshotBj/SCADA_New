@@ -84,14 +84,16 @@ try {
   await page.waitForFunction(() => window.__hmiBrowserReady === true);
   await page.locator(".hmi-layout-preview-backdrop").waitFor({ state: "visible" });
 
-  // History must reach the chart renderer as a real SVG line, not only a live value.
+  // History must reach the chart renderer as a timestamped smooth SVG curve.
   const chartCard = page.locator("[data-hmi-layout-card]").filter({ has: page.locator(".hmi-widget--chart") }).first();
-  await chartCard.locator(".hmi-chart-svg polyline").waitFor({ state: "visible", timeout: 5000 });
-  const chartMarkup = await chartCard.locator(".hmi-chart-svg").evaluate(element => ({
-    polyline: element.querySelector("polyline")?.getAttribute("points") || "",
+  const historyLine = chartCard.locator(".hmi-chart-svg .hmi-chart-line");
+  await historyLine.waitFor({ state: "visible", timeout: 5000 });
+  const chartMarkup = await historyLine.evaluate(element => ({
+    pointCount: Number(element.getAttribute("data-point-count") || 0),
+    path: element.getAttribute("d") || "",
   }));
-  if (!chartMarkup.polyline || chartMarkup.polyline.trim().split(/\s+/).length !== 3) {
-    throw new Error("HMI trend history did not render three ordered line points: " + JSON.stringify(chartMarkup));
+  if (chartMarkup.pointCount !== 3 || !chartMarkup.path.includes(" C")) {
+    throw new Error("HMI trend history did not render three ordered points as a smooth curve: " + JSON.stringify(chartMarkup));
   }
   if (!historyRequests.some(item => item.tagId === "tag-test" && item.seconds === "3600") ||
       historyRequests.some(item => item.seconds === "1")) {
@@ -302,6 +304,11 @@ try {
       savedPage?.layout?.find(item => item.type === "chart")?.font_family !== "Verdana" ||
       savedPage?.layout?.find(item => item.type === "chart")?.number_font_size !== 32 ||
       savedPage?.layout?.find(item => item.type === "chart")?.text_font_size !== 14 ||
+      savedPage?.layout?.find(item => item.type === "chart")?.chart_color !== "purple" ||
+      savedPage?.layout?.find(item => item.type === "chart")?.chart_surface !== "graphite" ||
+      savedPage?.layout?.find(item => item.type === "chart")?.chart_smoothing !== 72 ||
+      savedPage?.layout?.find(item => item.type === "chart")?.chart_fill_opacity !== 35 ||
+      savedPage?.layout?.find(item => item.type === "chart")?.chart_show_axes !== true ||
       savedPage?.layout?.find(item => item.type === "media")?.media_id !== mediaId) {
     throw new Error("HMI page and widget themes were not included in the saved resource: " + JSON.stringify(savedPage));
   }

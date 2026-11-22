@@ -174,19 +174,26 @@ if (trendPoints !== "48.00,140.00|198.00,12.00|348.00,76.00" ||
     !trendLine.includes(" C") || !trendLine.includes("348.00 76.00")) {
   throw new Error("HMI trend must use chronological points and a smooth curve: " + JSON.stringify({ trendPoints, trendLine }));
 }
-if (!orderedTrend.includes('viewBox="0 0 360 180"') ||
-    !orderedTrend.includes('preserveAspectRatio="none"') ||
-    !orderedTrend.includes('data-hmi-chart-surface="navy"') ||
-    !orderedTrend.includes('class="hmi-chart-area"') ||
-    !orderedTrend.includes('class="hmi-chart-topbar"') ||
-    !orderedTrend.includes('class="hmi-chart-reading"') ||
-    !orderedTrend.includes('stroke-width="4"') ||
-    !orderedTrend.includes('stop-opacity="0.35"') ||
-    !orderedTrend.includes('class="hmi-chart-axis-title hmi-chart-axis-title--y"') ||
-    !orderedTrend.includes('class="hmi-chart-axis-title hmi-chart-axis-title--x"') ||
-    (orderedTrend.match(/class="hmi-chart-y-tick"/g) || []).length < 3 ||
-    (orderedTrend.match(/class="hmi-chart-x-tick"/g) || []).length !== 3) {
-  throw new Error("HMI chart must render the dark area style, line, heading, palette, fill and optional axes.");
+const chartRenderChecks = {
+  viewBox: orderedTrend.includes('viewBox="0 0 360 180"'),
+  aspect: orderedTrend.includes('preserveAspectRatio="none"'),
+  surface: orderedTrend.includes('data-hmi-chart-surface="navy"'),
+  area: orderedTrend.includes('class="hmi-chart-area"'),
+  topbar: orderedTrend.includes('class="hmi-chart-topbar"'),
+  reading: orderedTrend.includes('class="hmi-chart-reading"'),
+  lineWidth: orderedTrend.includes('stroke-width="4"'),
+  fillOpacity: orderedTrend.includes('stop-opacity="0.35"'),
+  yTitle: orderedTrend.includes('class="hmi-chart-axis-title hmi-chart-axis-title--y"'),
+  xTitle: orderedTrend.includes('class="hmi-chart-axis-title hmi-chart-axis-title--x"'),
+  yTicks: (orderedTrend.match(/class="hmi-chart-y-tick"/g) || []).length,
+  xTicks: (orderedTrend.match(/class="hmi-chart-x-tick"/g) || []).length,
+};
+if (!chartRenderChecks.viewBox || !chartRenderChecks.aspect || !chartRenderChecks.surface ||
+    !chartRenderChecks.area || !chartRenderChecks.topbar || !chartRenderChecks.reading ||
+    !chartRenderChecks.lineWidth || !chartRenderChecks.fillOpacity ||
+    !chartRenderChecks.yTitle || !chartRenderChecks.xTitle ||
+    chartRenderChecks.yTicks < 3 || chartRenderChecks.xTicks !== 3) {
+  throw new Error("HMI chart render details mismatch: " + JSON.stringify(chartRenderChecks));
 }
 const cleanDefaultChart = renderHmiWidget({
   type: "chart", tag_id: "test-trend", history_seconds: 60,
