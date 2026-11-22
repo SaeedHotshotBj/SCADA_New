@@ -1495,3 +1495,268 @@ tbody tr:last-child td { border-bottom: 0; }
 .hmi-gauge-svg text,
 .hmi-dial-svg text { font-family: var(--hmi-font-family, "Tahoma", Arial, sans-serif); }
 .hmi-gauge-svg .hmi-gauge-number { font-size: calc(21px * var(--hmi-number-scale, 1)); }
+
+
+/* Reference-matched HMI trend panel: dark glass surface, smooth curve and quiet grid. */
+.hmi-widget--chart {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--hmi-chart-surface-border, #253a32);
+  border-radius: 14px;
+  background: linear-gradient(160deg, var(--hmi-chart-surface-top, #0b1a16), var(--hmi-chart-surface-bottom, #111b19)) !important;
+  color: #edf6f2;
+  box-shadow: 0 12px 26px rgba(3, 10, 9, .26), inset 0 1px 0 rgba(255, 255, 255, .035);
+}
+.hmi-widget--chart[data-hmi-chart-surface="midnight"] {
+  --hmi-chart-surface-top: #0a1814;
+  --hmi-chart-surface-bottom: #111c19;
+  --hmi-chart-surface-border: #263b32;
+  --hmi-chart-grid-color: rgba(185, 222, 207, .075);
+}
+.hmi-widget--chart[data-hmi-chart-surface="navy"] {
+  --hmi-chart-surface-top: #07182a;
+  --hmi-chart-surface-bottom: #10243b;
+  --hmi-chart-surface-border: #263f5b;
+  --hmi-chart-grid-color: rgba(170, 204, 239, .09);
+}
+.hmi-widget--chart[data-hmi-chart-surface="graphite"] {
+  --hmi-chart-surface-top: #15191f;
+  --hmi-chart-surface-bottom: #222831;
+  --hmi-chart-surface-border: #3a424c;
+  --hmi-chart-grid-color: rgba(210, 219, 230, .09);
+}
+.hmi-widget--chart .hmi-widget-header {
+  display: none !important;
+}
+.hmi-widget--chart .hmi-widget-body {
+  display: flex;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow: hidden;
+  padding: clamp(7px, 2cqi, 13px);
+  background: transparent;
+}
+.hmi-chart-layout {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  gap: clamp(3px, 1.2cqb, 8px);
+}
+.hmi-chart-topbar {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: clamp(25px, 22cqb, 43px);
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.hmi-chart-heading {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+}
+.hmi-chart-title {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: #e8f4ef;
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: calc(clamp(8px, 5.3cqb, 13px) * var(--hmi-text-scale, 1));
+  font-weight: 700;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hmi-chart-subtitle {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(191, 215, 204, .58);
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: calc(clamp(6px, 3.5cqb, 9px) * var(--hmi-text-scale, 1));
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hmi-chart-status-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.hmi-chart-quality,
+.hmi-chart-live-label,
+.hmi-chart-range-label {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  color: rgba(204, 225, 214, .62);
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: clamp(6px, 3.1cqb, 8px);
+  line-height: 1;
+}
+.hmi-chart-quality i,
+.hmi-chart-live-label i {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: #46c78b;
+}
+.hmi-chart-quality--bad i { background: #f06d72; }
+.hmi-chart-quality--demo i { background: #e8b65a; }
+.hmi-chart-live-label { color: #48d998; font-weight: 800; letter-spacing: .2px; }
+.hmi-chart-live-label i { box-shadow: 0 0 7px rgba(72, 217, 152, .52); }
+.hmi-chart-reading {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 48%;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 5px;
+  border: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  text-align: end;
+}
+.hmi-chart-reading strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hmi-chart-line, #168ce8);
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: calc(clamp(14px, 11cqb, 30px) * var(--hmi-number-scale, 1));
+  font-weight: 800;
+  line-height: 1;
+  direction: ltr;
+  text-align: end;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 0 13px var(--hmi-chart-glow, #168ce8);
+}
+.hmi-chart-reading small {
+  flex: 0 0 auto;
+  color: rgba(210, 226, 218, .72);
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: calc(clamp(6px, 3.6cqb, 9px) * var(--hmi-text-scale, 1));
+  white-space: nowrap;
+}
+.hmi-chart-plot {
+  display: flex;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  align-items: stretch;
+  overflow: hidden;
+}
+.hmi-chart-plot > .hmi-chart-svg {
+  display: block;
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+}
+.hmi-chart-svg .hmi-chart-grid-line {
+  fill: none;
+  stroke: var(--hmi-chart-grid-color, rgba(185, 222, 207, .075));
+  stroke-width: 1;
+  stroke-dasharray: none;
+}
+.hmi-chart-svg .hmi-chart-y-tick,
+.hmi-chart-svg .hmi-chart-x-tick {
+  fill: rgba(211, 229, 220, .56);
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: calc(8px * var(--hmi-text-scale, 1));
+}
+.hmi-chart-svg .hmi-chart-axis-title {
+  fill: rgba(211, 229, 220, .62);
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: calc(8px * var(--hmi-text-scale, 1));
+}
+.hmi-chart-svg .hmi-chart-area {
+  opacity: 1;
+}
+.hmi-chart-svg .hmi-chart-line {
+  filter: drop-shadow(0 0 4px var(--hmi-chart-glow, #168ce8));
+}
+.hmi-chart-svg .hmi-chart-last-point {
+  fill: var(--hmi-chart-line, #168ce8);
+  stroke: rgba(235, 247, 241, .78);
+  stroke-width: 1;
+}
+.hmi-chart-svg .hmi-chart-dot-halo {
+  fill: var(--hmi-chart-line, #168ce8);
+  opacity: .17;
+}
+.hmi-chart-svg .hmi-chart-single-point {
+  fill: var(--hmi-chart-line, #168ce8);
+  stroke: rgba(235, 247, 241, .78);
+  stroke-width: 1;
+}
+.hmi-chart-svg .hmi-chart-bar {
+  fill: var(--hmi-chart-line, #168ce8);
+  opacity: .78;
+}
+.hmi-chart-empty {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  color: rgba(202, 221, 211, .64);
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: calc(clamp(7px, 4cqb, 10px) * var(--hmi-text-scale, 1));
+  line-height: 1.6;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.hmi-chart-axes-toggle {
+  display: flex;
+  min-height: 29px;
+  align-items: center;
+  gap: 7px;
+  margin: 5px 0 8px;
+  padding: 6px 8px;
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
+  color: #536e82;
+  background: #f8fafb;
+  font-size: 9px;
+}
+.hmi-chart-axes-toggle input {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  margin: 0;
+}
+@media (max-width: 520px) {
+  .hmi-chart-reading { max-width: 44%; }
+}

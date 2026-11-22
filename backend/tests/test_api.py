@@ -1094,7 +1094,7 @@ def test_hmi_page_and_widget_theme_presets_are_validated_and_persisted():
             "theme": "dark",
             "layout": [
                 {"type": "value", "tag_id": "t3", "theme": "blue", "font_family": "Verdana", "number_font_size": 32, "text_font_size": 14},
-                {"type": "chart", "tag_id": "t6", "theme": "inherit", "history_seconds": 3600, "font_family": "Tahoma", "number_font_size": 21, "text_font_size": 11},
+                {"type": "chart", "tag_id": "t6", "theme": "inherit", "history_seconds": 3600, "font_family": "Tahoma", "number_font_size": 21, "text_font_size": 11, "chart_color": "purple", "chart_surface": "navy", "line_width": 3.5, "chart_smoothing": 72, "chart_fill_opacity": 35, "chart_show_axes": True},
             ],
             "status": "فعال",
         })
@@ -1106,6 +1106,12 @@ def test_hmi_page_and_widget_theme_presets_are_validated_and_persisted():
         assert created.json()["layout"][0]["text_font_size"] == 14
         assert created.json()["layout"][1]["theme"] == "inherit"
         assert created.json()["layout"][1]["font_family"] == "Tahoma"
+        assert created.json()["layout"][1]["chart_color"] == "purple"
+        assert created.json()["layout"][1]["chart_surface"] == "navy"
+        assert created.json()["layout"][1]["line_width"] == 3.5
+        assert created.json()["layout"][1]["chart_smoothing"] == 72
+        assert created.json()["layout"][1]["chart_fill_opacity"] == 35
+        assert created.json()["layout"][1]["chart_show_axes"] is True
 
         invalid_page_theme = client.post("/api/resources/hmiPages", json={
             "name": "Invalid page theme",
@@ -1146,6 +1152,26 @@ def test_hmi_page_and_widget_theme_presets_are_validated_and_persisted():
             "status": "فعال",
         })
         assert invalid_widget_size.status_code == 422
+
+        invalid_chart_color = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid chart color",
+            "machine": "بانچر",
+            "description": "Reject unknown chart palettes",
+            "theme": "light",
+            "layout": [{"type": "chart", "tag_id": "t6", "chart_color": "url(javascript:alert(1))"}],
+            "status": "فعال",
+        })
+        assert invalid_chart_color.status_code == 422
+
+        invalid_chart_fill = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid chart fill",
+            "machine": "بانچر",
+            "description": "Reject invalid area opacity",
+            "theme": "light",
+            "layout": [{"type": "chart", "tag_id": "t6", "chart_fill_opacity": 100}],
+            "status": "فعال",
+        })
+        assert invalid_chart_fill.status_code == 422
 
 def test_hmi_media_upload_and_secure_retrieval():
     from app.database import connect
