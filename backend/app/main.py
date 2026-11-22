@@ -10,7 +10,7 @@ from .config import ALLOW_ORIGINS, DEMO_TELEMETRY, PLC_POLLING_ENABLED
 from .database import connect, initialize_schema, json_load
 from .dependencies import get_current_user
 from .seed import seed_database
-from .routers import analytics, auth, edges, operations, plc, resources, telemetry
+from .routers import analytics, auth, edges, hmi_media, operations, plc, resources, telemetry
 from .plc_service import plc_poll_loop
 
 
@@ -60,6 +60,7 @@ app.include_router(resources.router)
 app.include_router(operations.router)
 app.include_router(edges.router)
 app.include_router(telemetry.router)
+app.include_router(hmi_media.router)
 app.include_router(plc.router)
 app.include_router(analytics.router)
 

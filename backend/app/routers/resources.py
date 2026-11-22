@@ -312,7 +312,7 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
             supported = {
                 "value", "status", "gauge", "write", "indicator", "needle",
                 "thermometer", "chart", "motor", "pump", "fan", "conveyor",
-                "tank", "valve",
+                "tank", "valve", "media",
             }
             required_bindings = {
                 "value": {"tag_id"}, "status": {"tag_id"}, "gauge": {"tag_id"},
@@ -320,7 +320,7 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                 "thermometer": {"tag_id"}, "chart": {"tag_id"},
                 "motor": {"run_tag_id"}, "pump": {"run_tag_id"},
                 "fan": {"run_tag_id"}, "conveyor": {"run_tag_id"},
-                "tank": {"level_tag_id"}, "valve": {"open_tag_id"},
+                "tank": {"level_tag_id"}, "valve": {"open_tag_id"}, "media": set(),
             }
             boolean_bindings = {"run_tag_id", "fault_tag_id", "open_tag_id"}
             numeric_bindings = {"speed_tag_id", "level_tag_id"}
@@ -435,6 +435,19 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                             status_code=422,
                             detail=f"موقعیت یا اندازه آزاد جزء شماره {number_in_layout} از محدوده بوم HMI خارج است.",
                         )
+                if component_type == "media":
+                    media_id = component.get("media_id")
+                    if media_id:
+                        if not isinstance(media_id, str) or not re.fullmatch(r"[a-f0-9]{32}", media_id):
+                            raise HTTPException(status_code=422, detail=f"شناسه فایل رسانه در جزء شماره {number_in_layout} معتبر نیست.")
+                        media_row = db.execute("SELECT factory_id FROM hmi_media WHERE id=?", (media_id,)).fetchone()
+                        if media_row is None or (scope_factory and media_row["factory_id"] not in {None, scope_factory}):
+                            raise HTTPException(status_code=422, detail=f"فایل رسانه جزء شماره {number_in_layout} پیدا نشد یا متعلق به کارخانه دیگری است.")
+                    if component.get("media_fit", "contain") not in {"contain", "cover", "fill"}:
+                        raise HTTPException(status_code=422, detail=f"نحوه نمایش فایل رسانه در جزء شماره {number_in_layout} معتبر نیست.")
+                    for media_flag in ("media_autoplay", "media_loop", "media_muted", "media_controls"):
+                        if media_flag in component and not isinstance(component[media_flag], bool):
+                            raise HTTPException(status_code=422, detail=f"تنظیم {media_flag} در جزء شماره {number_in_layout} باید بولی باشد.")
                 if component_type == "chart":
                     if component.get("chart_kind", "line") not in {"line", "bar"}:
                         raise HTTPException(status_code=422, detail=f"نوع نمودار جزء شماره {number_in_layout} معتبر نیست.")

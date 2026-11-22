@@ -407,12 +407,23 @@ async def demo_simulator_loop(stop_event: asyncio.Event) -> None:
                     payload["value"]=value
                     payload["last_source"]="demo-simulator"
                     payload["last_quality"]="DEMO"
+                    payload["last_poll_at"]=now
+                    last_history_at = payload.get("last_history_at")
+                    history_due = True
+                    if last_history_at:
+                        try:
+                            history_due = (datetime.now(timezone.utc) - datetime.fromisoformat(last_history_at)).total_seconds() >= 5
+                        except (TypeError, ValueError):
+                            history_due = True
+                    if history_due:
+                        payload["last_history_at"]=now
                     db.execute("UPDATE resources SET payload=?,updated_at=? WHERE collection='tags' AND id=?",
                                (json_dump(payload),now,tag["id"]))
-                    db.execute(
-                        "INSERT INTO telemetry_samples(factory_id,tag_id,value_json,quality,source,sampled_at) VALUES(?,?,?,?,?,?)",
-                        (tag.get("factory_id"),tag["id"],json_dump(value),"DEMO","demo-simulator",now),
-                    )
+                    if history_due:
+                        db.execute(
+                            "INSERT INTO telemetry_samples(factory_id,tag_id,value_json,quality,source,sampled_at) VALUES(?,?,?,?,?,?)",
+                            (tag.get("factory_id"),tag["id"],json_dump(value),"DEMO","demo-simulator",now),
+                        )
                     _evaluate_tag_alarms(db, tag["id"], value, now)
                 db.execute(
                     "DELETE FROM telemetry_samples WHERE sampled_at < ?",
@@ -422,7 +433,7 @@ async def demo_simulator_loop(stop_event: asyncio.Event) -> None:
             # A transient storage failure must not terminate the application loop.
             pass
         try:
-            await asyncio.wait_for(stop_event.wait(), timeout=5)
+            await asyncio.wait_for(stop_event.wait(), timeout=1)
         except asyncio.TimeoutError:
             continue
 
@@ -453,6 +464,8 @@ async def live_socket(websocket: WebSocket):
     if not user:
         await websocket.close(code=4401)
         return
+    requested_interval = websocket.query_params.get("interval_ms")
+    interval_ms = 1000 if requested_interval == "1000" else 5000
     await websocket.accept()
     try:
         while True:
@@ -491,15 +504,15 @@ async def live_socket(websocket: WebSocket):
             items = []
             for tag in tags:
                 sample = samples.get(tag["id"])
-                physical_plc = str(tag.get("last_source") or "").startswith("plc:")
+                realtime_source = str(tag.get("last_source") or "").startswith(("plc:", "demo-simulator"))
                 items.append({
                     "tag_id": tag["id"],
                     "name": tag.get("name"),
-                    "value": tag.get("value") if physical_plc else json_load(sample["value_json"]) if sample else tag.get("value"),
+                    "value": tag.get("value") if realtime_source else json_load(sample["value_json"]) if sample else tag.get("value"),
                     "unit": tag.get("unit", ""),
-                    "quality": tag.get("last_quality") if physical_plc else sample["quality"] if sample else "UNSAMPLED",
-                    "source": tag.get("last_source") if physical_plc else sample["source"] if sample else "seed",
-                    "sampled_at": (tag.get("last_poll_at") or tag.get("updated_at")) if physical_plc else sample["sampled_at"] if sample else tag.get("updated_at"),
+                    "quality": tag.get("last_quality") if realtime_source else sample["quality"] if sample else "UNSAMPLED",
+                    "source": tag.get("last_source") if realtime_source else sample["source"] if sample else "seed",
+                    "sampled_at": (tag.get("last_poll_at") or tag.get("updated_at")) if realtime_source else sample["sampled_at"] if sample else tag.get("updated_at"),
                 })
             qualities = {item["quality"] for item in items}
             await websocket.send_json({
@@ -509,6 +522,6 @@ async def live_socket(websocket: WebSocket):
                 "plcs": plcs,
                 "alarms": alarms,
             })
-            await asyncio.sleep(5)
+            await asyncio.sleep(interval_ms / 1000)
     except WebSocketDisconnect:
         return

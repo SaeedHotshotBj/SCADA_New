@@ -79,6 +79,13 @@ def initialize_schema() -> None:
       sampled_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_telemetry_tag_time ON telemetry_samples(tag_id, sampled_at DESC);
+    CREATE TABLE IF NOT EXISTS hmi_media (
+      id TEXT PRIMARY KEY, factory_id TEXT, owner_id TEXT NOT NULL,
+      storage_name TEXT NOT NULL, original_name TEXT NOT NULL,
+      content_type TEXT NOT NULL, media_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_hmi_media_factory_time ON hmi_media(factory_id, created_at DESC);
     CREATE TABLE IF NOT EXISTS batch_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id TEXT NOT NULL,
       event TEXT NOT NULL, payload TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL
