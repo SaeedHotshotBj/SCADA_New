@@ -37,7 +37,7 @@ const hmiHtml = renderRoute("/live/hmi-designer/new");
 const requiredHmiMarkers = [
   'class="hmi-designer-page"',
   "hmi-library-panel",
-  'class="hmi-designer-canvas"',
+  'class="hmi-designer-canvas hmi-designer-canvas-stage"',
   'id="hmi-designer-properties"',
   'id="hmi-json-source"',
   'id="hmi-layout-preview-root"',
