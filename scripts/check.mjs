@@ -63,12 +63,36 @@ const {
   createHmiWidget, renderHmiWidget, normalizeHmiPageTheme, normalizeHmiWidgetTheme,
   HMI_CHART_LINE_WIDTH_MIN, HMI_CHART_LINE_WIDTH_MAX, HMI_CHART_LINE_WIDTH_DEFAULT, normalizeHmiChartLineWidth,
   HMI_FONT_OPTIONS, normalizeHmiWidgetTypography,
+  HMI_CHART_COLOR_OPTIONS, HMI_CHART_SURFACE_OPTIONS, normalizeHmiChartAppearance,
   appendHmiLiveChartSamples, getHmiLiveChartSamples, hmiChartLiveIntervalMs,
 } = await import("../src/features/live/hmi-widgets.js");
 const chart = createHmiWidget("chart");
-if (chart.history_seconds !== 3600 ||
-    chart.line_width !== 2.5) {
-  throw new Error("New HMI trend charts must default to a one-hour range and a 2.5px line.");
+if (chart.history_seconds !== 3600 || chart.line_width !== 2.5 ||
+    chart.chart_color !== "blue" || chart.chart_surface !== "midnight" ||
+    chart.chart_smoothing !== 58 || chart.chart_fill_opacity !== 24 ||
+    chart.chart_show_axes !== false) {
+  throw new Error("New HMI trend charts must default to the modern dark smooth-area presentation.");
+}
+const normalizedChartAppearance = normalizeHmiChartAppearance({
+  chart_color: "purple", chart_surface: "navy", chart_smoothing: 120,
+  chart_fill_opacity: -5, chart_show_axes: true,
+});
+const unsafeChartAppearance = normalizeHmiChartAppearance({
+  chart_color: "url(javascript:alert(1))", chart_surface: "unsafe",
+  chart_smoothing: "bad", chart_fill_opacity: 999, chart_show_axes: "true",
+});
+if (HMI_CHART_COLOR_OPTIONS.length !== 5 || HMI_CHART_SURFACE_OPTIONS.length !== 3 ||
+    normalizedChartAppearance.chart_color !== "purple" ||
+    normalizedChartAppearance.chart_surface !== "navy" ||
+    normalizedChartAppearance.chart_smoothing !== 100 ||
+    normalizedChartAppearance.chart_fill_opacity !== 0 ||
+    normalizedChartAppearance.chart_show_axes !== true ||
+    unsafeChartAppearance.chart_color !== "blue" ||
+    unsafeChartAppearance.chart_surface !== "midnight" ||
+    unsafeChartAppearance.chart_smoothing !== 58 ||
+    unsafeChartAppearance.chart_fill_opacity !== 60 ||
+    unsafeChartAppearance.chart_show_axes !== false) {
+  throw new Error("HMI chart appearance settings must be allow-listed and bounded.");
 }
 const requiredRanges = [1, 5, 10, 30, 60, 300, 600, 900, 1800, 3600, 21600, 43200, 86400];
 for (const seconds of requiredRanges) {
@@ -130,6 +154,8 @@ if (!themedWidget.includes('data-hmi-theme="blue"')) {
 }
 const orderedTrend = renderHmiWidget({
   type: "chart", tag_id: "test-trend", history_seconds: 60, line_width: 4,
+  chart_color: "purple", chart_surface: "navy", chart_smoothing: 72,
+  chart_fill_opacity: 35, chart_show_axes: true,
 }, [{
   id: "test-trend", name: "Test trend", value: 12.5,
   type: "float32", unit: "bar", quality: "GOOD",
@@ -142,22 +168,43 @@ const orderedTrend = renderHmiWidget({
   ],
   historyState: { status: "ready", sampleCount: 3 },
 });
-const trendPoints = orderedTrend.match(/<polyline[^>]*points="([^"]+)"/)?.[1] || "";
-if (trendPoints !== "48.00,132.00 199.00,12.00 350.00,72.00") {
-  throw new Error("HMI trends must use chronological timestamps for X and numeric values for Y: " + trendPoints);
+const trendLine = orderedTrend.match(/<path class="hmi-chart-line"[^>]*d="([^"]+)"/)?.[1] || "";
+const trendPoints = orderedTrend.match(/data-points="([^"]+)"/)?.[1] || "";
+if (trendPoints !== "48.00,140.00|198.00,12.00|348.00,76.00" ||
+    !trendLine.includes(" C") || !trendLine.includes("348.00 76.00")) {
+  throw new Error("HMI trend must use chronological points and a smooth curve: " + JSON.stringify({ trendPoints, trendLine }));
 }
-if (!orderedTrend.includes('viewBox="0 0 360 190"') ||
-    !orderedTrend.includes('preserveAspectRatio="xMidYMid meet"') ||
+if (!orderedTrend.includes('viewBox="0 0 360 180"') ||
+    !orderedTrend.includes('preserveAspectRatio="none"') ||
+    !orderedTrend.includes('data-hmi-chart-surface="navy"') ||
+    !orderedTrend.includes('class="hmi-chart-area"') ||
+    !orderedTrend.includes('class="hmi-chart-topbar"') ||
+    !orderedTrend.includes('class="hmi-chart-reading"') ||
+    !orderedTrend.includes('stroke-width="4"') ||
+    !orderedTrend.includes('stop-opacity="0.35"') ||
     !orderedTrend.includes('class="hmi-chart-axis-title hmi-chart-axis-title--y"') ||
     !orderedTrend.includes('class="hmi-chart-axis-title hmi-chart-axis-title--x"') ||
-    !orderedTrend.includes(">مقدار</text>") ||
-    !orderedTrend.includes(">زمان</text>") ||
-    !orderedTrend.includes('class="hmi-chart-value-box hmi-chart-latest"') ||
-    !orderedTrend.includes("۱۵") ||
-    !orderedTrend.includes('stroke-width="4"') ||
     (orderedTrend.match(/class="hmi-chart-y-tick"/g) || []).length < 3 ||
     (orderedTrend.match(/class="hmi-chart-x-tick"/g) || []).length !== 3) {
-  throw new Error("HMI trend must show numeric/time axes, the latest-value tile, axis ticks and the configured line thickness.");
+  throw new Error("HMI chart must render the dark area style, line, heading, palette, fill and optional axes.");
+}
+const cleanDefaultChart = renderHmiWidget({
+  type: "chart", tag_id: "test-trend", history_seconds: 60,
+}, [{
+  id: "test-trend", name: "Test trend", value: 12.5,
+  type: "float32", unit: "bar", quality: "GOOD",
+}], {
+  history: [
+    { value: 10, sampled_at: "2026-11-22T08:00:10+00:00" },
+    { value: 15, sampled_at: "2026-11-22T08:00:20+00:00" },
+  ],
+  historyState: { status: "ready", sampleCount: 2 },
+});
+if (!cleanDefaultChart.includes('data-hmi-chart-surface="midnight"') ||
+    !cleanDefaultChart.includes('class="hmi-chart-area"') ||
+    cleanDefaultChart.includes('class="hmi-chart-y-tick"') ||
+    cleanDefaultChart.includes('class="hmi-chart-x-tick"')) {
+  throw new Error("Default HMI chart must use the dark smooth area style and hide axis labels.");
 }
 console.log("HMI chart range and needle numeric readout checks passed.");
 
@@ -300,7 +347,8 @@ const liveTrend = renderHmiWidget(liveComponent, [{
   id: "test-live-buffer", name: "Live tag", value: 20, type: "float32", quality: "GOOD",
 }], { history: liveSamples, historyState: { status: "live" } });
 if (liveSamples.length !== 2 || !liveTrend.includes("hmi-chart-live-label") ||
-    (liveTrend.match(/<polyline[^>]*points=/g) || []).length !== 1) {
+    (liveTrend.match(/<path class="hmi-chart-line"/g) || []).length !== 1 ||
+    !liveTrend.includes('data-point-count="2"')) {
   throw new Error("One-second HMI trends must render a continuous line from distinct live samples.");
 }
 const imageMedia = renderHmiWidget({
@@ -374,6 +422,10 @@ if (!cssSource.includes(".hmi-chart-value-box {") ||
     !cssSource.includes(".hmi-chart-x-tick") ||
     !cssSource.includes(".hmi-chart-y-tick") ||
     !cssSource.includes(".hmi-chart-plot {") ||
+    !cssSource.includes(".hmi-chart-topbar") ||
+    !cssSource.includes(".hmi-chart-area") ||
+    !cssSource.includes(".hmi-chart-line") ||
+    !cssSource.includes(".hmi-chart-axes-toggle") ||
     !cssSource.includes(".hmi-designer-canvas-scroll") ||
     !cssSource.includes(".hmi-media-file-input") ||
     !cssSource.includes("--hmi-number-scale") ||
