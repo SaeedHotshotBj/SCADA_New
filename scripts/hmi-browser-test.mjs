@@ -33,9 +33,56 @@ try {
     if (message.type() === "error") pageErrors.push(message.text());
   });
 
+  const historyRequests = [];
+  await page.route(/\/api\/telemetry\/history\?/, async route => {
+    const url = new URL(route.request().url());
+    historyRequests.push({
+      tagId: url.searchParams.get("tag_id"),
+      seconds: url.searchParams.get("seconds"),
+    });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: [
+          { tag_id: "tag-test", value: 11.5, quality: "DEMO", source: "browser-fixture", sampled_at: new Date(Date.now() - 30000).toISOString() },
+          { tag_id: "tag-test", value: 22.5, quality: "DEMO", source: "browser-fixture", sampled_at: new Date(Date.now() - 20000).toISOString() },
+          { tag_id: "tag-test", value: 18.25, quality: "DEMO", source: "browser-fixture", sampled_at: new Date(Date.now() - 10000).toISOString() },
+        ],
+      }),
+    });
+  });
+
   await page.goto(`${baseUrl}/scripts/hmi-browser-fixture.html`, { waitUntil: "networkidle" });
   await page.waitForFunction(() => window.__hmiBrowserReady === true);
   await page.locator(".hmi-layout-preview-backdrop").waitFor({ state: "visible" });
+
+  // History must reach the chart renderer as a real SVG line, not only a live value.
+  const chartCard = page.locator("[data-hmi-layout-card]").filter({ has: page.locator(".hmi-widget--chart") }).first();
+  await chartCard.locator(".hmi-chart-svg polyline").waitFor({ state: "visible", timeout: 5000 });
+  const chartMarkup = await chartCard.locator(".hmi-chart-svg").evaluate(element => ({
+    polyline: element.querySelector("polyline")?.getAttribute("points") || "",
+    sampleCount: chartCardText => chartCardText,
+  }));
+  if (!chartMarkup.polyline || chartMarkup.polyline.trim().split(/\s+/).length !== 3) {
+    throw new Error("HMI trend history did not render three ordered line points: " + JSON.stringify(chartMarkup));
+  }
+  if (!historyRequests.some(item => item.tagId === "tag-test" && item.seconds === "3600")) {
+    throw new Error("HMI chart did not request the selected tag's configured 3600-second history window: " + JSON.stringify(historyRequests));
+  }
+
+  // Apply a per-widget theme and verify it overrides the selected page theme.
+  const chartTheme = page.locator("#hmi-layout-preview-properties [data-hmi-prop=\"theme\"]");
+  await chartTheme.selectOption("blue");
+  await page.waitForTimeout(50);
+  const pageTheme = await page.locator("#hmi-layout-preview-canvas").getAttribute("data-hmi-page-theme");
+  const widgetTheme = await chartCard.locator(".hmi-widget").getAttribute("data-hmi-theme");
+  const widgetBackground = await chartCard.locator(".hmi-widget").evaluate(element => getComputedStyle(element).backgroundColor);
+  const pageBackground = await page.locator("#hmi-layout-preview-canvas").evaluate(element => getComputedStyle(element).backgroundColor);
+  if (pageTheme !== "dark" || widgetTheme !== "blue" ||
+      widgetBackground !== "rgb(248, 251, 255)" || pageBackground !== "rgb(24, 35, 46)") {
+    throw new Error("HMI page/widget theme cascade failed: " + JSON.stringify({ pageTheme, widgetTheme, widgetBackground, pageBackground }));
+  }
 
   const card = page.locator("[data-hmi-layout-card]").first();
   const toolbar = card.locator(".hmi-layout-card-toolbar");
@@ -103,17 +150,30 @@ try {
 
   const saved = await page.locator("#hmi-json-source").inputValue();
   const layout = JSON.parse(saved);
-  if (layout.length !== 1 ||
-      layout[0].x !== moved.left ||
-      layout[0].y !== moved.top ||
-      layout[0].width !== resized.width ||
-      layout[0].height !== resized.height) {
-    throw new Error(`HMI JSON did not persist the final drag/resize geometry. JSON=${saved}`);
+  const valueLayout = layout.find(item => item.type === "value");
+  const chartLayout = layout.find(item => item.type === "chart");
+  if (layout.length !== 2 ||
+      valueLayout?.x !== moved.left ||
+      valueLayout?.y !== moved.top ||
+      valueLayout?.width !== resized.width ||
+      valueLayout?.height !== resized.height ||
+      chartLayout?.theme !== "blue") {
+    throw new Error(`HMI JSON did not persist final geometry and per-widget theme. JSON=${saved}`);
+  }
+
+  await page.evaluate(() => window.__saveHmiDraft());
+  const savedPage = await page.evaluate(() => window.__savedHmiPage);
+  if (savedPage?.theme !== "dark" ||
+      savedPage?.layout?.find(item => item.type === "chart")?.theme !== "blue") {
+    throw new Error("HMI page and widget themes were not included in the saved resource: " + JSON.stringify(savedPage));
   }
   if (pageErrors.length) throw new Error("Browser console errors: " + pageErrors.join("\n"));
 
-  console.log("HMI Chromium E2E passed: mouse drag moved the card, lower-right resize changed width/height, and JSON matched the resulting geometry.");
-  console.log(JSON.stringify({ initial, moved, resized, browserEvents: await page.evaluate(() => window.__hmiBrowserEvents.length) }));
+  console.log("HMI Chromium E2E passed: toolbar/body drag, resize, trend-history SVG, page/widget theme cascade, JSON and saved theme fields.");
+  console.log(JSON.stringify({
+    initial, moved, resized, pageTheme, widgetTheme, widgetBackground, pageBackground,
+    historyRequests, browserEvents: await page.evaluate(() => window.__hmiBrowserEvents.length),
+  }));
 } catch (error) {
   if (page) {
     try { await page.screenshot({ path: `${artifacts}/failure.png`, fullPage: true }); } catch { /* Keep the original failure. */ }
