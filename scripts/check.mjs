@@ -58,7 +58,10 @@ if (hmiWidgetCount !== 14) {
 
 console.log("HMI Designer route render passed (14 library widgets, canvas, properties and JSON editor).");
 
-const { HMI_CHART_RANGES, createHmiWidget, renderHmiWidget } = await import("../src/features/live/hmi-widgets.js");
+const {
+  HMI_CHART_RANGES, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS,
+  createHmiWidget, renderHmiWidget, normalizeHmiPageTheme, normalizeHmiWidgetTheme,
+} = await import("../src/features/live/hmi-widgets.js");
 const chart = createHmiWidget("chart");
 if (chart.history_seconds !== 3600) {
   throw new Error("New HMI trend charts must default to a one-hour range in seconds.");
@@ -79,6 +82,38 @@ if (!needleHtml.includes('class="hmi-dial-reading"') || !needleHtml.includes(exp
   throw new Error("Needle widget must render a numeric value and its unit.");
 }
 
+if (normalizeHmiPageTheme("dark") !== "dark" ||
+    normalizeHmiPageTheme("unsafe") !== "light" ||
+    normalizeHmiWidgetTheme("inherit") !== "inherit" ||
+    normalizeHmiWidgetTheme("unsafe") !== "inherit" ||
+    HMI_THEME_OPTIONS.length !== 4 ||
+    HMI_COMPONENT_THEME_OPTIONS.length !== 5 ||
+    !hmiHtml.includes('data-hmi-page-field="theme"')) {
+  throw new Error("HMI page and widget theme options must be allow-listed and exposed by the designer.");
+}
+const themedWidget = renderHmiWidget({
+  type: "value", tag_id: "test-pressure", theme: "blue",
+}, [{
+  id: "test-pressure", name: "Pressure", value: 42.5, type: "float32", unit: "bar", quality: "GOOD",
+}]);
+if (!themedWidget.includes('data-hmi-theme="blue"')) {
+  throw new Error("Per-widget HMI themes must be present on the rendered widget root.");
+}
+const orderedTrend = renderHmiWidget({
+  type: "chart", tag_id: "test-trend", history_seconds: 60,
+}, [chartTag], {
+  history: [
+    { value: 15, sampled_at: "2026-11-22T08:00:30+00:00" },
+    { value: null, sampled_at: "2026-11-22T08:00:20+00:00" },
+    { value: 10, sampled_at: "2026-11-22T08:00:10+00:00" },
+    { value: 20, sampled_at: "2026-11-22T08:00:20+00:00" },
+  ],
+  historyState: { status: "ready", sampleCount: 3 },
+});
+const trendPoints = orderedTrend.match(/<polyline points="([^"]+)"/)?.[1] || "";
+if (trendPoints !== "8.0,68.0 130.0,10.0 252.0,39.0") {
+  throw new Error("HMI trends must discard invalid values and render samples in chronological order: " + trendPoints);
+}
 console.log("HMI chart range and needle numeric readout checks passed.");
 
 const {
@@ -228,6 +263,12 @@ if (!cssSource.includes(".hmi-layout-card {") ||
     !cssSource.includes("pointer-events: auto !important;") ||
     !cssSource.includes(".hmi-layout-card .hmi-layout-resize")) {
   throw new Error("HMI card surfaces and resize grips must remain explicit pointer hit targets.");
+}
+if (!cssSource.includes('[data-hmi-page-theme="dark"]') ||
+    !cssSource.includes('[data-hmi-theme="blue"]') ||
+    !cssSource.includes("--hmi-chart-line: #60c5e8") ||
+    !designerSource.includes('data-hmi-page-theme="\' + normalizeHmiPageTheme(draft.theme)')) {
+  throw new Error("HMI page and widget theme presets must be applied to the preview and visual tokens.");
 }
 if (!gestureSource.includes('target.addEventListener("dragstart"') ||
     !gestureSource.includes('event.preventDefault()')) {
