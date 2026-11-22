@@ -1,8 +1,8 @@
 import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
 import { button, dataTable, pageHeader, panel, pill, tabs, lineChart, statCard, gradientBanner, emptyState, barChart } from "../../shared/ui.js";
-import { renderHmiDesigner, getHmiChartHistory } from "./hmi-designer.js";
-import { renderHmiWidget } from "./hmi-widgets.js";
+import { renderHmiDesigner, getHmiChartHistory, getHmiChartHistoryState } from "./hmi-designer.js";
+import { hmiWidgetGridStyle, renderHmiWidget } from "./hmi-widgets.js";
 
 function liveDataPage() {
   const rows = store.list("tags");
@@ -41,10 +41,13 @@ function hmiRuntimePage(pageId) {
   const tags = store.list("tags");
   const layout = Array.isArray(page.layout) ? page.layout : [];
   const active = page.status !== "غیرفعال";
-  const components = layout.map(component => renderHmiWidget(component, tags, {
-    active,
-    history: component.type === "chart" ? getHmiChartHistory(component.tag_id, component.history_seconds ?? Number(component.history_hours || 1) * 3600) : [],
-  })).join("");
+  const components = layout.map((component, index) => {
+    const historySeconds = component.history_seconds ?? Number(component.history_hours || 1) * 3600;
+    const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, historySeconds) : [];
+    const historyState = component.type === "chart" ? getHmiChartHistoryState(component.tag_id, historySeconds) : null;
+    const widget = renderHmiWidget(component, tags, { active, history, historyState });
+    return '<div class="hmi-runtime-item" style="' + hmiWidgetGridStyle(component, index) + '">' + widget + '</div>';
+  }).join("");
   return `<div class="hmi-runtime">
     ${pageHeader(page.name, `${page.description || ""} · ${page.machine || "بدون ماشین"}`, `${button("به‌روزرسانی نمودارها", "hmi-refresh-charts", { variant: "light", attrs: "data-page-id=\"" + pageId + "\"" })}<a class="btn btn-light" href="#/live/hmi-pages">بازگشت به صفحات HMI</a>`)}
     <div class="hmi-runtime-toolbar">${pill(active ? "صفحه فعال" : "صفحه غیرفعال", active ? "success" : "muted")}<span>نمایش از Backend · مقادیر UNSAMPLED به‌عنوان مقدار زنده نمایش داده نمی‌شوند.</span></div>
