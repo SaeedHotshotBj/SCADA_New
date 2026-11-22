@@ -163,13 +163,37 @@ function refreshDesignerPanels() {
   const properties = document.getElementById("hmi-designer-properties");
   if (canvas) canvas.innerHTML = canvasMarkup();
   if (properties) properties.innerHTML = propertiesMarkup();
+  const previewRoot = document.getElementById("hmi-layout-preview-root");
+  if (previewRoot) {
+    previewRoot.hidden = !layoutPreviewOpen;
+    previewRoot.innerHTML = layoutPreviewOpen ? layoutPreviewMarkup() : "";
+  }
   syncJsonEditor();
+}
+
+function updateLayoutCardContents() {
+  const root = document.getElementById("hmi-layout-preview-root");
+  const canvas = root?.querySelector("#hmi-layout-preview-canvas");
+  if (!root || root.hidden || !canvas || layoutGesture) return;
+  const tags = store.list("tags");
+  for (const [index, component] of draft.layout.entries()) {
+    const card = [...canvas.querySelectorAll("[data-hmi-layout-card]")].find(item => item.dataset.widgetId === component.widget_id);
+    if (!card) continue;
+    const seconds = chartHistorySeconds(component);
+    const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, seconds) : [];
+    const historyState = component.type === "chart" ? chartHistoryState(component.tag_id, seconds) : null;
+    const content = card.querySelector(".hmi-layout-card-content");
+    if (content) content.innerHTML = renderHmiWidget(component, tags, { preview: true, history, historyState });
+    card.style.cssText = hmiWidgetGridStyle(component, index);
+    card.classList.toggle("is-selected", component.widget_id === selectedWidgetId);
+  }
 }
 
 export function refreshHmiDesignerLivePreview() {
   if (!document.querySelector(".hmi-designer-page")) return;
   const canvas = document.getElementById("hmi-designer-canvas");
   if (canvas) canvas.innerHTML = canvasMarkup();
+  updateLayoutCardContents();
 }
 
 function libraryMarkup() {
@@ -181,6 +205,50 @@ function libraryMarkup() {
         '<button type="button" class="hmi-library-item" data-action="hmi-add-widget" data-widget-type="' + item.type + '" title="' + escapeHtml(item.help) + '">' +
         '<span>' + escapeHtml(item.icon) + '</span><b>' + escapeHtml(item.label) + '</b><small>＋ افزودن</small></button>'
       ).join("") + '</div></section>').join("") + '</aside>';
+}
+
+function layoutPropertiesMarkup() {
+  const component = selectedWidget();
+  if (!component) {
+    return '<section class="hmi-layout-properties"><b>چیدمان کارت</b><p>یک کارت را انتخاب کن تا جایگاه و اندازه‌ی آن را تنظیم کنی.</p></section>';
+  }
+  return '<section class="hmi-layout-properties"><div class="hmi-layout-properties-title"><b>چیدمان کارت</b><small>' +
+    escapeHtml(component.label || component.type) + '</small></div><div class="hmi-layout-properties-fields">' +
+    '<label class="field"><span>ستون شروع (۱ تا ۱۲)</span><input type="number" min="1" max="12" step="1" data-hmi-layout-prop="grid_col" value="' + component.grid_col + '"></label>' +
+    '<label class="field"><span>ردیف شروع</span><input type="number" min="1" max="200" step="1" data-hmi-layout-prop="grid_row" value="' + component.grid_row + '"></label>' +
+    '<label class="field"><span>عرض (تعداد ستون)</span><input type="number" min="1" max="12" step="1" data-hmi-layout-prop="grid_w" value="' + component.grid_w + '"></label>' +
+    '<label class="field"><span>ارتفاع (تعداد ردیف)</span><input type="number" min="1" max="12" step="1" data-hmi-layout-prop="grid_h" value="' + component.grid_h + '"></label>' +
+    '</div><p class="hmi-field-help">برای جابه‌جایی، دستگیره‌ی بالای کارت را بکش. برای تغییر اندازه، گوشه‌ی پایین کارت را بکش. تغییرات در JSON و صفحه‌ی نهایی ذخیره می‌شوند.</p>' +
+    '<button type="button" class="btn btn-light btn-sm" data-action="hmi-reset-layout-widget" data-widget-id="' + escapeHtml(component.widget_id) + '">بازنشانی اندازه و جایگاه</button></section>';
+}
+
+function layoutPreviewCardMarkup(component, index) {
+  const seconds = chartHistorySeconds(component);
+  const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, seconds) : [];
+  const historyState = component.type === "chart" ? chartHistoryState(component.tag_id, seconds) : null;
+  const widget = renderHmiWidget(component, store.list("tags"), { preview: true, history, historyState });
+  return '<article class="hmi-layout-card ' + (component.widget_id === selectedWidgetId ? "is-selected" : "") +
+    '" data-hmi-layout-card data-action="hmi-select-layout-widget" data-widget-id="' + escapeHtml(component.widget_id) + '" style="' +
+    hmiWidgetGridStyle(component, index) + '">' +
+    '<header class="hmi-layout-card-toolbar"><button type="button" class="hmi-layout-move" data-hmi-layout-gesture="move" data-widget-id="' +
+    escapeHtml(component.widget_id) + '" title="برای جابه‌جایی بکش">↕ جابه‌جایی</button><span>' +
+    escapeHtml(component.label || component.type) + '</span></header>' +
+    '<div class="hmi-layout-card-content">' + widget + '</div>' +
+    '<button type="button" class="hmi-layout-resize" data-hmi-layout-gesture="resize" data-widget-id="' +
+    escapeHtml(component.widget_id) + '" title="برای تغییر اندازه بکش" aria-label="تغییر اندازه کارت">◢</button></article>';
+}
+
+function layoutPreviewMarkup() {
+  const cards = draft.layout.map(layoutPreviewCardMarkup).join("");
+  return '<div class="hmi-layout-preview-backdrop" data-action="hmi-close-layout-preview">' +
+    '<section class="hmi-layout-preview-window" role="dialog" aria-modal="true" aria-label="پیش‌نمایش و چیدمان صفحه HMI">' +
+    '<header class="hmi-layout-preview-header"><div><b>پیش‌نمایش شناور صفحه HMI</b><small>کارت‌ها را جابه‌جا و از گوشه‌ی پایین اندازه‌ی آن‌ها را تغییر بده.</small></div>' +
+    '<button type="button" class="btn btn-light btn-sm" data-action="hmi-close-layout-preview">بستن پیش‌نمایش</button></header>' +
+    '<div class="hmi-layout-preview-body"><main class="hmi-layout-preview-main"><div class="hmi-layout-stage-scroll">' +
+    '<div id="hmi-layout-preview-canvas" class="hmi-layout-preview-canvas">' +
+    (cards || '<div class="hmi-layout-preview-empty">ابتدا از کتابخانه، جزءهای موردنیاز را به صفحه اضافه کن.</div>') +
+    '</div></div><p class="hmi-layout-preview-hint">این پیش‌نمایش فقط نمایش است؛ فرمانی به PLC ارسال نمی‌کند. تنظیمات جایگاه و اندازه همراه صفحه ذخیره می‌شود.</p></main>' +
+    '<aside id="hmi-layout-preview-properties">' + layoutPropertiesMarkup() + '</aside></div></section></div>';
 }
 
 function pageSettingsMarkup() {
