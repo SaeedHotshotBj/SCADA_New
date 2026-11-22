@@ -25,6 +25,8 @@ const root = document.getElementById("app");
 let renderQueued = false;
 let liveSocket = null;
 let liveSocketIntervalMs = null;
+let liveReconnectTimer = null;
+let liveReconnectAttempt = 0;
 let loadedHmiChartPageId = null;
 let hmiChartRefreshTimer = null;
 let hmiChartRefreshTimerInterval = null;
@@ -175,6 +177,22 @@ document.addEventListener("submit", async event => {
   }
 });
 
+function scheduleLiveReconnect() {
+  if (liveReconnectTimer || !store.isConnected()) return;
+  const path = currentPath();
+  const needsLive = ["/live/data", "/live/trends", "/live/alarms", "/live/classic", "/batch/run", "/batch/compare"].includes(path)
+    || path.startsWith("/live/hmi/")
+    || path.startsWith("/live/hmi-designer/");
+  if (!needsLive) return;
+
+  const delay = Math.min(1000 * (2 ** liveReconnectAttempt), 15000);
+  liveReconnectAttempt = Math.min(liveReconnectAttempt + 1, 4);
+  liveReconnectTimer = window.setTimeout(() => {
+    liveReconnectTimer = null;
+    if (!liveSocket) syncLiveConnection();
+  }, delay);
+}
+
 function syncLiveConnection() {
   const path = currentPath();
   const isHmiDesignerPath = path.startsWith("/live/hmi-designer/");
@@ -262,6 +280,9 @@ function syncLiveConnection() {
     store.replaceCollection("trendHistory", []);
   }
   if (!needsLive) {
+    if (liveReconnectTimer) window.clearTimeout(liveReconnectTimer);
+    liveReconnectTimer = null;
+    liveReconnectAttempt = 0;
     if (liveSocket) { const previous = liveSocket; liveSocket = null; liveSocketIntervalMs = null; previous.close(); }
     return;
   }
@@ -280,10 +301,18 @@ function syncLiveConnection() {
   const socket = new WebSocket(socketUrl);
   liveSocket = socket;
   liveSocketIntervalMs = desiredLiveIntervalMs;
+  socket.onopen = () => {
+    if (liveSocket !== socket) return;
+    if (liveReconnectTimer) window.clearTimeout(liveReconnectTimer);
+    liveReconnectTimer = null;
+  };
   socket.onmessage = event => {
     try {
       const message = JSON.parse(event.data);
       if (message.type !== "telemetry.snapshot") return;
+      liveReconnectAttempt = 0;
+      if (liveReconnectTimer) window.clearTimeout(liveReconnectTimer);
+      liveReconnectTimer = null;
       const current = store.list("tags");
       const samples = new Map(message.items.map(item => [item.tag_id, item]));
       const next = current.map(tag => {
@@ -309,7 +338,11 @@ function syncLiveConnection() {
     }
   };
   socket.onclose = () => {
-    if (liveSocket === socket) { liveSocket = null; liveSocketIntervalMs = null; }
+    if (liveSocket === socket) {
+      liveSocket = null;
+      liveSocketIntervalMs = null;
+      scheduleLiveReconnect();
+    }
   };
   socket.onerror = () => { if (liveSocket === socket) socket.close(); };
 }
