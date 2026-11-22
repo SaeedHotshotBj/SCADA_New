@@ -8,9 +8,9 @@ import {
   loadHmiPageChartData,
   loadHmiDesignerChartData,
   refreshHmiDesignerLivePreview,
-  handleHmiDesignerMouseDown,
-  handleHmiDesignerMouseMove,
-  handleHmiDesignerMouseUp,
+  handleHmiDesignerPointerDown,
+  handleHmiDesignerPointerMove,
+  handleHmiDesignerPointerUp,
   closeHmiDesignerPreview,
   getHmiDesignerChartRefreshIntervalMs,
   getHmiPageChartRefreshIntervalMs,
@@ -71,7 +71,7 @@ window.addEventListener("hashchange", () => { render(); syncLiveConnection(); })
 window.addEventListener("scada:state-changed", scheduleRender);
 window.addEventListener("scada:hmi-chart-updated", scheduleRender);
 window.addEventListener("scada:hmi-chart-config-changed", syncLiveConnection);
-window.addEventListener("blur", () => handleHmiDesignerMouseUp());
+window.addEventListener("blur", () => handleHmiDesignerPointerUp());
 
 document.addEventListener("click", event => {
   const routeLink = event.target.closest("a[href^='#/']");
@@ -108,16 +108,23 @@ document.addEventListener("click", event => {
   });
 });
 
-// Handle layout gestures directly with mouse events. This avoids the browser's
-// native drag-and-drop "not-allowed" cursor and keeps tracking after leaving a handle.
-document.addEventListener("mousedown", event => {
-  handleHmiDesignerMouseDown(event);
+// All card surfaces are move handles; the bottom-right grip starts a resize.
+// Pointer events cover mouse, pen and touch, and document capture keeps the gesture
+// alive when the pointer leaves the card or crosses another card.
+document.addEventListener("dragstart", event => {
+  if (event.target?.closest?.(".hmi-layout-preview-window")) event.preventDefault();
 }, true);
-document.addEventListener("mousemove", event => {
-  handleHmiDesignerMouseMove(event);
+document.addEventListener("pointerdown", event => {
+  handleHmiDesignerPointerDown(event);
 }, true);
-document.addEventListener("mouseup", () => {
-  handleHmiDesignerMouseUp();
+document.addEventListener("pointermove", event => {
+  handleHmiDesignerPointerMove(event);
+}, true);
+document.addEventListener("pointerup", event => {
+  handleHmiDesignerPointerUp(event);
+}, true);
+document.addEventListener("pointercancel", event => {
+  handleHmiDesignerPointerUp(event);
 }, true);
 
 document.addEventListener("input", event => {
