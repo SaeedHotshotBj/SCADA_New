@@ -11,6 +11,9 @@ import {
   handleHmiDesignerPointerDown,
   handleHmiDesignerPointerMove,
   handleHmiDesignerPointerUp,
+  handleHmiDesignerMouseDown,
+  handleHmiDesignerMouseMove,
+  handleHmiDesignerMouseUp,
   closeHmiDesignerPreview,
   getHmiDesignerChartRefreshIntervalMs,
   getHmiPageChartRefreshIntervalMs,
@@ -125,6 +128,18 @@ document.addEventListener("pointerup", event => {
 }, true);
 document.addEventListener("pointercancel", event => {
   handleHmiDesignerPointerUp(event);
+}, true);
+
+// Desktop mouse fallback: pointer events remain primary (including touch/pen),
+// while these listeners keep drag/resize working if pointer delivery is interrupted.
+document.addEventListener("mousedown", event => {
+  handleHmiDesignerMouseDown(event);
+}, true);
+document.addEventListener("mousemove", event => {
+  handleHmiDesignerMouseMove(event);
+}, true);
+document.addEventListener("mouseup", () => {
+  handleHmiDesignerMouseUp();
 }, true);
 
 document.addEventListener("input", event => {
