@@ -93,10 +93,23 @@ function hmiWidgetTypographyStyle(component) {
     ";--hmi-text-scale:" + (typography.text_font_size / 12).toFixed(3) + ";";
   if (component.type === "chart") {
     const appearance = normalizeHmiChartAppearance(component);
+    const surface = HMI_CHART_SURFACE_RGB[appearance.chart_surface];
+    const valueColor = appearance.chart_value_color === "line"
+      ? HMI_CHART_COLORS[appearance.chart_color]
+      : HMI_CHART_VALUE_COLORS[appearance.chart_value_color];
+    const surfaceOpacity = 0.58 + (appearance.chart_surface_intensity / 100) * 0.42;
     style += "--hmi-chart-line:" + HMI_CHART_COLORS[appearance.chart_color] + ";" +
       "--hmi-chart-glow:" + HMI_CHART_COLORS[appearance.chart_color] + ";" +
       "--hmi-chart-fill-opacity:" + (appearance.chart_fill_opacity / 100).toFixed(2) + ";" +
-      "--hmi-chart-smoothing:" + (appearance.chart_smoothing / 100).toFixed(2) + ";";
+      "--hmi-chart-smoothing:" + (appearance.chart_smoothing / 100).toFixed(2) + ";" +
+      "--hmi-chart-value-color:" + valueColor + ";" +
+      "--hmi-chart-value-size:" + appearance.chart_value_font_size + "px;" +
+      "--hmi-chart-grid-opacity:" + (appearance.chart_grid_opacity / 100).toFixed(2) + ";" +
+      "--hmi-chart-line-glow:" + appearance.chart_line_glow + "px;" +
+      "--hmi-chart-surface-opacity:" + surfaceOpacity.toFixed(2) + ";" +
+      "--hmi-chart-surface-top-rgb:" + surface.top + ";" +
+      "--hmi-chart-surface-bottom-rgb:" + surface.bottom + ";" +
+      "--hmi-chart-surface-accent-rgb:" + surface.accent + ";";
   }
   return style;
 }
@@ -112,9 +125,16 @@ export const HMI_CHART_COLOR_OPTIONS = [
   { value: "amber", label: "کهربایی" },
 ];
 export const HMI_CHART_SURFACE_OPTIONS = [
-  { value: "midnight", label: "شب تیره" },
-  { value: "navy", label: "سرمه‌ای" },
-  { value: "graphite", label: "گرافیتی" },
+  { value: "midnight", label: "سبز نفتی" },
+  { value: "navy", label: "آبی عمیق" },
+  { value: "graphite", label: "ذغالی" },
+];
+export const HMI_CHART_VALUE_COLOR_OPTIONS = [
+  { value: "line", label: "هم‌رنگ خط" },
+  { value: "white", label: "سفید" },
+  { value: "amber", label: "کهربایی" },
+  { value: "green", label: "سبز" },
+  { value: "cyan", label: "فیروزه‌ای" },
 ];
 export const HMI_CHART_SMOOTHNESS_MIN = 0;
 export const HMI_CHART_SMOOTHNESS_MAX = 100;
@@ -122,6 +142,24 @@ export const HMI_CHART_SMOOTHNESS_DEFAULT = 58;
 export const HMI_CHART_FILL_OPACITY_MIN = 0;
 export const HMI_CHART_FILL_OPACITY_MAX = 60;
 export const HMI_CHART_FILL_OPACITY_DEFAULT = 24;
+export const HMI_CHART_GRID_OPACITY_MIN = 0;
+export const HMI_CHART_GRID_OPACITY_MAX = 60;
+export const HMI_CHART_GRID_OPACITY_DEFAULT = 22;
+export const HMI_CHART_GRID_LINES_MIN = 2;
+export const HMI_CHART_GRID_LINES_MAX = 8;
+export const HMI_CHART_GRID_LINES_DEFAULT = 4;
+export const HMI_CHART_SURFACE_INTENSITY_MIN = 25;
+export const HMI_CHART_SURFACE_INTENSITY_MAX = 100;
+export const HMI_CHART_SURFACE_INTENSITY_DEFAULT = 100;
+export const HMI_CHART_LINE_GLOW_MIN = 0;
+export const HMI_CHART_LINE_GLOW_MAX = 20;
+export const HMI_CHART_LINE_GLOW_DEFAULT = 8;
+export const HMI_CHART_VALUE_FONT_SIZE_MIN = 8;
+export const HMI_CHART_VALUE_FONT_SIZE_MAX = 36;
+export const HMI_CHART_VALUE_FONT_SIZE_DEFAULT = 18;
+export const HMI_CHART_VALUE_DECIMALS_MIN = 0;
+export const HMI_CHART_VALUE_DECIMALS_MAX = 6;
+export const HMI_CHART_VALUE_DECIMALS_DEFAULT = 1;
 
 const HMI_CHART_COLORS = {
   blue: "#168ce8",
@@ -130,6 +168,17 @@ const HMI_CHART_COLORS = {
   cyan: "#26c5d4",
   amber: "#f2a33a",
 };
+const HMI_CHART_VALUE_COLORS = {
+  white: "#f5fbff",
+  amber: "#ffc66b",
+  green: "#70e0a9",
+  cyan: "#79e6f1",
+};
+const HMI_CHART_SURFACE_RGB = {
+  midnight: { top: "13, 43, 35", bottom: "26, 68, 53", accent: "48, 128, 91" },
+  navy: { top: "13, 43, 75", bottom: "29, 70, 108", accent: "46, 116, 171" },
+  graphite: { top: "37, 46, 58", bottom: "64, 77, 94", accent: "103, 121, 143" },
+};
 
 export function normalizeHmiChartColor(value) {
   return Object.prototype.hasOwnProperty.call(HMI_CHART_COLORS, value) ? value : "blue";
@@ -137,6 +186,11 @@ export function normalizeHmiChartColor(value) {
 
 export function normalizeHmiChartSurface(value) {
   return HMI_CHART_SURFACE_OPTIONS.some(option => option.value === value) ? value : "midnight";
+}
+
+export function normalizeHmiChartValueColor(value) {
+  return value === "line" || Object.prototype.hasOwnProperty.call(HMI_CHART_VALUE_COLORS, value)
+    ? value : "line";
 }
 
 function normalizeChartInteger(value, fallback, minimum, maximum) {
@@ -152,6 +206,14 @@ export function normalizeHmiChartAppearance(component = {}) {
     chart_smoothing: normalizeChartInteger(component.chart_smoothing, HMI_CHART_SMOOTHNESS_DEFAULT, HMI_CHART_SMOOTHNESS_MIN, HMI_CHART_SMOOTHNESS_MAX),
     chart_fill_opacity: normalizeChartInteger(component.chart_fill_opacity, HMI_CHART_FILL_OPACITY_DEFAULT, HMI_CHART_FILL_OPACITY_MIN, HMI_CHART_FILL_OPACITY_MAX),
     chart_show_axes: component.chart_show_axes === true,
+    chart_show_value: component.chart_show_value !== false,
+    chart_value_color: normalizeHmiChartValueColor(component.chart_value_color),
+    chart_value_font_size: normalizeChartInteger(component.chart_value_font_size, HMI_CHART_VALUE_FONT_SIZE_DEFAULT, HMI_CHART_VALUE_FONT_SIZE_MIN, HMI_CHART_VALUE_FONT_SIZE_MAX),
+    chart_value_decimals: normalizeChartInteger(component.chart_value_decimals, HMI_CHART_VALUE_DECIMALS_DEFAULT, HMI_CHART_VALUE_DECIMALS_MIN, HMI_CHART_VALUE_DECIMALS_MAX),
+    chart_grid_opacity: normalizeChartInteger(component.chart_grid_opacity, HMI_CHART_GRID_OPACITY_DEFAULT, HMI_CHART_GRID_OPACITY_MIN, HMI_CHART_GRID_OPACITY_MAX),
+    chart_grid_lines: normalizeChartInteger(component.chart_grid_lines, HMI_CHART_GRID_LINES_DEFAULT, HMI_CHART_GRID_LINES_MIN, HMI_CHART_GRID_LINES_MAX),
+    chart_surface_intensity: normalizeChartInteger(component.chart_surface_intensity, HMI_CHART_SURFACE_INTENSITY_DEFAULT, HMI_CHART_SURFACE_INTENSITY_MIN, HMI_CHART_SURFACE_INTENSITY_MAX),
+    chart_line_glow: normalizeChartInteger(component.chart_line_glow, HMI_CHART_LINE_GLOW_DEFAULT, HMI_CHART_LINE_GLOW_MIN, HMI_CHART_LINE_GLOW_MAX),
   };
 }
 
@@ -651,8 +713,10 @@ function renderChart(component, tag, preview, history, historyState) {
   const latestTagValue = tag && quality !== "UNSAMPLED" && Number.isFinite(Number(tag.value))
     ? Number(tag.value) : null;
   const displayedValue = latestSample !== null ? latestSample : latestTagValue;
-  const displayValue = displayedValue === null ? "—" :
-    displayedValue.toLocaleString("fa-IR", { maximumFractionDigits: 3 });
+  const formatChartValue = value => Number(value).toLocaleString("fa-IR", {
+    minimumFractionDigits: appearance.chart_value_decimals,
+    maximumFractionDigits: appearance.chart_value_decimals,
+  });
   const unit = String(tag?.unit || "");
   const title = String(component.label || "روند");
   const tagName = String(tag?.name || "تگ انتخاب‌نشده");
@@ -671,8 +735,6 @@ function renderChart(component, tag, preview, history, historyState) {
           liveLabel +
         '</div>' +
       '</div>' +
-      '<div class="hmi-chart-value-box hmi-chart-reading"><strong>' + escapeHtml(displayValue) + '</strong>' +
-        (unit ? '<small>' + escapeHtml(unit) + '</small>' : '') + '</div>' +
     '</div>';
 
   let visual = "";
@@ -727,10 +789,30 @@ function renderChart(component, tag, preview, history, historyState) {
         : { hour: "2-digit", minute: "2-digit", ...(displayWindowSeconds <= 60 ? { second: "2-digit" } : {}) };
       return date.toLocaleString("fa-IR", options);
     };
+    const endpointValueMarkup = (point, value) => {
+      if (!appearance.chart_show_value || value === null || value === undefined) return "";
+      const preferLeft = point.x >= left + plotWidth * 0.68;
+      const labelX = preferLeft ? Math.max(left + 8, point.x - 9) : Math.min(right - 6, point.x + 9);
+      const labelY = point.y <= top + 30
+        ? Math.min(bottom - 2, point.y + 24)
+        : Math.max(top + 11, point.y - 11);
+      const unitMarkup = unit
+        ? '<tspan class="hmi-chart-endpoint-unit" dx="5">' + escapeHtml(unit) + '</tspan>'
+        : "";
+      return '<text class="hmi-chart-endpoint-label" data-value="' + escapeHtml(String(value)) +
+        '" data-point-x="' + point.x.toFixed(2) + '" data-point-y="' + point.y.toFixed(2) +
+        '" x="' + labelX.toFixed(2) + '" y="' + labelY.toFixed(2) +
+        '" text-anchor="' + (preferLeft ? "end" : "start") + '" direction="ltr">' +
+        '<tspan class="hmi-chart-endpoint-number">' + escapeHtml(formatChartValue(value)) + '</tspan>' +
+        unitMarkup + '</text>';
+    };
 
     const gridLevels = showAxes
       ? yTicks.map(value => ({ y: yFor(value), label: formatAxisValue(value) }))
-      : [0, 1 / 3, 2 / 3, 1].map(ratio => ({ y: top + ratio * plotHeight, label: "" }));
+      : Array.from({ length: appearance.chart_grid_lines }, (_, index) => ({
+          y: top + (index / (appearance.chart_grid_lines - 1)) * plotHeight,
+          label: "",
+        }));
     const yAxisMarkup = gridLevels.map(tick =>
       '<path d="M' + left + " " + tick.y.toFixed(2) + " H" + right + '" class="hmi-chart-grid-line"/>' +
       (showAxes
@@ -769,13 +851,19 @@ function renderChart(component, tag, preview, history, historyState) {
           '" y="' + y.toFixed(2) + '" width="' + barWidth.toFixed(2) +
           '" height="' + height.toFixed(2) + '" rx="2"/>';
       }).join("");
+      const lastIndex = sampleItems.length - 1;
+      dataMarkup += endpointValueMarkup({
+        x: xFor(sampleItems[lastIndex], lastIndex),
+        y: yFor(sampleItems[lastIndex].value),
+      }, sampleItems[lastIndex].value);
     } else {
       const points = sampleItems.map((item, index) => ({ x: xFor(item, index), y: yFor(item.value) }));
       if (points.length === 1) {
         const point = points[0];
         dataMarkup =
-          '<circle class="hmi-chart-dot-halo" cx="' + point.x.toFixed(2) + '" cy="' + point.y.toFixed(2) + '" r="7"/>' +
-          '<circle class="hmi-chart-single-point" cx="' + point.x.toFixed(2) + '" cy="' + point.y.toFixed(2) + '" r="3.5"/>';
+          '<circle class="hmi-chart-dot-halo" cx="' + point.x.toFixed(2) + '" cy="' + point.y.toFixed(2) + '" r="9"/>' +
+          '<circle class="hmi-chart-single-point" cx="' + point.x.toFixed(2) + '" cy="' + point.y.toFixed(2) + '" r="4"/>' +
+          endpointValueMarkup(point, sampleItems[0].value);
       } else {
         const linePath = smoothHmiChartPath(points, appearance.chart_smoothing / 100);
         const first = points[0];
@@ -793,8 +881,9 @@ function renderChart(component, tag, preview, history, historyState) {
           '<path class="hmi-chart-line" d="' + linePath + '" data-point-count="' + points.length +
             '" data-points="' + pointData + '" fill="none" stroke="var(--hmi-chart-line)" stroke-width="' + lineWidth +
             '" stroke-linecap="round" stroke-linejoin="round"/>' +
-          '<circle class="hmi-chart-dot-halo" cx="' + last.x.toFixed(2) + '" cy="' + last.y.toFixed(2) + '" r="7"/>' +
-          '<circle class="hmi-chart-last-point" cx="' + last.x.toFixed(2) + '" cy="' + last.y.toFixed(2) + '" r="3.5"/>';
+          '<circle class="hmi-chart-dot-halo" cx="' + last.x.toFixed(2) + '" cy="' + last.y.toFixed(2) + '" r="9"/>' +
+          '<circle class="hmi-chart-last-point" cx="' + last.x.toFixed(2) + '" cy="' + last.y.toFixed(2) + '" r="4"/>' +
+          endpointValueMarkup(last, sampleItems[sampleItems.length - 1].value);
       }
     }
 
@@ -813,7 +902,11 @@ function renderChart(component, tag, preview, history, historyState) {
     } else if (!tag) {
       message = "ابتدا تگ عددی نمودار را در ویژگی‌های جزء انتخاب کن.";
     }
-    visual = '<div class="hmi-chart-empty"><span>' + escapeHtml(message) + '</span></div>';
+    const emptyReading = appearance.chart_show_value && latestTagValue !== null
+      ? '<div class="hmi-chart-empty-reading"><strong>' + escapeHtml(formatChartValue(latestTagValue)) +
+        '</strong>' + (unit ? '<small>' + escapeHtml(unit) + '</small>' : '') + '</div>'
+      : "";
+    visual = '<div class="hmi-chart-empty"><span>' + escapeHtml(message) + '</span>' + emptyReading + '</div>';
   }
 
   return componentFrame(component,

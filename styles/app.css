@@ -1760,3 +1760,104 @@ tbody tr:last-child td { border-bottom: 0; }
 @media (max-width: 520px) {
   .hmi-chart-reading { max-width: 44%; }
 }
+
+
+/* HMI trend refinement: visibly tinted surfaces and an inline endpoint reading. */
+.hmi-widget.hmi-widget--chart {
+  background-color: #152221 !important;
+  background-image:
+    radial-gradient(135% 125% at 0% 0%, rgba(var(--hmi-chart-surface-accent-rgb, 48, 128, 91), .38), transparent 68%),
+    linear-gradient(150deg,
+      rgba(var(--hmi-chart-surface-top-rgb, 13, 43, 35), var(--hmi-chart-surface-opacity, 1)),
+      rgba(var(--hmi-chart-surface-bottom-rgb, 26, 68, 53), var(--hmi-chart-surface-opacity, 1))) !important;
+  border-color: var(--hmi-chart-surface-border, #3e705a) !important;
+  box-shadow: 0 12px 26px rgba(3, 10, 9, .3), inset 0 1px 0 rgba(232, 250, 239, .09);
+}
+.hmi-widget.hmi-widget--chart[data-hmi-chart-surface="midnight"] {
+  --hmi-chart-surface-top-rgb: 13, 43, 35;
+  --hmi-chart-surface-bottom-rgb: 26, 68, 53;
+  --hmi-chart-surface-accent-rgb: 48, 128, 91;
+  --hmi-chart-grid-rgb: 173, 218, 194;
+  --hmi-chart-surface-border: #3e705a;
+}
+.hmi-widget.hmi-widget--chart[data-hmi-chart-surface="navy"] {
+  --hmi-chart-surface-top-rgb: 13, 43, 75;
+  --hmi-chart-surface-bottom-rgb: 29, 70, 108;
+  --hmi-chart-surface-accent-rgb: 46, 116, 171;
+  --hmi-chart-grid-rgb: 172, 207, 239;
+  --hmi-chart-surface-border: #426b91;
+}
+.hmi-widget.hmi-widget--chart[data-hmi-chart-surface="graphite"] {
+  --hmi-chart-surface-top-rgb: 37, 46, 58;
+  --hmi-chart-surface-bottom-rgb: 64, 77, 94;
+  --hmi-chart-surface-accent-rgb: 103, 121, 143;
+  --hmi-chart-grid-rgb: 205, 216, 230;
+  --hmi-chart-surface-border: #667587;
+}
+.hmi-widget.hmi-widget--chart .hmi-widget-header { display: none !important; }
+.hmi-widget.hmi-widget--chart .hmi-widget-body { background: transparent !important; }
+.hmi-widget--chart .hmi-chart-topbar { justify-content: flex-start; }
+.hmi-widget--chart .hmi-chart-heading { width: 100%; }
+.hmi-widget--chart .hmi-chart-reading,
+.hmi-widget--chart .hmi-chart-value-box { display: none !important; }
+.hmi-widget--chart .hmi-chart-plot { position: relative; }
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-grid-line {
+  stroke: rgba(var(--hmi-chart-grid-rgb, 173, 218, 194), var(--hmi-chart-grid-opacity, .22));
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-line {
+  filter: drop-shadow(0 0 var(--hmi-chart-line-glow, 8px) var(--hmi-chart-glow, #168ce8));
+}
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-dot-halo { opacity: .26; }
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-last-point,
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-single-point {
+  stroke: rgba(248, 253, 255, .96);
+  stroke-width: 1.6;
+}
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-endpoint-label {
+  fill: var(--hmi-chart-value-color, var(--hmi-chart-line, #168ce8));
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: var(--hmi-chart-value-size, 18px);
+  font-weight: 800;
+  letter-spacing: .1px;
+  paint-order: stroke fill;
+  stroke: rgba(6, 17, 18, .94);
+  stroke-width: 3.2px;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .55));
+}
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-endpoint-unit {
+  fill: rgba(238, 247, 242, .88);
+  font-size: .62em;
+  font-weight: 600;
+}
+.hmi-widget--chart .hmi-chart-empty-reading {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--hmi-chart-value-color, var(--hmi-chart-line, #168ce8));
+  direction: ltr;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .85), 0 0 12px var(--hmi-chart-glow, #168ce8);
+}
+.hmi-widget--chart .hmi-chart-empty-reading strong {
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: var(--hmi-chart-value-size, 18px);
+  font-weight: 800;
+  line-height: 1;
+}
+.hmi-widget--chart .hmi-chart-empty-reading small {
+  color: rgba(238, 247, 242, .88);
+  font-size: .68em;
+  font-weight: 600;
+}
+.hmi-widget--chart .hmi-chart-empty {
+  position: relative;
+  min-height: 0;
+  flex: 1 1 0;
+  color: rgba(222, 239, 230, .82);
+}
+

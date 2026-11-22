@@ -34,9 +34,16 @@ HMI_WIDGET_FONT_SIZES = {
 }
 HMI_CHART_COLORS = {"blue", "purple", "green", "cyan", "amber"}
 HMI_CHART_SURFACES = {"midnight", "navy", "graphite"}
+HMI_CHART_VALUE_COLORS = {"line", "white", "amber", "green", "cyan"}
 HMI_CHART_STYLE_NUMBERS = {
     "chart_smoothing": (0, 100, True),
     "chart_fill_opacity": (0, 60, True),
+    "chart_surface_intensity": (25, 100, True),
+    "chart_line_glow": (0, 20, True),
+    "chart_grid_opacity": (0, 60, True),
+    "chart_grid_lines": (2, 8, True),
+    "chart_value_font_size": (8, 36, True),
+    "chart_value_decimals": (0, 6, True),
 }
 ENUMS = {
     "plcs.protocol": {"modbus-tcp", "modbus-rtu", "s7", "simulator"},
@@ -479,8 +486,12 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                     chart_surface = component.get("chart_surface", "midnight")
                     if not isinstance(chart_surface, str) or chart_surface not in HMI_CHART_SURFACES:
                         raise HTTPException(status_code=422, detail=f"پس‌زمینه نمودار جزء شماره {number_in_layout} معتبر نیست.")
-                    if "chart_show_axes" in component and not isinstance(component["chart_show_axes"], bool):
-                        raise HTTPException(status_code=422, detail=f"نمایش محورهای نمودار جزء شماره {number_in_layout} باید بولی باشد.")
+                    chart_value_color = component.get("chart_value_color", "line")
+                    if not isinstance(chart_value_color, str) or chart_value_color not in HMI_CHART_VALUE_COLORS:
+                        raise HTTPException(status_code=422, detail=f"رنگ عدد انتهایی نمودار جزء شماره {number_in_layout} معتبر نیست.")
+                    for boolean_field in ("chart_show_axes", "chart_show_value"):
+                        if boolean_field in component and not isinstance(component[boolean_field], bool):
+                            raise HTTPException(status_code=422, detail=f"تنظیم {boolean_field} در نمودار شماره {number_in_layout} باید بولی باشد.")
                     if "line_width" in component:
                         line_width = _finite_number(component.get("line_width"))
                         if line_width is None or not 0.5 <= line_width <= 10 or not float(line_width * 2).is_integer():
