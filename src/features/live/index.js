@@ -1,4 +1,5 @@
 import { store } from "../../services/demo-store.js";
+import { api } from "../../services/api-client.js";
 import { escapeHtml } from "../../core/format.js";
 import { button, dataTable, pageHeader, panel, pill, tabs, lineChart, statCard, gradientBanner, emptyState, barChart } from "../../shared/ui.js";
 import { renderHmiDesigner, getHmiChartHistory, getHmiChartHistoryState } from "./hmi-designer.js";
@@ -45,7 +46,7 @@ function hmiRuntimePage(pageId) {
     const historySeconds = component.history_seconds ?? Number(component.history_hours || 1) * 3600;
     const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, historySeconds) : [];
     const historyState = component.type === "chart" ? getHmiChartHistoryState(component.tag_id, historySeconds) : null;
-    const widget = renderHmiWidget(component, tags, { active, history, historyState });
+    const widget = renderHmiWidget(component, tags, { active, history, historyState, mediaBase: api.base });
     return '<div class="hmi-runtime-item" style="' + hmiWidgetFreeformStyle(component, index) + '">' + widget + '</div>';
   }).join("");
   return `<div class="hmi-runtime">

@@ -834,3 +834,62 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 .hmi-chart-latest small { color: var(--hmi-muted, #8a9aa7); }
 .hmi-chart-single-point { fill: var(--hmi-chart-line, #218fbd); }
+
+/* HMI runtime is a clean operator surface; the design grid stays in the editor only. */
+.hmi-runtime-grid[data-hmi-page-theme] {
+  background-image: none !important;
+  background-size: auto;
+}
+.hmi-widget--media .hmi-widget-body {
+  min-height: 0;
+  flex: 1;
+  padding: 0;
+  overflow: hidden;
+}
+.hmi-media-frame {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--hmi-soft-bg, transparent);
+}
+.hmi-media-element {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: transparent;
+}
+.hmi-media-fit-contain { object-fit: contain; }
+.hmi-media-fit-cover { object-fit: cover; }
+.hmi-media-fit-fill { object-fit: fill; }
+.hmi-media-empty {
+  display: flex;
+  width: 100%;
+  min-height: 110px;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  color: var(--hmi-muted, #8295a5);
+  font-size: 10px;
+  text-align: center;
+}
+.hmi-media-properties { display: grid; gap: 8px; padding: 8px 0; }
+.hmi-media-properties .field { margin: 0; }
+.hmi-media-current-file { color: var(--hmi-muted, #8295a5); font-size: 9px; overflow-wrap: anywhere; }
+.hmi-media-toggle { display: flex; align-items: center; gap: 8px; color: var(--hmi-text, #25364a); font-size: 10px; }
+.hmi-chart-live-label {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--hmi-chart-line, #218fbd);
+  font-size: 9px;
+}
+.hmi-chart-live-label span { font-weight: 800; letter-spacing: .4px; }
+.hmi-chart-live-label small { color: var(--hmi-muted, #8295a5); font-size: 8px; }

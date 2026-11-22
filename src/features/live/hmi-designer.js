@@ -1,7 +1,7 @@
 import { api } from "../../services/api-client.js";
 import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
-import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_WIDGET_LIBRARY, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_LAYOUT_CANVAS_WIDTH, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetFreeformFromPointer, hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, normalizeHmiWidgetFreeformGeometry, normalizeHmiPageTheme, normalizeHmiWidgetTheme, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
+import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_WIDGET_LIBRARY, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_LAYOUT_CANVAS_WIDTH, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetFreeformFromPointer, hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, normalizeHmiWidgetFreeformGeometry, normalizeHmiPageTheme, normalizeHmiWidgetTheme, hmiChartLiveIntervalMs, appendHmiLiveChartSamples, getHmiLiveChartSamples, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
 
 let activePageKey = null;
 let draft = null;
@@ -95,6 +95,33 @@ function bindingMarkup(binding, component) {
       binding.kind === "numeric" ? '<small class="hmi-field-help">فقط تگ‌های عددی نمایش داده می‌شوند.</small>' : "") + '</label>';
 }
 
+function mediaPropertiesMarkup(component) {
+  const widgetId = escapeHtml(component.widget_id || "");
+  const accept = "image/png,image/jpeg,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,.png,.jpg,.jpeg,.gif,.webp,.svg,.mp4,.webm";
+  const fileName = component.media_name
+    ? '<small class="hmi-media-current-file">فایل فعلی: ' + escapeHtml(component.media_name) + '</small>'
+    : '<small class="hmi-media-current-file">هنوز فایلی وارد نشده است.</small>';
+  const checkbox = (key, label, fallback) =>
+    '<label class="hmi-media-toggle"><input type="checkbox" data-hmi-prop="' + key + '" ' +
+    (component[key] === undefined ? (fallback ? "checked" : "") : (component[key] ? "checked" : "")) +
+    '><span>' + label + '</span></label>';
+  return '<div class="hmi-media-properties">' +
+    '<input type="file" data-hmi-media-input data-widget-id="' + widgetId + '" accept="' + accept + '" hidden>' +
+    '<button type="button" class="btn btn-light btn-sm" data-action="hmi-media-choose" data-widget-id="' + widgetId + '">انتخاب / جایگزینی فایل رسانه</button>' +
+    fileName +
+    selectMarkup("نحوه قرارگیری فایل", "media_fit", [
+      { value: "contain", label: "نمایش کامل (بدون برش)" },
+      { value: "cover", label: "پرکردن کادر (با برش)" },
+      { value: "fill", label: "کشیدن تا اندازه کادر" },
+    ], component.media_fit || "contain") +
+    checkbox("media_autoplay", "پخش خودکار ویدئو", false) +
+    checkbox("media_loop", "تکرار ویدئو", true) +
+    checkbox("media_muted", "بی‌صدا بودن ویدئو", true) +
+    checkbox("media_controls", "نمایش کنترل‌های ویدئو", true) +
+    '<small class="hmi-field-help">فرمت‌های تصویر: PNG/JPEG/GIF/WebP/SVG · ویدئو: MP4/WebM · حداکثر حجم هر فایل: ۶۴ مگابایت. GIF و WebP متحرک نیز قابل نمایش هستند.</small>' +
+    '</div>';
+}
+
 function propertiesMarkup() {
   const component = selectedWidget();
   if (!component) {
@@ -115,8 +142,9 @@ function propertiesMarkup() {
       { value: "bar", label: "ستونی" },
     ], component.chart_kind || "line");
     fields += selectMarkup("بازه زمانی نمایش", "history_seconds", HMI_CHART_RANGES, chartHistorySeconds(component));
-    fields += '<small class="hmi-field-help">این گزینه مدت تاریخچه‌ی قابل نمایش است، نه سرعت نمونه‌برداری. تعداد نقاط به Poll و فاصله ذخیره تاریخچه در تنظیمات PLC یا Edge بستگی دارد.</small>';
+    fields += '<small class="hmi-field-help">حالت ۱ ثانیه، تاریخچه را مکرراً درخواست نمی‌کند؛ نمودار از WebSocket داده زنده می‌گیرد و ۶۰ ثانیه اخیر را پیوسته نمایش می‌دهد. برای نمونه جدید در هر ثانیه، Poll خود PLC را روی ۱ s یا ارسال Edge را روی ۱ ثانیه تنظیم کن.</small>';
   }
+  if (component.type === "media") fields += mediaPropertiesMarkup(component);
   const warning = component.type === "write"
     ? '<div class="hmi-designer-warning">این جزء قابلیت ارسال مقدار دارد. نوشتن روی PLC واقعی فقط از مسیر مجوزهای ایمنی موجود و با تأیید صریح ممکن است؛ هیچ مجوزی از این صفحه فعال نمی‌شود.</div>'
     : "";
@@ -135,7 +163,7 @@ function canvasMarkup() {
     const seconds = chartHistorySeconds(component);
     const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, seconds) : [];
     const historyState = component.type === "chart" ? chartHistoryState(component.tag_id, seconds) : null;
-    const widget = renderHmiWidget(component, tags, { preview: true, history, historyState });
+    const widget = renderHmiWidget(component, tags, { preview: true, history, historyState, mediaBase: api.base });
     return '<div class="hmi-designer-item ' + (selected ? "is-selected" : "") + '" data-action="hmi-select-widget" data-widget-id="' + escapeHtml(component.widget_id) + '">' +
       '<div class="hmi-designer-item-toolbar"><small>' + String(index + 1).toLocaleString("fa-IR") + ' · ' + escapeHtml(component.type) + '</small>' +
       '<span><button type="button" title="انتقال به بالا" data-action="hmi-move-widget" data-widget-id="' + escapeHtml(component.widget_id) + '" data-direction="-1" ' + (index === 0 ? "disabled" : "") + '>↑</button>' +
@@ -186,7 +214,7 @@ function updateLayoutCardContents() {
     const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, seconds) : [];
     const historyState = component.type === "chart" ? chartHistoryState(component.tag_id, seconds) : null;
     const content = card.querySelector(".hmi-layout-card-content");
-    if (content) content.innerHTML = renderHmiWidget(component, tags, { preview: true, history, historyState });
+    if (content) content.innerHTML = renderHmiWidget(component, tags, { preview: true, history, historyState, mediaBase: api.base });
     card.style.cssText = hmiWidgetFreeformStyle(component, index);
     card.classList.toggle("is-selected", component.widget_id === selectedWidgetId);
   }
@@ -218,6 +246,7 @@ function layoutPropertiesMarkup() {
   return '<section class="hmi-layout-properties"><div class="hmi-layout-properties-title"><b>چیدمان آزاد کارت</b><small>' +
     escapeHtml(component.label || component.type) + '</small></div>' +
     selectMarkup("پوسته این باکس", "theme", HMI_COMPONENT_THEME_OPTIONS, normalizeHmiWidgetTheme(component.theme)) +
+    (component.type === "media" ? mediaPropertiesMarkup(component) : "") +
     '<div class="hmi-layout-properties-group-title">موقعیت آزاد روی بوم (پیکسل)</div><div class="hmi-layout-properties-fields">' +
     '<label class="field"><span>موقعیت افقی X</span><input type="number" inputmode="numeric" min="0" max="1200" step="1" aria-label="موقعیت افقی کارت" data-hmi-layout-prop="x" value="' + component.x + '"></label>' +
     '<label class="field"><span>موقعیت عمودی Y</span><input type="number" inputmode="numeric" min="0" max="100000" step="1" aria-label="موقعیت عمودی کارت" data-hmi-layout-prop="y" value="' + component.y + '"></label>' +
@@ -232,7 +261,7 @@ function layoutPreviewCardMarkup(component, index) {
   const seconds = chartHistorySeconds(component);
   const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, seconds) : [];
   const historyState = component.type === "chart" ? chartHistoryState(component.tag_id, seconds) : null;
-  const widget = renderHmiWidget(component, store.list("tags"), { preview: true, history, historyState });
+  const widget = renderHmiWidget(component, store.list("tags"), { preview: true, history, historyState, mediaBase: api.base });
   return '<article class="hmi-layout-card ' + (component.widget_id === selectedWidgetId ? "is-selected" : "") +
     '" data-hmi-layout-card data-hmi-layout-gesture="move" data-action="hmi-select-layout-widget" data-widget-id="' + escapeHtml(component.widget_id) + '" style="' +
     hmiWidgetFreeformStyle(component, index) + '">' +
@@ -470,7 +499,9 @@ export function handleHmiDesignerInput(event) {
   const component = selectedWidget();
   if (!component) return true;
   const numeric = target.type === "number" || ["min", "max", "history_seconds"].includes(property);
-  component[property] = numeric ? (target.value === "" ? "" : Number(target.value)) : target.value;
+  component[property] = target.type === "checkbox"
+    ? target.checked
+    : numeric ? (target.value === "" ? "" : Number(target.value)) : target.value;
   const canvas = document.getElementById("hmi-designer-canvas");
   if (canvas) canvas.innerHTML = canvasMarkup();
   updateLayoutCardContents();
@@ -490,6 +521,14 @@ export function handleHmiDesignerAction(action, element) {
     draft.layout.push(component);
     selectedWidgetId = component.widget_id;
     refreshDesignerPanels();
+    return true;
+  }
+  if (action === "hmi-media-choose") {
+    const component = draft.layout.find(item => item.widget_id === element.dataset.widgetId) || selectedWidget();
+    if (!component || component.type !== "media") return true;
+    selectedWidgetId = component.widget_id;
+    const panel = element.closest(".hmi-designer-properties, .hmi-layout-properties");
+    panel?.querySelector("[data-hmi-media-input]")?.click();
     return true;
   }
   if (action === "hmi-select-widget") {
@@ -566,21 +605,30 @@ export function handleHmiDesignerAction(action, element) {
 }
 
 export function getHmiChartHistory(tagId, seconds = 3600) {
+  if (Number(seconds) === 1) return getHmiLiveChartSamples(tagId);
   return chartHistory.get(chartHistoryKey(tagId, seconds)) || [];
 }
 
 export function getHmiChartHistoryState(tagId, seconds = 3600) {
+  if (Number(seconds) === 1) return { status: "live", sampleCount: getHmiLiveChartSamples(tagId).length };
   return chartHistoryState(tagId, seconds);
 }
 
 async function loadChartDataForComponents(components) {
-  const chartComponents = (Array.isArray(components) ? components : [])
+  const allCharts = (Array.isArray(components) ? components : [])
     .filter(item => item?.type === "chart" && item.tag_id);
+  for (const component of allCharts.filter(item => chartHistorySeconds(item) === 1)) {
+    chartHistoryStatus.set(chartHistoryKey(component.tag_id, 1), { status: "live", message: "" });
+  }
+  const chartComponents = allCharts.filter(item => chartHistorySeconds(item) !== 1);
   const keys = [...new Map(chartComponents.map(item => {
     const seconds = chartHistorySeconds(item);
     return [chartHistoryKey(item.tag_id, seconds), { tagId: item.tag_id, seconds }];
   })).values()];
-  if (!keys.length) return [];
+  if (!keys.length) {
+    window.dispatchEvent(new CustomEvent("scada:hmi-chart-updated"));
+    return [];
+  }
 
   const jobs = keys.map(item => {
     const key = chartHistoryKey(item.tagId, item.seconds);
@@ -640,7 +688,7 @@ export async function loadHmiPageChartData(pageId) {
 export async function loadHmiDesignerChartData() {
   if (!draft) return [];
   if (!store.isConnected()) {
-    for (const component of draft.layout.filter(item => item.type === "chart" && item.tag_id)) {
+    for (const component of draft.layout.filter(item => item.type === "chart" && item.tag_id && chartHistorySeconds(item) !== 1)) {
       chartHistoryStatus.set(chartHistoryKey(component.tag_id, chartHistorySeconds(component)), {
         status: "error",
         message: "اتصال به Backend برقرار نیست.",
@@ -667,6 +715,30 @@ export function getHmiDesignerChartRefreshIntervalMs() {
 export function getHmiPageChartRefreshIntervalMs(pageId) {
   const page = store.list("hmiPages").find(item => item.id === pageId);
   return hmiChartRefreshIntervalMs(page?.layout || []);
+}
+
+export function getHmiDesignerLiveRefreshIntervalMs() {
+  return hmiChartLiveIntervalMs(draft?.layout || []);
+}
+
+export function getHmiPageLiveRefreshIntervalMs(pageId) {
+  const page = store.list("hmiPages").find(item => item.id === pageId);
+  return hmiChartLiveIntervalMs(page?.layout || []);
+}
+
+export function recordHmiDesignerLiveChartData(tags) {
+  if (!draft) return false;
+  const changed = appendHmiLiveChartSamples(draft.layout, tags);
+  if (changed) window.dispatchEvent(new CustomEvent("scada:hmi-chart-updated"));
+  return changed;
+}
+
+export function recordHmiPageLiveChartData(pageId, tags) {
+  const page = store.list("hmiPages").find(item => item.id === pageId);
+  if (!page) return false;
+  const changed = appendHmiLiveChartSamples(page.layout, tags);
+  if (changed) window.dispatchEvent(new CustomEvent("scada:hmi-chart-updated"));
+  return changed;
 }
 
 function updateLayoutCardStyle(component) {
@@ -779,4 +851,35 @@ export function handleHmiDesignerMouseMove(event) {
 
 export function handleHmiDesignerMouseUp() {
   return finishHmiLayoutGesture();
+}
+
+export async function handleHmiDesignerMediaUpload(input) {
+  const file = input?.files?.[0];
+  if (!file) return null;
+  const component = draft?.layout?.find(item => item.widget_id === input.dataset.widgetId) || selectedWidget();
+  if (!component || component.type !== "media") throw new Error("ابتدا جزء رسانه را انتخاب کن.");
+  const allowed = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml", "video/mp4", "video/webm"]);
+  if (!allowed.has(file.type)) throw new Error("فرمت فایل پشتیبانی نمی‌شود؛ PNG/JPEG/GIF/WebP/SVG یا MP4/WebM انتخاب کن.");
+  if (file.size <= 0 || file.size > 64 * 1024 * 1024) throw new Error("حجم فایل باید بیشتر از صفر و حداکثر ۶۴ مگابایت باشد.");
+  const button = input.closest(".hmi-media-properties")?.querySelector('[data-action="hmi-media-choose"]');
+  if (button) button.disabled = true;
+  try {
+    const saved = await api.uploadHmiMedia(file);
+    component.media_id = saved.id;
+    component.media_type = saved.media_type;
+    component.media_name = saved.filename || file.name;
+    component.media_content_type = saved.content_type || file.type;
+    component.media_fit ||= "contain";
+    component.media_loop ??= true;
+    component.media_muted ??= true;
+    component.media_controls ??= true;
+    component.media_autoplay ??= false;
+    refreshDesignerPanels();
+    syncJsonEditor();
+    window.dispatchEvent(new CustomEvent("scada:hmi-media-updated"));
+    return saved;
+  } finally {
+    input.value = "";
+    if (button) button.disabled = false;
+  }
 }

@@ -12,12 +12,18 @@ import {
   closeHmiDesignerPreview,
   getHmiDesignerChartRefreshIntervalMs,
   getHmiPageChartRefreshIntervalMs,
+  getHmiDesignerLiveRefreshIntervalMs,
+  getHmiPageLiveRefreshIntervalMs,
+  recordHmiDesignerLiveChartData,
+  recordHmiPageLiveChartData,
+  handleHmiDesignerMediaUpload,
 } from "../features/live/hmi-designer.js";
 import { bindHmiDesignerGestureEvents } from "../features/live/hmi-designer-events.js";
 
 const root = document.getElementById("app");
 let renderQueued = false;
 let liveSocket = null;
+let liveSocketIntervalMs = null;
 let loadedHmiChartPageId = null;
 let hmiChartRefreshTimer = null;
 let hmiChartRefreshTimerInterval = null;
@@ -120,6 +126,12 @@ document.addEventListener("input", event => {
 });
 
 document.addEventListener("change", event => {
+  if (event.target.matches(".hmi-designer-page [data-hmi-media-input]")) {
+    handleHmiDesignerMediaUpload(event.target)
+      .then(() => showToast("فایل رسانه به صفحه HMI اضافه شد."))
+      .catch(error => showToast(error.message || "ورود فایل رسانه ناموفق بود.", "error"));
+    return;
+  }
   if (event.target.matches(".hmi-designer-page select")) {
     try { handleHmiDesignerInput(event); }
     catch (error) { showToast(error.message || "به‌روزرسانی ویژگی HMI ناموفق بود.", "error"); }
@@ -247,13 +259,25 @@ function syncLiveConnection() {
     store.replaceCollection("trendHistory", []);
   }
   if (!needsLive) {
-    if (liveSocket) { liveSocket.close(); liveSocket = null; }
+    if (liveSocket) { const previous = liveSocket; liveSocket = null; liveSocketIntervalMs = null; previous.close(); }
     return;
   }
+  const runtimePathMatch = path.match(/^\/live\/hmi\/([^/]+)$/);
+  const desiredLiveIntervalMs = isHmiDesignerPath
+    ? getHmiDesignerLiveRefreshIntervalMs()
+    : runtimePathMatch ? getHmiPageLiveRefreshIntervalMs(runtimePathMatch[1]) : 5000;
+  if (liveSocket && liveSocketIntervalMs !== desiredLiveIntervalMs) {
+    const previous = liveSocket;
+    liveSocket = null;
+    liveSocketIntervalMs = null;
+    previous.close();
+  }
   if (!store.isConnected() || liveSocket) return;
-  const socketUrl = api.base.replace(/^http/, "ws") + "/api/telemetry/ws/live";
-  liveSocket = new WebSocket(socketUrl);
-  liveSocket.onmessage = event => {
+  const socketUrl = api.base.replace(/^http/, "ws") + "/api/telemetry/ws/live?interval_ms=" + desiredLiveIntervalMs;
+  const socket = new WebSocket(socketUrl);
+  liveSocket = socket;
+  liveSocketIntervalMs = desiredLiveIntervalMs;
+  socket.onmessage = event => {
     try {
       const message = JSON.parse(event.data);
       if (message.type !== "telemetry.snapshot") return;
@@ -269,6 +293,11 @@ function syncLiveConnection() {
           sampled_at: sample.sampled_at,
         } : tag;
       });
+      const livePath = currentPath();
+      const designerLive = livePath.startsWith("/live/hmi-designer/");
+      const runtimeLive = livePath.match(/^\/live\/hmi\/([^/]+)$/);
+      if (designerLive) recordHmiDesignerLiveChartData(next);
+      else if (runtimeLive) recordHmiPageLiveChartData(runtimeLive[1], next);
       store.replaceCollection("tags", next);
       if (Array.isArray(message.plcs)) store.replaceCollection("plcs", message.plcs);
       if (Array.isArray(message.alarms)) store.replaceCollection("alarms", message.alarms);
@@ -276,8 +305,10 @@ function syncLiveConnection() {
       console.error("Invalid telemetry message", error);
     }
   };
-  liveSocket.onclose = () => { liveSocket = null; };
-  liveSocket.onerror = () => { liveSocket?.close(); };
+  socket.onclose = () => {
+    if (liveSocket === socket) { liveSocket = null; liveSocketIntervalMs = null; }
+  };
+  socket.onerror = () => { if (liveSocket === socket) socket.close(); };
 }
 
 async function initialize() {
