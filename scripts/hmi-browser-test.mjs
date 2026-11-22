@@ -148,6 +148,10 @@ try {
       widgetBackground !== "rgb(248, 251, 255)" || pageBackground !== "rgb(24, 35, 46)") {
     throw new Error("HMI page/widget theme cascade failed: " + JSON.stringify({ pageTheme, widgetTheme, widgetBackground, pageBackground }));
   }
+  const designerBackgroundImage = await page.locator("#hmi-layout-preview-canvas").evaluate(element => getComputedStyle(element).backgroundImage);
+  if (designerBackgroundImage === "none") {
+    throw new Error("The HMI design grid must remain visible while the runtime grid is removed.");
+  }
 
   const card = page.locator("[data-hmi-layout-card]").first();
   const toolbar = card.locator(".hmi-layout-card-toolbar");
@@ -247,7 +251,6 @@ try {
   const runtimeWidgetBackground = await runtimeChart.locator(".hmi-widget").evaluate(element => getComputedStyle(element).backgroundColor);
   const runtimePageBackground = await runtimeCanvas.evaluate(element => getComputedStyle(element).backgroundColor);
   const runtimeBackgroundImage = await runtimeCanvas.evaluate(element => getComputedStyle(element).backgroundImage);
-  const designerBackgroundImage = await page.locator("#hmi-layout-preview-canvas").evaluate(element => getComputedStyle(element).backgroundImage);
   const runtimeImage = runtimeCanvas.locator(".hmi-media-element");
   await runtimeImage.waitFor({ state: "visible" });
   const runtimeImageSrc = await runtimeImage.getAttribute("src");

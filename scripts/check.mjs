@@ -327,7 +327,6 @@ if (designerSource.includes('hmi-layout-preview-backdrop" data-action="hmi-close
 if (!designerSource.includes('data-action="hmi-layout-single-column"')) {
   throw new Error("The floating HMI preview must expose a one-card-per-row layout command.");
 }
-const cssSource = await readFile("styles/app.css", "utf8");
 if (!cssSource.includes(".hmi-runtime-grid[data-hmi-page-theme] {\n  background-image: none !important;") ||
     !cssSource.includes(".hmi-designer-canvas[data-hmi-page-theme]")) {
   throw new Error("HMI runtime must remove the design grid while retaining the designer grid.");
