@@ -131,6 +131,34 @@ export function hmiWidgetGridStyle(component, index = 0) {
     ";grid-row:" + geometry.grid_row + " / span " + geometry.grid_h + ";";
 }
 
+export function applyHmiWidgetGridGesture(component, mode, deltaColumn = 0, deltaRow = 0) {
+  const next = normalizeHmiWidgetGeometry(component);
+  const columns = Number.isFinite(Number(deltaColumn)) ? Math.trunc(Number(deltaColumn)) : 0;
+  const rows = Number.isFinite(Number(deltaRow)) ? Math.trunc(Number(deltaRow)) : 0;
+  if (mode === "move") {
+    next.grid_col = Math.max(1, Math.min(13 - next.grid_w, next.grid_col + columns));
+    next.grid_row = Math.max(1, Math.min(200, next.grid_row + rows));
+  } else if (mode === "resize") {
+    next.grid_w = Math.max(1, Math.min(13 - next.grid_col, next.grid_w + columns));
+    next.grid_h = Math.max(1, Math.min(12, next.grid_h + rows));
+  }
+  return normalizeHmiWidgetGeometry(next);
+}
+
+export function hmiChartRefreshIntervalMs(components) {
+  const ranges = (Array.isArray(components) ? components : [])
+    .filter(item => item?.type === "chart")
+    .map(item => {
+      const seconds = Number(item.history_seconds ?? Number(item.history_hours || 1) * 3600);
+      return Number.isFinite(seconds) && seconds > 0 ? seconds : 3600;
+    });
+  if (!ranges.length) return 5000;
+  const shortest = Math.min(...ranges);
+  if (shortest <= 1) return 750;
+  if (shortest <= 5) return 1500;
+  return 5000;
+}
+
 export function isBooleanTag(tag) {
   return Boolean(tag && BOOLEAN_TYPES.has(tag.type));
 }
@@ -308,7 +336,11 @@ function renderChart(component, tag, preview, history, historyState) {
     let message = "برای دریافت تاریخچه، پیش‌نمایش شناور را باز کن.";
     if (historyState?.status === "loading") message = "در حال دریافت تاریخچه از Backend…";
     else if (historyState?.status === "error") message = "دریافت تاریخچه ناموفق بود: " + (historyState.message || "خطای نامشخص");
-    else if (historyState?.status === "empty") message = "در " + rangeLabel + " اخیر نمونه‌ی ذخیره‌شده‌ای وجود ندارد.";
+    else if (historyState?.status === "empty") {
+      message = rangeSeconds === 1
+        ? "در ۱ ثانیه‌ی اخیر نمونه‌ای ذخیره نشده؛ برای نمایش روند پیوسته، فاصله ذخیره تاریخچه PLC/Edge را روی ۱ ثانیه تنظیم کن."
+        : "در " + rangeLabel + " اخیر نمونه‌ی ذخیره‌شده‌ای وجود ندارد.";
+    }
     else if (!tag) message = "ابتدا تگ عددی نمودار را در ویژگی‌های جزء انتخاب کن.";
     const liveReading = tag && quality !== "UNSAMPLED"
       ? '<div class="hmi-chart-latest"><small>آخرین مقدار زنده · ' + escapeHtml(quality) + '</small><strong>' +
