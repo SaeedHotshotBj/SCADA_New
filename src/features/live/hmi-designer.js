@@ -266,7 +266,7 @@ function pageSettingsMarkup() {
     '<label class="field"><span>ماشین</span><select name="machine" data-hmi-page-field="machine" required>' +
     machineOptions.map(option => '<option value="' + escapeHtml(option.value) + '" ' + (String(option.value) === String(draft.machine || "") ? "selected" : "") + '>' + escapeHtml(option.label) + '</option>').join("") +
     '</select></label>' +
-    '<label class="field"><span>وضعیت</span><select name="status" data-hmi-page-field="status"><option value="فعال" ' + (draft.status !== "غیرفعال" ? "selected" : "") + '>فعال</option><option value="غیرفعال" ' + (draft.status === "غیرفعال" ? "selected" : "") + '>غیرفعال</select></label>' +
+    '<label class="field"><span>وضعیت</span><select name="status" data-hmi-page-field="status"><option value="فعال" ' + (draft.status !== "غیرفعال" ? "selected" : "") + '>فعال</option><option value="غیرفعال" ' + (draft.status === "غیرفعال" ? "selected" : "") + '>غیرفعال</option></select></label>' +
     '<label class="field"><span>پوسته صفحه HMI</span><select name="theme" data-hmi-page-field="theme">' +
     HMI_THEME_OPTIONS.map(option => '<option value="' + option.value + '" ' + (option.value === normalizeHmiPageTheme(draft.theme) ? "selected" : "") + '>' + escapeHtml(option.label) + '</option>').join("") +
     '</select></label>' +
