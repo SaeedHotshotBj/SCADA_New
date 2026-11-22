@@ -52,11 +52,11 @@ for (const marker of requiredHmiMarkers) {
   }
 }
 const hmiWidgetCount = (hmiHtml.match(/class="hmi-library-item"/g) || []).length;
-if (hmiWidgetCount !== 14) {
-  throw new Error(`HMI Designer must render 14 library items; got ${hmiWidgetCount}`);
+if (hmiWidgetCount !== 15) {
+  throw new Error(`HMI Designer must render 15 library items; got ${hmiWidgetCount}`);
 }
 
-console.log("HMI Designer route render passed (14 library widgets, canvas, properties and JSON editor).");
+console.log("HMI Designer route render passed (15 library widgets, canvas, properties and JSON editor).");
 
 const {
   HMI_CHART_RANGES, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_WIDGET_LIBRARY,
