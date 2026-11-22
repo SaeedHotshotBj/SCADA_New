@@ -21,6 +21,7 @@ export const HMI_WIDGET_LIBRARY = [
 ];
 
 export const HMI_CHART_RANGES = [
+  { value: 1, label: "۱ ثانیه" },
   { value: 5, label: "۵ ثانیه" },
   { value: 10, label: "۱۰ ثانیه" },
   { value: 30, label: "۳۰ ثانیه" },
