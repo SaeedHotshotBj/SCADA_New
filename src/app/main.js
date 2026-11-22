@@ -8,10 +8,9 @@ import {
   loadHmiPageChartData,
   loadHmiDesignerChartData,
   refreshHmiDesignerLivePreview,
-  handleHmiDesignerDragStart,
-  handleHmiDesignerDragOver,
-  handleHmiDesignerDrop,
-  handleHmiDesignerDragEnd,
+  handleHmiDesignerMouseDown,
+  handleHmiDesignerMouseMove,
+  handleHmiDesignerMouseUp,
   closeHmiDesignerPreview,
   getHmiDesignerChartRefreshIntervalMs,
   getHmiPageChartRefreshIntervalMs,
@@ -72,7 +71,7 @@ window.addEventListener("hashchange", () => { render(); syncLiveConnection(); })
 window.addEventListener("scada:state-changed", scheduleRender);
 window.addEventListener("scada:hmi-chart-updated", scheduleRender);
 window.addEventListener("scada:hmi-chart-config-changed", syncLiveConnection);
-window.addEventListener("blur", () => handleHmiDesignerPointerUp({}));
+window.addEventListener("blur", () => handleHmiDesignerMouseUp());
 
 document.addEventListener("click", event => {
   const routeLink = event.target.closest("a[href^='#/']");
@@ -109,19 +108,16 @@ document.addEventListener("click", event => {
   });
 });
 
-// Use native browser drag-and-drop so toolbar and resize-handle dragging
-// does not depend on pointer capture or document-level pointer retargeting.
-document.addEventListener("dragstart", event => {
-  handleHmiDesignerDragStart(event);
+// Handle layout gestures directly with mouse events. This avoids the browser's
+// native drag-and-drop "not-allowed" cursor and keeps tracking after leaving a handle.
+document.addEventListener("mousedown", event => {
+  handleHmiDesignerMouseDown(event);
 }, true);
-document.addEventListener("dragover", event => {
-  handleHmiDesignerDragOver(event);
+document.addEventListener("mousemove", event => {
+  handleHmiDesignerMouseMove(event);
 }, true);
-document.addEventListener("drop", event => {
-  handleHmiDesignerDrop(event);
-}, true);
-document.addEventListener("dragend", () => {
-  handleHmiDesignerDragEnd();
+document.addEventListener("mouseup", () => {
+  handleHmiDesignerMouseUp();
 }, true);
 
 document.addEventListener("input", event => {
