@@ -383,6 +383,27 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                             status_code=422,
                             detail=f"حداقل و حداکثر در جزء شماره {number_in_layout} معتبر نیست.",
                         )
+                grid_limits = {
+                    "grid_col": (1, 12),
+                    "grid_row": (1, 200),
+                    "grid_w": (1, 12),
+                    "grid_h": (1, 12),
+                }
+                for grid_field, (minimum, maximum) in grid_limits.items():
+                    if grid_field in component:
+                        grid_value = component.get(grid_field)
+                        if type(grid_value) is not int or not minimum <= grid_value <= maximum:
+                            raise HTTPException(
+                                status_code=422,
+                                detail=f"مقدار {grid_field} در جزء شماره {number_in_layout} معتبر نیست.",
+                            )
+                grid_col = component.get("grid_col", 1)
+                grid_w = component.get("grid_w", 4)
+                if type(grid_col) is int and type(grid_w) is int and grid_col + grid_w - 1 > 12:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"عرض کارت در جزء شماره {number_in_layout} از محدوده‌ی صفحه خارج می‌شود.",
+                    )
                 if component_type == "chart":
                     if component.get("chart_kind", "line") not in {"line", "bar"}:
                         raise HTTPException(status_code=422, detail=f"نوع نمودار جزء شماره {number_in_layout} معتبر نیست.")
