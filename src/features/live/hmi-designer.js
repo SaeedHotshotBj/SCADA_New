@@ -277,7 +277,7 @@ export function renderHmiDesigner(pageId = null) {
   const editing = Boolean(pageId);
   return '<div class="hmi-designer-page">' +
     '<div class="page-heading"><div><h1>' + (editing ? "ویرایش صفحه HMI" : "طراحی صفحه HMI") + '</h1><p>اجزای صنعتی را انتخاب کن، ویژگی‌ها و تگ‌ها را تنظیم کن و JSON را هم‌زمان ببین.</p></div>' +
-    '<div class="heading-actions"><a class="btn btn-light" href="#/live/hmi-pages">بازگشت به صفحات HMI</a><button class="btn btn-primary" type="submit" form="hmi-designer-form">ذخیره صفحه</button></div></div>' +
+    '<div class="heading-actions"><a class="btn btn-light" href="#/live/hmi-pages">بازگشت به صفحات HMI</a><button type="button" class="btn btn-light" data-action="hmi-open-layout-preview">پیش‌نمایش شناور و چیدمان کارت‌ها</button><button class="btn btn-primary" type="submit" form="hmi-designer-form">ذخیره صفحه</button></div></div>' +
     '<form id="hmi-designer-form" data-page-id="' + escapeHtml(pageId || "") + '">' +
     pageSettingsMarkup() +
     '<div class="hmi-designer-workspace">' + libraryMarkup() +
@@ -286,6 +286,7 @@ export function renderHmiDesigner(pageId = null) {
     '<div id="hmi-designer-canvas" class="hmi-designer-canvas">' + canvasMarkup() + '</div></section>' +
     '<div id="hmi-designer-properties">' + propertiesMarkup() + '</div>' +
     '</div>' +
+    '<div id="hmi-layout-preview-root" hidden></div>' +
     '<section class="hmi-json-panel"><div class="hmi-json-heading"><div><b>JSON صفحه</b><small>با تغییر تنظیمات به‌روزرسانی می‌شود؛ JSON معتبر نیز به طراح برمی‌گردد.</small></div>' +
     '<span id="hmi-json-status" class="hmi-json-status hmi-json-status--success">JSON معتبر · همگام با طراح</span></div>' +
     '<textarea id="hmi-json-source" spellcheck="false" aria-label="JSON چیدمان HMI">' + escapeHtml(JSON.stringify(draft.layout, null, 2)) + '</textarea>' +
@@ -332,6 +333,11 @@ function validateDraftLayout() {
         throw new Error("محدوده حداقل و حداکثر در جزء «" + (component.label || number) + "» معتبر نیست.");
       }
     }
+    const geometry = normalizeHmiWidgetGeometry(component, index);
+    if (geometry.grid_col + geometry.grid_w - 1 > 12) {
+      throw new Error("عرض کارت از محدوده‌ی ۱۲ ستونی صفحه خارج می‌شود.");
+    }
+    Object.assign(component, geometry);
     if (component.type === "chart" && !HMI_CHART_RANGES.some(range => range.value === chartHistorySeconds(component))) {
       throw new Error("بازه زمانی انتخاب‌شده برای نمودار معتبر نیست.");
     }
@@ -350,7 +356,7 @@ export async function handleHmiDesignerSubmit(form) {
     throw new Error("ماشین انتخاب‌شده در سامانه وجود ندارد.");
   }
   validateDraftLayout();
-  const normalizedLayout = clone(draft.layout).map(component => {
+  const normalizedLayout = clone(draft.layout).map((component, index) => {
     const normalized = {
       ...component,
       ...(component.min !== undefined ? { min: Number(component.min) } : {}),
@@ -360,7 +366,7 @@ export async function handleHmiDesignerSubmit(form) {
       normalized.history_seconds = chartHistorySeconds(component);
       delete normalized.history_hours;
     }
-    return normalized;
+    return normalizeHmiWidgetGeometry(normalized, index);
   });
   const payload = {
     name: draft.name,
@@ -385,10 +391,10 @@ export function handleHmiDesignerInput(event) {
     try {
       const parsed = JSON.parse(target.value);
       if (!Array.isArray(parsed) || parsed.length > 50) throw new Error("JSON باید آرایه‌ای با حداکثر ۵۰ جزء باشد.");
-      draft.layout = parsed.map((item, index) => ({
+      draft.layout = parsed.map((item, index) => normalizeHmiWidgetGeometry({
         ...item,
         widget_id: item.widget_id || ("hmi-json-" + index + "-" + String(item.type || "widget")),
-      }));
+      }, index));
       if (!draft.layout.some(item => item.widget_id === selectedWidgetId)) {
         selectedWidgetId = draft.layout[0]?.widget_id || null;
       }
