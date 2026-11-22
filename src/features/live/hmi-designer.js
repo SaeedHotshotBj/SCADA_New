@@ -618,3 +618,76 @@ export function closeHmiDesignerPreview() {
   if (designerChartRefreshTimer) window.clearInterval(designerChartRefreshTimer);
   designerChartRefreshTimer = null;
 }
+function updateLayoutCardStyle(component) {
+  const index = draft.layout.findIndex(item => item.widget_id === component.widget_id);
+  const card = [...document.querySelectorAll("[data-hmi-layout-card]")].find(item => item.dataset.widgetId === component.widget_id);
+  if (card) card.style.cssText = hmiWidgetGridStyle(component, index);
+}
+
+export function handleHmiDesignerPointerDown(event) {
+  const handle = event.target?.closest?.("[data-hmi-layout-gesture]");
+  if (!handle || !layoutPreviewOpen) return false;
+  const component = draft?.layout?.find(item => item.widget_id === handle.dataset.widgetId);
+  const canvas = handle.closest(".hmi-layout-preview-window")?.querySelector("#hmi-layout-preview-canvas");
+  if (!component || !canvas) return false;
+
+  selectedWidgetId = component.widget_id;
+  const styles = window.getComputedStyle(canvas);
+  const gapX = Number.parseFloat(styles.columnGap) || 8;
+  const gapY = Number.parseFloat(styles.rowGap) || 8;
+  const paddingX = (Number.parseFloat(styles.paddingLeft) || 12) + (Number.parseFloat(styles.paddingRight) || 12);
+  const cellWidth = (canvas.clientWidth - paddingX - gapX * 11) / 12;
+  const rowHeight = Number.parseFloat(styles.gridAutoRows) || 64;
+  layoutGesture = {
+    pointerId: event.pointerId,
+    mode: handle.dataset.hmiLayoutGesture,
+    widgetId: component.widget_id,
+    startX: event.clientX,
+    startY: event.clientY,
+    startCol: component.grid_col,
+    startRow: component.grid_row,
+    startW: component.grid_w,
+    startH: component.grid_h,
+    columnStep: cellWidth + gapX,
+    rowStep: rowHeight + gapY,
+  };
+  try { handle.setPointerCapture(event.pointerId); } catch { /* Older browsers may not support pointer capture. */ }
+  event.preventDefault();
+
+  const props = document.getElementById("hmi-layout-preview-properties");
+  if (props) props.innerHTML = layoutPropertiesMarkup();
+  for (const card of document.querySelectorAll("[data-hmi-layout-card]")) {
+    card.classList.toggle("is-selected", card.dataset.widgetId === selectedWidgetId);
+  }
+  return true;
+}
+
+export function handleHmiDesignerPointerMove(event) {
+  if (!layoutGesture || event.pointerId !== layoutGesture.pointerId) return false;
+  const component = draft?.layout?.find(item => item.widget_id === layoutGesture.widgetId);
+  if (!component) return false;
+
+  const deltaCol = Math.round((event.clientX - layoutGesture.startX) / layoutGesture.columnStep);
+  const deltaRow = Math.round((event.clientY - layoutGesture.startY) / layoutGesture.rowStep);
+  if (layoutGesture.mode === "move") {
+    component.grid_col = Math.max(1, Math.min(13 - component.grid_w, layoutGesture.startCol + deltaCol));
+    component.grid_row = Math.max(1, Math.min(200, layoutGesture.startRow + deltaRow));
+  } else if (layoutGesture.mode === "resize") {
+    component.grid_w = Math.max(1, Math.min(13 - component.grid_col, layoutGesture.startW + deltaCol));
+    component.grid_h = Math.max(1, Math.min(12, layoutGesture.startH + deltaRow));
+  }
+  updateLayoutCardStyle(component);
+  return true;
+}
+
+export function handleHmiDesignerPointerUp(event) {
+  if (!layoutGesture || (event?.pointerId !== undefined && event.pointerId !== layoutGesture.pointerId)) return false;
+  layoutGesture = null;
+  const component = selectedWidget();
+  const props = document.getElementById("hmi-layout-preview-properties");
+  if (props) props.innerHTML = layoutPropertiesMarkup();
+  if (component) updateLayoutCardStyle(component);
+  syncJsonEditor();
+  return true;
+}
+
