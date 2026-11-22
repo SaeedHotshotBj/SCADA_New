@@ -404,6 +404,30 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                         status_code=422,
                         detail=f"عرض کارت در جزء شماره {number_in_layout} از محدوده‌ی صفحه خارج می‌شود.",
                     )
+                freeform_fields = ("x", "y", "width", "height")
+                if any(field in component for field in freeform_fields):
+                    if not all(field in component for field in freeform_fields):
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"موقعیت و اندازه آزاد جزء شماره {number_in_layout} باید هر چهار مقدار x، y، width و height را داشته باشد.",
+                        )
+                    freeform = {field: _finite_number(component.get(field)) for field in freeform_fields}
+                    if any(value is None or not float(value).is_integer() for value in freeform.values()):
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"مختصات و اندازه آزاد جزء شماره {number_in_layout} باید اعداد صحیح معتبر باشند.",
+                        )
+                    x, y, width, height = (int(freeform[field]) for field in freeform_fields)
+                    if (
+                        x < 0 or y < 0 or y > 100000 or
+                        width < 120 or width > 1200 or
+                        height < 80 or height > 4000 or
+                        x + width > 1200 or y + height > 104000
+                    ):
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"موقعیت یا اندازه آزاد جزء شماره {number_in_layout} از محدوده بوم HMI خارج است.",
+                        )
                 if component_type == "chart":
                     if component.get("chart_kind", "line") not in {"line", "bar"}:
                         raise HTTPException(status_code=422, detail=f"نوع نمودار جزء شماره {number_in_layout} معتبر نیست.")
