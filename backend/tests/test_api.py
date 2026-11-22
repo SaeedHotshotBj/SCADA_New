@@ -1122,3 +1122,108 @@ def test_hmi_page_and_widget_theme_presets_are_validated_and_persisted():
             "status": "فعال",
         })
         assert invalid_widget_theme.status_code == 422
+
+def test_hmi_media_upload_and_secure_retrieval():
+    from app.database import connect
+    from app.routers.hmi_media import MEDIA_DIR
+
+    media_id = None
+    media_path = None
+    png_bytes = b"\x89PNG\r\n\x1a\n" + b"test-image-bytes"
+    with TestClient(app) as client:
+        login = client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local",
+            "password": "demo1234",
+        })
+        assert login.status_code == 200
+
+        uploaded = client.post(
+            "/api/hmi/media",
+            files={"file": ("operator-panel.png", png_bytes, "image/png")},
+        )
+        assert uploaded.status_code == 200, uploaded.text
+        asset = uploaded.json()
+        media_id = asset["id"]
+        media_path = MEDIA_DIR / (media_id + ".png")
+        assert len(media_id) == 32
+        assert asset["media_type"] == "image"
+        assert asset["content_type"] == "image/png"
+        assert asset["filename"] == "operator-panel.png"
+        assert media_path.is_file()
+
+        retrieved = client.get(asset["url"])
+        assert retrieved.status_code == 200
+        assert retrieved.headers["content-type"].startswith("image/png")
+        assert retrieved.content == png_bytes
+        assert retrieved.headers["x-content-type-options"] == "nosniff"
+
+        saved_page = client.post("/api/resources/hmiPages", json={
+            "name": "Media HMI",
+            "machine": "بانچر",
+            "description": "Persistent uploaded visual",
+            "theme": "industrial",
+            "layout": [{
+                "type": "media",
+                "media_id": media_id,
+                "media_fit": "cover",
+                "media_loop": True,
+                "media_muted": True,
+                "media_controls": True,
+                "media_autoplay": False,
+            }],
+            "status": "فعال",
+        })
+        assert saved_page.status_code == 201, saved_page.text
+        assert saved_page.json()["layout"][0]["media_id"] == media_id
+
+        invalid_reference = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid media reference",
+            "machine": "بانچر",
+            "description": "Must reject nonexistent media IDs",
+            "layout": [{"type": "media", "media_id": "0" * 32}],
+            "status": "فعال",
+        })
+        assert invalid_reference.status_code == 422
+
+        unsafe_svg = client.post(
+            "/api/hmi/media",
+            files={"file": ("unsafe.svg", b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>', "image/svg+xml")},
+        )
+        assert unsafe_svg.status_code == 422
+
+        unsupported = client.post(
+            "/api/hmi/media",
+            files={"file": ("notes.txt", b"not a visual asset", "text/plain")},
+        )
+        assert unsupported.status_code == 415
+
+        assert client.post("/api/auth/logout").status_code == 200
+        unauthorized = client.get(asset["url"])
+        assert unauthorized.status_code == 401
+
+    if media_id:
+        with connect() as db:
+            db.execute("DELETE FROM hmi_media WHERE id=?", (media_id,))
+    if media_path:
+        media_path.unlink(missing_ok=True)
+
+
+def test_live_telemetry_websocket_supports_one_second_snapshots():
+    import time
+
+    with TestClient(app) as client:
+        login = client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local",
+            "password": "demo1234",
+        })
+        assert login.status_code == 200
+
+        with client.websocket_connect("/api/telemetry/ws/live?interval_ms=1000") as websocket:
+            first = websocket.receive_json()
+            first_received = time.monotonic()
+            second = websocket.receive_json()
+            elapsed = time.monotonic() - first_received
+
+        assert first["type"] == "telemetry.snapshot"
+        assert second["type"] == "telemetry.snapshot"
+        assert 0.85 <= elapsed <= 2.5, f"Expected one-second WebSocket cadence, received {elapsed:.3f}s"

@@ -59,8 +59,9 @@ if (hmiWidgetCount !== 14) {
 console.log("HMI Designer route render passed (14 library widgets, canvas, properties and JSON editor).");
 
 const {
-  HMI_CHART_RANGES, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS,
+  HMI_CHART_RANGES, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_WIDGET_LIBRARY,
   createHmiWidget, renderHmiWidget, normalizeHmiPageTheme, normalizeHmiWidgetTheme,
+  appendHmiLiveChartSamples, getHmiLiveChartSamples, hmiChartLiveIntervalMs,
 } = await import("../src/features/live/hmi-widgets.js");
 const chart = createHmiWidget("chart");
 if (chart.history_seconds !== 3600) {
@@ -82,7 +83,8 @@ if (!needleHtml.includes('class="hmi-dial-reading"') || !needleHtml.includes(exp
   throw new Error("Needle widget must render a numeric value and its unit.");
 }
 
-if (normalizeHmiPageTheme("dark") !== "dark" ||
+if (HMI_WIDGET_LIBRARY.length !== 15 || !HMI_WIDGET_LIBRARY.some(item => item.type === "media") ||
+    normalizeHmiPageTheme("dark") !== "dark" ||
     normalizeHmiPageTheme("unsafe") !== "light" ||
     normalizeHmiWidgetTheme("inherit") !== "inherit" ||
     normalizeHmiWidgetTheme("unsafe") !== "inherit" ||
@@ -188,8 +190,10 @@ const secondCard = normalizeHmiWidgetFreeformGeometry({ type: "value" }, 1);
 if (secondCard.x !== 414 || secondCard.y !== 24 || secondCard.width !== 360 || secondCard.height !== 220) {
   throw new Error("New HMI cards must receive predictable freeform pixel positions and dimensions.");
 }
-if (hmiChartRefreshIntervalMs([{ type: "chart", history_seconds: 1 }]) !== 750) {
-  throw new Error("A one-second HMI trend must refresh its history more frequently than the one-second display window.");
+if (hmiChartRefreshIntervalMs([{ type: "chart", history_seconds: 1 }]) !== 5000 ||
+    hmiChartLiveIntervalMs([{ type: "chart", history_seconds: 1 }]) !== 1000 ||
+    hmiChartLiveIntervalMs([{ type: "chart", history_seconds: 3600 }]) !== 5000) {
+  throw new Error("One-second HMI charts must use the one-second live stream, not repeated history requests.");
 }
 if (hmiChartRefreshIntervalMs([{ type: "chart", history_seconds: 3600 }]) !== 5000) {
   throw new Error("Long HMI trend ranges must retain the slower history refresh cadence.");
@@ -233,8 +237,42 @@ const oneSecondEmptyChart = renderHmiWidget({
   history: [],
   historyState: { status: "empty", sampleCount: 0 },
 });
-if (!oneSecondEmptyChart.includes("فاصله ذخیره تاریخچه PLC/Edge را روی ۱ ثانیه تنظیم کن")) {
-  throw new Error("A one-second empty trend must explain the required PLC/Edge history sampling interval.");
+if (!oneSecondEmptyChart.includes("در انتظار اولین نمونه زنده") ||
+    !oneSecondEmptyChart.includes("hmi-widget--chart-live")) {
+  throw new Error("A one-second chart must clearly show that it is waiting for a real live sample.");
+}
+const liveComponent = { type: "chart", tag_id: "test-live-buffer", history_seconds: 1 };
+const liveTime1 = new Date(Date.now() - 1000).toISOString();
+const liveTime2 = new Date(Date.now()).toISOString();
+if (!appendHmiLiveChartSamples([liveComponent], [{
+  id: "test-live-buffer", value: 10, quality: "GOOD", sampled_at: liveTime1,
+}])) throw new Error("The first live WebSocket sample was not added to the HMI chart buffer.");
+if (appendHmiLiveChartSamples([liveComponent], [{
+  id: "test-live-buffer", value: 10, quality: "GOOD", sampled_at: liveTime1,
+}])) throw new Error("Duplicate WebSocket snapshots must not create duplicate chart points.");
+if (!appendHmiLiveChartSamples([liveComponent], [{
+  id: "test-live-buffer", value: 20, quality: "GOOD", sampled_at: liveTime2,
+}])) throw new Error("A new live WebSocket sample was not appended.");
+const liveSamples = getHmiLiveChartSamples("test-live-buffer");
+const liveTrend = renderHmiWidget(liveComponent, [{
+  id: "test-live-buffer", name: "Live tag", value: 20, type: "float32", quality: "GOOD",
+}], { history: liveSamples, historyState: { status: "live" } });
+if (liveSamples.length !== 2 || !liveTrend.includes("hmi-chart-live-label") ||
+    (liveTrend.match(/<polyline points=/g) || []).length !== 1) {
+  throw new Error("One-second HMI trends must render a continuous line from distinct live samples.");
+}
+const imageMedia = renderHmiWidget({
+  type: "media", media_id: "a".repeat(32), media_type: "image", media_fit: "contain", label: "panel",
+}, [], { mediaBase: "http://127.0.0.1:8000" });
+const videoMedia = renderHmiWidget({
+  type: "media", media_id: "b".repeat(32), media_type: "video",
+  media_autoplay: true, media_loop: true, media_muted: true, media_controls: true,
+}, [], { mediaBase: "http://127.0.0.1:8000" });
+if (!imageMedia.includes('<img class="hmi-media-element') ||
+    !imageMedia.includes("http://127.0.0.1:8000/api/hmi/media/") ||
+    !videoMedia.includes("<video") || !videoMedia.includes(" autoplay") ||
+    !videoMedia.includes(" muted") || !videoMedia.includes(" controls")) {
+  throw new Error("HMI media widgets must render authenticated image and video elements with safe media IDs.");
 }
 const designerSource = await readFile("src/features/live/hmi-designer.js", "utf8");
 const mainSource = await readFile("src/app/main.js", "utf8");
@@ -289,4 +327,14 @@ if (designerSource.includes('hmi-layout-preview-backdrop" data-action="hmi-close
 if (!designerSource.includes('data-action="hmi-layout-single-column"')) {
   throw new Error("The floating HMI preview must expose a one-card-per-row layout command.");
 }
-console.log("HMI floating layout, drag-safe preview, single-column arrangement, numeric card geometry and trend rendering checks passed.");
+const cssSource = await readFile("styles/app.css", "utf8");
+if (!cssSource.includes(".hmi-runtime-grid[data-hmi-page-theme] {\n  background-image: none !important;") ||
+    !cssSource.includes(".hmi-designer-canvas[data-hmi-page-theme]")) {
+  throw new Error("HMI runtime must remove the design grid while retaining the designer grid.");
+}
+if (!mainSource.includes("/api/telemetry/ws/live?interval_ms=") ||
+    !designerSource.includes("recordHmiPageLiveChartData") ||
+    !designerSource.includes("handleHmiDesignerMediaUpload")) {
+  throw new Error("HMI live WebSocket and media upload paths must be connected to the application.");
+}
+console.log("HMI floating layout, drag-safe preview, single-column arrangement, numeric card geometry, live trend, media and runtime grid checks passed.");
