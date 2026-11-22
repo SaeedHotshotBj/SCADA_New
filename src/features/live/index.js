@@ -2,7 +2,7 @@ import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
 import { button, dataTable, pageHeader, panel, pill, tabs, lineChart, statCard, gradientBanner, emptyState, barChart } from "../../shared/ui.js";
 import { renderHmiDesigner, getHmiChartHistory, getHmiChartHistoryState } from "./hmi-designer.js";
-import { hmiWidgetGridStyle, renderHmiWidget } from "./hmi-widgets.js";
+import { hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, renderHmiWidget, HMI_LAYOUT_CANVAS_WIDTH } from "./hmi-widgets.js";
 
 function liveDataPage() {
   const rows = store.list("tags");
@@ -46,12 +46,12 @@ function hmiRuntimePage(pageId) {
     const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, historySeconds) : [];
     const historyState = component.type === "chart" ? getHmiChartHistoryState(component.tag_id, historySeconds) : null;
     const widget = renderHmiWidget(component, tags, { active, history, historyState });
-    return '<div class="hmi-runtime-item" style="' + hmiWidgetGridStyle(component, index) + '">' + widget + '</div>';
+    return '<div class="hmi-runtime-item" style="' + hmiWidgetFreeformStyle(component, index) + '">' + widget + '</div>';
   }).join("");
   return `<div class="hmi-runtime">
     ${pageHeader(page.name, `${page.description || ""} · ${page.machine || "بدون ماشین"}`, `${button("به‌روزرسانی نمودارها", "hmi-refresh-charts", { variant: "light", attrs: "data-page-id=\"" + pageId + "\"" })}<a class="btn btn-light" href="#/live/hmi-pages">بازگشت به صفحات HMI</a>`)}
     <div class="hmi-runtime-toolbar">${pill(active ? "صفحه فعال" : "صفحه غیرفعال", active ? "success" : "muted")}<span>نمایش از Backend · مقادیر UNSAMPLED به‌عنوان مقدار زنده نمایش داده نمی‌شوند.</span></div>
-    ${layout.length ? `<div class="hmi-runtime-grid">${components}</div>` : emptyState("برای این صفحه هنوز جزء صنعتی تعریف نشده است. صفحه را در طراح HMI ویرایش کنید و اجزا را به تگ‌ها متصل کنید.")}
+    ${layout.length ? `<div class="hmi-runtime-stage-scroll"><div class="hmi-runtime-grid" style="width:${HMI_LAYOUT_CANVAS_WIDTH}px;height:${hmiWidgetCanvasHeight(layout)}px">${components}</div></div>` : emptyState("برای این صفحه هنوز جزء صنعتی تعریف نشده است. صفحه را در طراح HMI ویرایش کنید و اجزا را به تگ‌ها متصل کنید.")}
     <p class="muted-note">کیفیت GOOD از Edge احراز‌شده می‌آید؛ DEMO از شبیه‌ساز داخلی است. برای فرمان فیزیکی، درایور و نقشه آدرس PLC هنوز تأیید و راه‌اندازی نشده است.</p>
   </div>`;
 }
