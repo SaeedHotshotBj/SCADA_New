@@ -628,5 +628,5 @@ tbody tr:last-child td { border-bottom: 0; }
   .hmi-json-heading { align-items: flex-start; flex-direction: column; }
 }
 @media (max-width: 480px) {
-  .hmi-runtime-grid { grid-template-columns: 1fr; }
+  .hmi-runtime-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
 }
