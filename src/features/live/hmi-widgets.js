@@ -2,6 +2,9 @@ import { escapeHtml } from "../../core/format.js";
 
 let widgetSequence = 0;
 let tankRenderSequence = 0;
+const liveChartSamples = new Map();
+const LIVE_CHART_WINDOW_MS = 60000;
+const LIVE_CHART_MAX_SAMPLES = 90;
 
 export const HMI_WIDGET_LIBRARY = [
   { type: "value", label: "باکس عددی", category: "نمایش مقادیر", icon: "123", help: "نمایش مقدار جاری همراه واحد و کیفیت" },
@@ -18,6 +21,7 @@ export const HMI_WIDGET_LIBRARY = [
   { type: "tank", label: "مخزن", category: "تجهیزات فرآیندی", icon: "▤", help: "نمایش سطح مخزن بر اساس تگ عددی" },
   { type: "valve", label: "شیر", category: "تجهیزات فرآیندی", icon: "◇", help: "نمایش وضعیت باز/بسته و خطا" },
   { type: "write", label: "کنترل تگ", category: "کنترل", icon: "↕", help: "کنترل تعاملی؛ نوشتن واقعی تابع تمام قفل‌های ایمنی است" },
+  { type: "media", label: "رسانه و تصویر", category: "رسانه", icon: "▧", help: "واردکردن تصویر، SVG، انیمیشن GIF/WebP یا ویدئوی MP4/WebM" },
 ];
 
 export const HMI_THEME_OPTIONS = [
@@ -44,7 +48,7 @@ export function normalizeHmiWidgetTheme(theme) {
 }
 
 export const HMI_CHART_RANGES = [
-  { value: 1, label: "۱ ثانیه" },
+  { value: 1, label: "لایو · هر ۱ ثانیه (۶۰ ثانیه اخیر)" },
   { value: 5, label: "۵ ثانیه" },
   { value: 10, label: "۱۰ ثانیه" },
   { value: 30, label: "۳۰ ثانیه" },
@@ -67,6 +71,7 @@ export const HMI_BINDINGS = {
   needle: [{ key: "tag_id", label: "تگ مقدار", required: true, kind: "numeric" }],
   thermometer: [{ key: "tag_id", label: "تگ مقدار", required: true, kind: "numeric" }],
   chart: [{ key: "tag_id", label: "تگ روند", required: true, kind: "numeric" }],
+  media: [],
   write: [{ key: "tag_id", label: "تگ قابل کنترل", required: true, kind: "any" }],
   motor: [
     { key: "run_tag_id", label: "تگ RUN", required: true, kind: "boolean" },
@@ -111,6 +116,7 @@ const DEFAULT_LABELS = {
   tank: "مخزن",
   valve: "شیر",
   write: "کنترل تگ",
+  media: "رسانه",
 };
 
 export function createHmiWidget(type) {
@@ -130,6 +136,13 @@ export function createHmiWidget(type) {
   if (type === "chart") {
     widget.chart_kind = "line";
     widget.history_seconds = 3600;
+  }
+  if (type === "media") {
+    widget.media_fit = "contain";
+    widget.media_loop = true;
+    widget.media_muted = true;
+    widget.media_controls = true;
+    widget.media_autoplay = false;
   }
   return widget;
 }
@@ -275,17 +288,55 @@ export function hmiWidgetGridFromPointer(component, mode, deltaX, deltaY, column
 }
 
 export function hmiChartRefreshIntervalMs(components) {
-  const ranges = (Array.isArray(components) ? components : [])
-    .filter(item => item?.type === "chart")
-    .map(item => {
-      const seconds = Number(item.history_seconds ?? Number(item.history_hours || 1) * 3600);
-      return Number.isFinite(seconds) && seconds > 0 ? seconds : 3600;
-    });
-  if (!ranges.length) return 5000;
-  const shortest = Math.min(...ranges);
-  if (shortest <= 1) return 750;
-  if (shortest <= 5) return 1500;
-  return 5000;
+  // Persisted history refreshes slowly; one-second charts use WebSocket data.
+  const hasHistoryCharts = (Array.isArray(components) ? components : [])
+    .some(item => item?.type === "chart" &&
+      Number(item.history_seconds ?? Number(item.history_hours || 1) * 3600) > 1);
+  return hasHistoryCharts ? 5000 : 5000;
+}
+
+export function hmiChartLiveIntervalMs(components) {
+  return (Array.isArray(components) ? components : []).some(item =>
+    item?.type === "chart" &&
+    Number(item.history_seconds ?? Number(item.history_hours || 1) * 3600) === 1
+  ) ? 1000 : 5000;
+}
+
+export function appendHmiLiveChartSamples(components, tags) {
+  const tagMap = new Map((Array.isArray(tags) ? tags : []).map(tag => [tag.id || tag.tag_id, tag]));
+  let changed = false;
+  for (const component of Array.isArray(components) ? components : []) {
+    if (component?.type !== "chart" ||
+        Number(component.history_seconds ?? Number(component.history_hours || 1) * 3600) !== 1 ||
+        !component.tag_id) continue;
+    const tag = tagMap.get(component.tag_id);
+    if (!tag || !["GOOD", "DEMO"].includes(tag.quality)) continue;
+    const value = Number(tag.value);
+    const sampledAt = tag.sampled_at || tag.updated_at;
+    const time = sampledAt ? Date.parse(sampledAt) : NaN;
+    if (!Number.isFinite(value) || !Number.isFinite(time)) continue;
+    const samples = liveChartSamples.get(component.tag_id) || [];
+    const last = samples[samples.length - 1];
+    if (last && last.sampled_at === sampledAt) {
+      if (last.value !== value) {
+        samples[samples.length - 1] = { value, sampled_at: sampledAt, quality: tag.quality };
+        liveChartSamples.set(component.tag_id, samples);
+        changed = true;
+      }
+      continue;
+    }
+    if (last && time < Date.parse(last.sampled_at)) continue;
+    samples.push({ value, sampled_at: sampledAt, quality: tag.quality });
+    const cutoff = time - LIVE_CHART_WINDOW_MS;
+    liveChartSamples.set(component.tag_id,
+      samples.filter(sample => Date.parse(sample.sampled_at) >= cutoff).slice(-LIVE_CHART_MAX_SAMPLES));
+    changed = true;
+  }
+  return changed;
+}
+
+export function getHmiLiveChartSamples(tagId) {
+  return [...(liveChartSamples.get(tagId) || [])];
 }
 
 export function isBooleanTag(tag) {
@@ -436,6 +487,7 @@ function renderChart(component, tag, preview, history, historyState) {
   }
   const samples = sampleItems.map(item => item.value);
   const rangeSeconds = Number(component.history_seconds ?? Number(component.history_hours || 1) * 3600);
+  const isLive = rangeSeconds === 1;
   const rangeLabel = HMI_CHART_RANGES.find(item => item.value === rangeSeconds)?.label || "بازه انتخاب‌شده";
   let visual = "";
   if (samples.length) {
@@ -472,9 +524,9 @@ function renderChart(component, tag, preview, history, historyState) {
     if (historyState?.status === "loading") message = "در حال دریافت تاریخچه از Backend…";
     else if (historyState?.status === "error") message = "دریافت تاریخچه ناموفق بود: " + (historyState.message || "خطای نامشخص");
     else if (historyState?.status === "empty") {
-      message = rangeSeconds === 1
-        ? "در ۱ ثانیه‌ی اخیر نمونه‌ای ذخیره نشده؛ برای نمایش روند پیوسته، فاصله ذخیره تاریخچه PLC/Edge را روی ۱ ثانیه تنظیم کن."
-        : "در " + rangeLabel + " اخیر نمونه‌ی ذخیره‌شده‌ای وجود ندارد.";
+      message = "در " + rangeLabel + " اخیر نمونه‌ی ذخیره‌شده‌ای وجود ندارد.";
+    } else if (isLive) {
+      message = "در انتظار اولین نمونه زنده از PLC یا Edge…";
     }
     else if (!tag) message = "ابتدا تگ عددی نمودار را در ویژگی‌های جزء انتخاب کن.";
     const liveReading = tag && quality !== "UNSAMPLED"
@@ -483,9 +535,10 @@ function renderChart(component, tag, preview, history, historyState) {
       : "";
     visual = '<div class="hmi-chart-empty hmi-chart-empty--detail"><span>' + escapeHtml(message) + '</span>' + liveReading + '</div>';
   }
-  const body = visual + '<div class="hmi-value-meta"><span>' + escapeHtml(tag?.unit || "") + '</span><small>' +
+  const liveLabel = isLive ? '<div class="hmi-chart-live-label"><span>● LIVE</span><small>پنجره‌ی لغزان ۶۰ ثانیه‌ای · دریافت از جریان زنده</small></div>' : "";
+  const body = visual + liveLabel + '<div class="hmi-value-meta"><span>' + escapeHtml(tag?.unit || "") + '</span><small>' +
     escapeHtml(tag?.name || "تگ انتخاب نشده") + ' · ' + String(samples.length).toLocaleString("fa-IR") + ' نمونه</small></div>';
-  return componentFrame(component, body, quality, preview);
+  return componentFrame(component, body, quality, preview, isLive ? "hmi-widget--chart-live" : "");
 }
 
 function renderMachine(component, tags, preview, type) {
@@ -540,11 +593,39 @@ function renderValve(component, tags, preview) {
   return componentFrame(component, body, quality, preview);
 }
 
+function renderMedia(component, options = {}) {
+  const mediaId = String(component.media_id || "").toLowerCase();
+  const mediaType = component.media_type === "video" ? "video" : "image";
+  const fit = ["contain", "cover", "fill"].includes(component.media_fit) ? component.media_fit : "contain";
+  if (!/^[a-f0-9]{32}$/.test(mediaId)) {
+    return componentFrame(component,
+      '<div class="hmi-media-empty">برای نمایش، از ویژگی‌های جزء یک فایل تصویر، انیمیشن یا ویدئو وارد کن.</div>',
+      "MEDIA", options.preview === true, "hmi-widget--media");
+  }
+  const base = String(options.mediaBase || "").replace(/\/$/, "");
+  const src = escapeHtml(base + "/api/hmi/media/" + mediaId);
+  const fitClass = "hmi-media-fit-" + fit;
+  let element = "";
+  if (mediaType === "video") {
+    const autoplay = component.media_autoplay === true && component.media_muted !== false ? " autoplay" : "";
+    const loop = component.media_loop === false ? "" : " loop";
+    const muted = component.media_muted === false ? "" : " muted";
+    const controls = component.media_controls === false ? "" : " controls";
+    element = '<video class="hmi-media-element ' + fitClass + '" src="' + src + '" preload="metadata" playsinline' + autoplay + loop + muted + controls + '></video>';
+  } else {
+    element = '<img class="hmi-media-element ' + fitClass + '" src="' + src + '" alt="' +
+      escapeHtml(component.label || "رسانه HMI") + '" draggable="false" />';
+  }
+  return componentFrame(component, '<div class="hmi-media-frame">' + element + '</div>',
+    "MEDIA", options.preview === true, "hmi-widget--media");
+}
+
 export function renderHmiWidget(component, tags, options = {}) {
   const preview = options.preview === true;
   const history = options.history || [];
   const historyState = options.historyState || null;
   const type = component?.type || "value";
+  if (type === "media") return renderMedia(component, options);
   if (["value", "status", "indicator", "gauge", "needle", "thermometer", "chart", "write"].includes(type)) {
     const tag = tagFor(tags, component.tag_id);
     if (type === "value") return renderValue(component, tag, preview);

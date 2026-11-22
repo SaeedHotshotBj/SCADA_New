@@ -75,4 +75,9 @@ export const api = {
   ingestEdgeTelemetry: (token, samples) => request("/api/telemetry/edge/ingest", {
     method: "POST", headers: { "X-Edge-Token": token }, body: { samples },
   }),
+  uploadHmiMedia: file => {
+    const body = new FormData();
+    body.append("file", file);
+    return request("/api/hmi/media", { method: "POST", body });
+  },
 };
