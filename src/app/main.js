@@ -8,9 +8,10 @@ import {
   loadHmiPageChartData,
   loadHmiDesignerChartData,
   refreshHmiDesignerLivePreview,
-  handleHmiDesignerPointerDown,
-  handleHmiDesignerPointerMove,
-  handleHmiDesignerPointerUp,
+  handleHmiDesignerDragStart,
+  handleHmiDesignerDragOver,
+  handleHmiDesignerDrop,
+  handleHmiDesignerDragEnd,
   closeHmiDesignerPreview,
   getHmiDesignerChartRefreshIntervalMs,
   getHmiPageChartRefreshIntervalMs,
@@ -108,19 +109,19 @@ document.addEventListener("click", event => {
   });
 });
 
-// Capture pointer events at the window level so a card can keep tracking
-// movement even when the pointer leaves its original drag handle or card.
-window.addEventListener("pointerdown", event => {
-  handleHmiDesignerPointerDown(event);
+// Use native browser drag-and-drop so toolbar and resize-handle dragging
+// does not depend on pointer capture or document-level pointer retargeting.
+document.addEventListener("dragstart", event => {
+  handleHmiDesignerDragStart(event);
 }, true);
-window.addEventListener("pointermove", event => {
-  handleHmiDesignerPointerMove(event);
+document.addEventListener("dragover", event => {
+  handleHmiDesignerDragOver(event);
 }, true);
-window.addEventListener("pointerup", event => {
-  handleHmiDesignerPointerUp(event);
+document.addEventListener("drop", event => {
+  handleHmiDesignerDrop(event);
 }, true);
-window.addEventListener("pointercancel", event => {
-  handleHmiDesignerPointerUp(event);
+document.addEventListener("dragend", () => {
+  handleHmiDesignerDragEnd();
 }, true);
 
 document.addEventListener("input", event => {
