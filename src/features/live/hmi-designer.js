@@ -231,7 +231,7 @@ function layoutPreviewCardMarkup(component, index) {
   return '<article class="hmi-layout-card ' + (component.widget_id === selectedWidgetId ? "is-selected" : "") +
     '" data-hmi-layout-card data-hmi-layout-gesture="move" data-action="hmi-select-layout-widget" data-widget-id="' + escapeHtml(component.widget_id) + '" style="' +
     hmiWidgetFreeformStyle(component, index) + '">' +
-    '<header class="hmi-layout-card-toolbar" title="برای جابه‌جایی، هر قسمت کارت را بکش"><span class="hmi-layout-move">↕ حرکت آزاد</span><span>' +
+    '<header class="hmi-layout-card-toolbar" data-hmi-layout-gesture="move" title="برای جابه‌جایی، هر قسمت کارت را بکش"><span class="hmi-layout-move">↕ حرکت آزاد</span><span>' +
     escapeHtml(component.label || component.type) + '</span></header>' +
     '<div class="hmi-layout-card-content">' + widget + '</div>' +
     '<button type="button" class="hmi-layout-resize" data-hmi-layout-gesture="resize" data-widget-id="' +
@@ -667,10 +667,12 @@ function beginHmiLayoutGesture(handle, event) {
       height: component.height,
     },
   };
-  try {
-    handle.setPointerCapture?.(event.pointerId);
-  } catch {
-    // Document-level pointer listeners remain as a fallback when capture is unavailable.
+  if (Number.isFinite(event.pointerId)) {
+    try {
+      handle.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Document-level pointer and mouse listeners remain as a fallback.
+    }
   }
   document.documentElement?.classList.add("hmi-layout-dragging");
 
@@ -717,7 +719,8 @@ export function handleHmiDesignerPointerDown(event) {
   const card = event.target?.closest?.("[data-hmi-layout-card]");
   const handle = resizeHandle || card;
   if (!handle || !beginHmiLayoutGesture(handle, event)) return false;
-  event.preventDefault?.();
+  // Do not cancel pointerdown: doing so can suppress the browser's compatibility
+  // mouse events, which are retained below as a fallback for desktop browsers.
   return true;
 }
 
@@ -729,5 +732,24 @@ export function handleHmiDesignerPointerMove(event) {
 export function handleHmiDesignerPointerUp(event) {
   if (!layoutGesture) return false;
   if (event?.pointerId !== undefined && layoutGesture.pointerId !== undefined && event.pointerId !== layoutGesture.pointerId) return false;
+  return finishHmiLayoutGesture();
+}
+
+export function handleHmiDesignerMouseDown(event) {
+  // Pointer-capable browsers send pointerdown before mousedown. Do not restart
+  // an already active pointer gesture; use mousedown only when pointerdown failed.
+  if (layoutGesture) return false;
+  const started = handleHmiDesignerPointerDown(event);
+  if (started) event.preventDefault?.();
+  return started;
+}
+
+export function handleHmiDesignerMouseMove(event) {
+  if (!layoutGesture) return false;
+  // Mouse events do not carry pointerId, so deliberately bypass pointer filtering.
+  return updateHmiLayoutGesture(event);
+}
+
+export function handleHmiDesignerMouseUp() {
   return finishHmiLayoutGesture();
 }
