@@ -20,6 +20,29 @@ export const HMI_WIDGET_LIBRARY = [
   { type: "write", label: "کنترل تگ", category: "کنترل", icon: "↕", help: "کنترل تعاملی؛ نوشتن واقعی تابع تمام قفل‌های ایمنی است" },
 ];
 
+export const HMI_THEME_OPTIONS = [
+  { value: "light", label: "روشن" },
+  { value: "dark", label: "تیره" },
+  { value: "blue", label: "آبی صنعتی" },
+  { value: "industrial", label: "صنعتی تیره" },
+];
+
+export const HMI_COMPONENT_THEME_OPTIONS = [
+  { value: "inherit", label: "پیروی از تم صفحه" },
+  ...HMI_THEME_OPTIONS,
+];
+
+const HMI_PAGE_THEME_VALUES = new Set(HMI_THEME_OPTIONS.map(item => item.value));
+const HMI_COMPONENT_THEME_VALUES = new Set(HMI_COMPONENT_THEME_OPTIONS.map(item => item.value));
+
+export function normalizeHmiPageTheme(theme) {
+  return HMI_PAGE_THEME_VALUES.has(theme) ? theme : "light";
+}
+
+export function normalizeHmiWidgetTheme(theme) {
+  return HMI_COMPONENT_THEME_VALUES.has(theme) ? theme : "inherit";
+}
+
 export const HMI_CHART_RANGES = [
   { value: 1, label: "۱ ثانیه" },
   { value: 5, label: "۵ ثانیه" },
@@ -98,6 +121,7 @@ export function createHmiWidget(type) {
     widget_id: "hmi-widget-" + Date.now().toString(36) + "-" + widgetSequence,
     type,
     label: DEFAULT_LABELS[type] || definition.label,
+    theme: "inherit",
   };
   if (["gauge", "needle", "thermometer", "tank"].includes(type)) {
     widget.min = 0;
@@ -316,7 +340,8 @@ function componentFrame(component, body, quality, preview, extraClass = "") {
   const label = escapeHtml(component.label || DEFAULT_LABELS[component.type] || component.type);
   const tone = qualityTone(quality);
   const selectedClass = extraClass ? " " + extraClass : "";
-  return '<article class="hmi-widget hmi-widget--' + escapeHtml(component.type) + (preview ? " is-preview" : "") + selectedClass + '">' +
+  const theme = normalizeHmiWidgetTheme(component.theme);
+  return '<article class="hmi-widget hmi-widget--' + escapeHtml(component.type) + (preview ? " is-preview" : "") + selectedClass + '" data-hmi-theme="' + theme + '">' +
     '<header class="hmi-widget-header"><b>' + label + '</b><span class="hmi-quality hmi-quality--' + tone + '">' + escapeHtml(quality) + '</span></header>' +
     '<div class="hmi-widget-body">' + body + '</div></article>';
 }
@@ -403,8 +428,13 @@ function renderChart(component, tag, preview, history, historyState) {
   const quality = qualityOf(tag);
   const sampleItems = (Array.isArray(history) ? history : [])
     .map(item => typeof item === "number" ? { value: item } : item)
-    .filter(item => Number.isFinite(Number(item?.value)));
-  const samples = sampleItems.map(item => Number(item.value));
+    .filter(item => item?.value !== null && item?.value !== undefined && item?.value !== "" &&
+      Number.isFinite(Number(item.value)))
+    .map(item => ({ ...item, value: Number(item.value) }));
+  if (sampleItems.every(item => item.sampled_at && Number.isFinite(Date.parse(item.sampled_at)))) {
+    sampleItems.sort((a, b) => Date.parse(a.sampled_at) - Date.parse(b.sampled_at));
+  }
+  const samples = sampleItems.map(item => item.value);
   const rangeSeconds = Number(component.history_seconds ?? Number(component.history_hours || 1) * 3600);
   const rangeLabel = HMI_CHART_RANGES.find(item => item.value === rangeSeconds)?.label || "بازه انتخاب‌شده";
   let visual = "";
@@ -415,7 +445,7 @@ function renderChart(component, tag, preview, history, historyState) {
     if (samples.length === 1) {
       const y = 68 - (samples[0] - min) * 58 / span;
       visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="یک نمونه از نمودار روند">' +
-        '<path d="M8 10 H252 M8 40 H252 M8 70 H252" stroke="#edf1f4" stroke-dasharray="3 4" fill="none"/>' +
+        '<path d="M8 10 H252 M8 40 H252 M8 70 H252" stroke="var(--hmi-chart-grid, #edf1f4)" stroke-dasharray="3 4" fill="none"/>' +
         '<circle class="hmi-chart-single-point" cx="130" cy="' + y.toFixed(1) + '" r="5" fill="#218fbd"/>' +
         '<text x="130" y="78" text-anchor="middle" fill="#8498a8" font-size="9">' + escapeHtml(String(samples[0])) + '</text></svg>';
     } else {
@@ -429,12 +459,12 @@ function renderChart(component, tag, preview, history, historyState) {
         const bars = samples.map((value, index) => {
           const height = 8 + ((value - min) / span) * 52;
           const x = 8 + index * slot;
-          return '<rect x="' + x.toFixed(1) + '" y="' + (70 - height).toFixed(1) + '" width="' + Math.max(2, slot - 3).toFixed(1) + '" height="' + height.toFixed(1) + '" rx="2" fill="#2b9dba"/>';
+          return '<rect x="' + x.toFixed(1) + '" y="' + (70 - height).toFixed(1) + '" width="' + Math.max(2, slot - 3).toFixed(1) + '" height="' + height.toFixed(1) + '" rx="2" fill="var(--hmi-chart-bar, #2b9dba)"/>';
         }).join("");
         visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="نمودار میله‌ای">' + bars + '</svg>';
       } else {
-        visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="نمودار روند"><path d="M8 10 H252 M8 40 H252 M8 70 H252" stroke="#edf1f4" stroke-dasharray="3 4" fill="none"/>' +
-          '<polyline points="' + points.join(" ") + '" fill="none" stroke="#218fbd" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="نمودار روند"><path d="M8 10 H252 M8 40 H252 M8 70 H252" stroke="var(--hmi-chart-grid, #edf1f4)" stroke-dasharray="3 4" fill="none"/>' +
+          '<polyline points="' + points.join(" ") + '" fill="none" stroke="var(--hmi-chart-line, #218fbd)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       }
     }
   } else {
