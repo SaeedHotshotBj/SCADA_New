@@ -40,6 +40,8 @@ const requiredHmiMarkers = [
   'class="hmi-designer-canvas"',
   'id="hmi-designer-properties"',
   'id="hmi-json-source"',
+  'id="hmi-layout-preview-root"',
+  'data-action="hmi-open-layout-preview"',
   "طراحی صفحه HMI",
   "کتابخانه اجزا",
   "ویژگی‌های جزء",
@@ -76,4 +78,57 @@ const expectedNeedleValue = (42.5).toLocaleString("fa-IR", { maximumFractionDigi
 if (!needleHtml.includes('class="hmi-dial-reading"') || !needleHtml.includes(expectedNeedleValue) || !needleHtml.includes("bar")) {
   throw new Error("Needle widget must render a numeric value and its unit.");
 }
+
 console.log("HMI chart range and needle numeric readout checks passed.");
+
+const {
+  normalizeHmiWidgetGeometry,
+  hmiWidgetGridStyle,
+} = await import("../src/features/live/hmi-widgets.js");
+const positionedCard = normalizeHmiWidgetGeometry({
+  type: "chart", grid_col: 7, grid_row: 2, grid_w: 6, grid_h: 4,
+}, 0);
+const expectedGridStyle = "grid-column:7 / span 6;grid-row:2 / span 4;";
+if (hmiWidgetGridStyle(positionedCard) !== expectedGridStyle) {
+  throw new Error("HMI card position and size must be converted to the expected 12-column grid placement.");
+}
+const defaultSecondCard = normalizeHmiWidgetGeometry({ type: "value" }, 1);
+if (defaultSecondCard.grid_col !== 5 || defaultSecondCard.grid_row !== 1 ||
+    defaultSecondCard.grid_w !== 4 || defaultSecondCard.grid_h !== 3) {
+  throw new Error("HMI cards must receive a predictable default grid position and size.");
+}
+
+const chartTag = {
+  id: "test-trend", name: "Test trend", value: 12.5,
+  type: "float32", unit: "bar", quality: "GOOD",
+};
+const singleSampleChart = renderHmiWidget({
+  type: "chart", tag_id: "test-trend", history_seconds: 60,
+}, [chartTag], {
+  history: [{ value: 12.5, sampled_at: "2026-11-22T08:00:00+00:00" }],
+  historyState: { status: "ready", sampleCount: 1 },
+});
+if (!singleSampleChart.includes("hmi-chart-single-point") || !singleSampleChart.includes("12")) {
+  throw new Error("HMI trend must render a visible point when the history contains exactly one sample.");
+}
+const emptyHistoryChart = renderHmiWidget({
+  type: "chart", tag_id: "test-trend", history_seconds: 60,
+}, [chartTag], {
+  history: [],
+  historyState: { status: "empty", sampleCount: 0 },
+});
+if (!emptyHistoryChart.includes("hmi-chart-latest") ||
+    !emptyHistoryChart.includes("آخرین مقدار زنده") ||
+    !emptyHistoryChart.includes("bar")) {
+  throw new Error("HMI trend with no stored samples must show a separate latest live value and unit.");
+}
+const failedHistoryChart = renderHmiWidget({
+  type: "chart", tag_id: "test-trend", history_seconds: 60,
+}, [chartTag], {
+  history: [],
+  historyState: { status: "error", message: "Backend unavailable" },
+});
+if (!failedHistoryChart.includes("Backend unavailable")) {
+  throw new Error("HMI trend must distinguish history fetch failures from an empty time window.");
+}
+console.log("HMI floating layout, card geometry and trend rendering checks passed.");
