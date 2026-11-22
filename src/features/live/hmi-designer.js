@@ -231,11 +231,11 @@ function layoutPreviewCardMarkup(component, index) {
   return '<article class="hmi-layout-card ' + (component.widget_id === selectedWidgetId ? "is-selected" : "") +
     '" data-hmi-layout-card data-action="hmi-select-layout-widget" data-widget-id="' + escapeHtml(component.widget_id) + '" style="' +
     hmiWidgetGridStyle(component, index) + '">' +
-    '<header class="hmi-layout-card-toolbar" data-hmi-layout-gesture="move" data-widget-id="' + escapeHtml(component.widget_id) +
+    '<header class="hmi-layout-card-toolbar" draggable="true" data-hmi-layout-gesture="move" data-widget-id="' + escapeHtml(component.widget_id) +
     '" title="برای جابه‌جایی، هر نقطه از نوار بالایی کارت را بکش"><span class="hmi-layout-move">↕ جابه‌جایی</span><span>' +
     escapeHtml(component.label || component.type) + '</span></header>' +
     '<div class="hmi-layout-card-content">' + widget + '</div>' +
-    '<button type="button" class="hmi-layout-resize" data-hmi-layout-gesture="resize" data-widget-id="' +
+    '<button type="button" draggable="true" class="hmi-layout-resize" data-hmi-layout-gesture="resize" data-widget-id="' +
     escapeHtml(component.widget_id) + '" title="برای تغییر اندازه بکش" aria-label="تغییر اندازه کارت">◢</button></article>';
 }
 
@@ -644,15 +644,12 @@ function updateLayoutCardStyle(component) {
   if (card) card.style.cssText = hmiWidgetGridStyle(component, index);
 }
 
-export function handleHmiDesignerPointerDown(event) {
-  if (event.button !== undefined && event.button !== 0) return false;
-  const handle = event.target?.closest?.("[data-hmi-layout-gesture]");
+function beginHmiLayoutGesture(handle, event) {
   if (!handle || !layoutPreviewOpen) return false;
   const component = draft?.layout?.find(item => item.widget_id === handle.dataset.widgetId);
   const canvas = handle.closest(".hmi-layout-preview-window")?.querySelector("#hmi-layout-preview-canvas");
   if (!component || !canvas) return false;
 
-  selectedWidgetId = component.widget_id;
   const styles = window.getComputedStyle(canvas);
   const gapX = Number.parseFloat(styles.columnGap) || 8;
   const gapY = Number.parseFloat(styles.rowGap) || 8;
@@ -660,16 +657,13 @@ export function handleHmiDesignerPointerDown(event) {
   const cellWidth = (canvas.clientWidth - paddingX - gapX * 11) / 12;
   const rowHeight = Number.parseFloat(styles.gridAutoRows) || 64;
   if (!(cellWidth > 0) || !(rowHeight > 0)) return false;
+
+  selectedWidgetId = component.widget_id;
   layoutGesture = {
-    pointerId: event.pointerId,
     mode: handle.dataset.hmiLayoutGesture,
     widgetId: component.widget_id,
     startX: event.clientX,
     startY: event.clientY,
-    startCol: component.grid_col,
-    startRow: component.grid_row,
-    startW: component.grid_w,
-    startH: component.grid_h,
     startGeometry: {
       grid_col: component.grid_col,
       grid_row: component.grid_row,
@@ -679,11 +673,6 @@ export function handleHmiDesignerPointerDown(event) {
     columnStep: cellWidth + gapX,
     rowStep: rowHeight + gapY,
   };
-  // Capture on the stable canvas, not on the small handle that may move under the pointer.
-  try {
-    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-  } catch { /* Window capture listeners remain the fallback. */ }
-  event.preventDefault();
   document.documentElement?.classList.add("hmi-layout-dragging");
 
   const props = document.getElementById("hmi-layout-preview-properties");
@@ -694,8 +683,8 @@ export function handleHmiDesignerPointerDown(event) {
   return true;
 }
 
-export function handleHmiDesignerPointerMove(event) {
-  if (!layoutGesture || event.pointerId !== layoutGesture.pointerId) return false;
+function updateHmiLayoutGesture(event) {
+  if (!layoutGesture) return false;
   const component = draft?.layout?.find(item => item.widget_id === layoutGesture.widgetId);
   if (!component) return false;
 
@@ -708,22 +697,15 @@ export function handleHmiDesignerPointerMove(event) {
     layoutGesture.columnStep,
     layoutGesture.rowStep,
   ));
-  event.preventDefault?.();
   updateLayoutCardStyle(component);
+  event.preventDefault?.();
   return true;
 }
 
-export function handleHmiDesignerPointerUp(event) {
-  if (!layoutGesture || (event?.pointerId !== undefined && event.pointerId !== layoutGesture.pointerId)) return false;
-  const completedGesture = layoutGesture;
+function finishHmiLayoutGesture() {
+  if (!layoutGesture) return false;
   layoutGesture = null;
   document.documentElement?.classList.remove("hmi-layout-dragging");
-  try {
-    const canvas = document.getElementById("hmi-layout-preview-canvas");
-    if (canvas?.hasPointerCapture?.(completedGesture.pointerId)) {
-      canvas.releasePointerCapture(completedGesture.pointerId);
-    }
-  } catch { /* Pointer capture is released automatically by the browser on pointerup. */ }
   const component = selectedWidget();
   const props = document.getElementById("hmi-layout-preview-properties");
   if (props) props.innerHTML = layoutPropertiesMarkup();
@@ -732,3 +714,31 @@ export function handleHmiDesignerPointerUp(event) {
   return true;
 }
 
+export function handleHmiDesignerDragStart(event) {
+  const handle = event.target?.closest?.("[data-hmi-layout-gesture]");
+  if (!handle || !beginHmiLayoutGesture(handle, event)) return false;
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", handle.dataset.widgetId || "hmi-card");
+    try { event.dataTransfer.setDragImage(handle, 18, 14); } catch { /* Native default drag image is sufficient. */ }
+  }
+  return true;
+}
+
+export function handleHmiDesignerDragOver(event) {
+  if (!layoutGesture) return false;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  return updateHmiLayoutGesture(event);
+}
+
+export function handleHmiDesignerDrop(event) {
+  if (!layoutGesture) return false;
+  event.preventDefault();
+  updateHmiLayoutGesture(event);
+  return finishHmiLayoutGesture();
+}
+
+export function handleHmiDesignerDragEnd() {
+  return finishHmiLayoutGesture();
+}
