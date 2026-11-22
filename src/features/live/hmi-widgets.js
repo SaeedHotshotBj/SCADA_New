@@ -110,6 +110,27 @@ export function createHmiWidget(type) {
   return widget;
 }
 
+function boundedInteger(value, fallback, min, max) {
+  const number = Number(value);
+  return Number.isInteger(number) ? Math.max(min, Math.min(max, number)) : fallback;
+}
+
+export function normalizeHmiWidgetGeometry(component, index = 0) {
+  const grid_w = boundedInteger(component?.grid_w, 4, 1, 12);
+  const grid_h = boundedInteger(component?.grid_h, 3, 1, 12);
+  const defaultColumn = (index % 3) * 4 + 1;
+  const defaultRow = Math.floor(index / 3) * 3 + 1;
+  const grid_col = boundedInteger(component?.grid_col, defaultColumn, 1, 13 - grid_w);
+  const grid_row = boundedInteger(component?.grid_row, defaultRow, 1, 200);
+  return { ...component, grid_col, grid_row, grid_w, grid_h };
+}
+
+export function hmiWidgetGridStyle(component, index = 0) {
+  const geometry = normalizeHmiWidgetGeometry(component, index);
+  return "grid-column:" + geometry.grid_col + " / span " + geometry.grid_w +
+    ";grid-row:" + geometry.grid_row + " / span " + geometry.grid_h + ";";
+}
+
 export function isBooleanTag(tag) {
   return Boolean(tag && BOOLEAN_TYPES.has(tag.type));
 }
@@ -245,37 +266,58 @@ function renderThermometer(component, tag, preview) {
   return componentFrame(component, body, quality, preview);
 }
 
-function renderChart(component, tag, preview, history) {
+function renderChart(component, tag, preview, history, historyState) {
   const quality = qualityOf(tag);
-  const samples = (Array.isArray(history) ? history : [])
-    .map(item => typeof item === "number" ? item : Number(item?.value))
-    .filter(value => Number.isFinite(value));
-  let visual = '<div class="hmi-chart-empty">پس از ذخیره نمونه‌های تگ، روند در این قسمت نمایش داده می‌شود.</div>';
-  if (samples.length >= 2) {
+  const sampleItems = (Array.isArray(history) ? history : [])
+    .map(item => typeof item === "number" ? { value: item } : item)
+    .filter(item => Number.isFinite(Number(item?.value)));
+  const samples = sampleItems.map(item => Number(item.value));
+  const rangeSeconds = Number(component.history_seconds ?? Number(component.history_hours || 1) * 3600);
+  const rangeLabel = HMI_CHART_RANGES.find(item => item.value === rangeSeconds)?.label || "بازه انتخاب‌شده";
+  let visual = "";
+  if (samples.length) {
     const min = Math.min(...samples);
     const max = Math.max(...samples);
     const span = max - min || 1;
-    const points = samples.map((value, index) => {
-      const x = 8 + index * 244 / (samples.length - 1);
-      const y = 68 - (value - min) * 58 / span;
-      return x.toFixed(1) + "," + y.toFixed(1);
-    });
-    if (component.chart_kind === "bar") {
-      const slot = 244 / samples.length;
-      const bars = samples.map((value, index) => {
-        const height = 8 + ((value - min) / span) * 52;
-        const x = 8 + index * slot;
-        return '<rect x="' + x.toFixed(1) + '" y="' + (70 - height).toFixed(1) + '" width="' + Math.max(2, slot - 3).toFixed(1) + '" height="' + height.toFixed(1) + '" rx="2" fill="#2b9dba"/>';
-      }).join("");
-      visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="نمودار میله‌ای">' + bars + '</svg>';
+    if (samples.length === 1) {
+      const y = 68 - (samples[0] - min) * 58 / span;
+      visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="یک نمونه از نمودار روند">' +
+        '<path d="M8 10 H252 M8 40 H252 M8 70 H252" stroke="#edf1f4" stroke-dasharray="3 4" fill="none"/>' +
+        '<circle class="hmi-chart-single-point" cx="130" cy="' + y.toFixed(1) + '" r="5" fill="#218fbd"/>' +
+        '<text x="130" y="78" text-anchor="middle" fill="#8498a8" font-size="9">' + escapeHtml(String(samples[0])) + '</text></svg>';
     } else {
-      visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="نمودار روند"><path d="M8 10 H252 M8 40 H252 M8 70 H252" stroke="#edf1f4" stroke-dasharray="3 4" fill="none"/>' +
-        '<polyline points="' + points.join(" ") + '" fill="none" stroke="#218fbd" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      const points = samples.map((value, index) => {
+        const x = 8 + index * 244 / (samples.length - 1);
+        const y = 68 - (value - min) * 58 / span;
+        return x.toFixed(1) + "," + y.toFixed(1);
+      });
+      if (component.chart_kind === "bar") {
+        const slot = 244 / samples.length;
+        const bars = samples.map((value, index) => {
+          const height = 8 + ((value - min) / span) * 52;
+          const x = 8 + index * slot;
+          return '<rect x="' + x.toFixed(1) + '" y="' + (70 - height).toFixed(1) + '" width="' + Math.max(2, slot - 3).toFixed(1) + '" height="' + height.toFixed(1) + '" rx="2" fill="#2b9dba"/>';
+        }).join("");
+        visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="نمودار میله‌ای">' + bars + '</svg>';
+      } else {
+        visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="نمودار روند"><path d="M8 10 H252 M8 40 H252 M8 70 H252" stroke="#edf1f4" stroke-dasharray="3 4" fill="none"/>' +
+          '<polyline points="' + points.join(" ") + '" fill="none" stroke="#218fbd" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      }
     }
-  } else if (preview) {
-    visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" aria-label="پیش‌نمایش نمودار"><path d="M8 10 H252 M8 40 H252 M8 70 H252" stroke="#edf1f4" stroke-dasharray="3 4" fill="none"/><text x="130" y="46" text-anchor="middle" fill="#94a4b2" font-size="10">پیش‌نمایش بدون داده ساختگی</text></svg>';
+  } else {
+    let message = "برای دریافت تاریخچه، پیش‌نمایش شناور را باز کن.";
+    if (historyState?.status === "loading") message = "در حال دریافت تاریخچه از Backend…";
+    else if (historyState?.status === "error") message = "دریافت تاریخچه ناموفق بود: " + (historyState.message || "خطای نامشخص");
+    else if (historyState?.status === "empty") message = "در " + rangeLabel + " اخیر نمونه‌ی ذخیره‌شده‌ای وجود ندارد.";
+    else if (!tag) message = "ابتدا تگ عددی نمودار را در ویژگی‌های جزء انتخاب کن.";
+    const liveReading = tag && quality !== "UNSAMPLED"
+      ? '<div class="hmi-chart-latest"><small>آخرین مقدار زنده · ' + escapeHtml(quality) + '</small><strong>' +
+        escapeHtml(valueText(tag, false)) + ' ' + escapeHtml(tag.unit || "") + '</strong></div>'
+      : "";
+    visual = '<div class="hmi-chart-empty hmi-chart-empty--detail"><span>' + escapeHtml(message) + '</span>' + liveReading + '</div>';
   }
-  const body = visual + '<div class="hmi-value-meta"><span>' + escapeHtml(tag?.unit || "") + '</span><small>' + escapeHtml(tag?.name || "تگ انتخاب نشده") + ' · ' + String(samples.length).toLocaleString("fa-IR") + ' نمونه</small></div>';
+  const body = visual + '<div class="hmi-value-meta"><span>' + escapeHtml(tag?.unit || "") + '</span><small>' +
+    escapeHtml(tag?.name || "تگ انتخاب نشده") + ' · ' + String(samples.length).toLocaleString("fa-IR") + ' نمونه</small></div>';
   return componentFrame(component, body, quality, preview);
 }
 
@@ -334,6 +376,7 @@ function renderValve(component, tags, preview) {
 export function renderHmiWidget(component, tags, options = {}) {
   const preview = options.preview === true;
   const history = options.history || [];
+  const historyState = options.historyState || null;
   const type = component?.type || "value";
   if (["value", "status", "indicator", "gauge", "needle", "thermometer", "chart", "write"].includes(type)) {
     const tag = tagFor(tags, component.tag_id);
@@ -343,7 +386,7 @@ export function renderHmiWidget(component, tags, options = {}) {
     if (type === "gauge") return renderGauge(component, tag, preview, false);
     if (type === "needle") return renderGauge(component, tag, preview, true);
     if (type === "thermometer") return renderThermometer(component, tag, preview);
-    if (type === "chart") return renderChart(component, tag, preview, history);
+    if (type === "chart") return renderChart(component, tag, preview, history, historyState);
     const quality = qualityOf(tag);
     const active = options.active !== false;
     const body = '<div class="hmi-value-number">' + escapeHtml(valueText(tag, preview)) + '</div><div class="hmi-value-meta"><span>' + escapeHtml(tag?.unit || "") + '</span><small>' + escapeHtml(tag?.name || "تگ انتخاب نشده") + '</small></div>' +
