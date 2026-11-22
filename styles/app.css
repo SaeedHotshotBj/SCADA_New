@@ -576,6 +576,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .hmi-layout-preview-backdrop { position: fixed; inset: 0; z-index: 10050; display: flex; align-items: center; justify-content: center; padding: 14px; background: rgba(9, 28, 45, .58); }
 .hmi-layout-preview-window { display: flex; width: min(1540px, calc(100vw - 28px)); max-height: calc(100vh - 28px); min-height: min(650px, calc(100vh - 28px)); flex-direction: column; overflow: hidden; border: 1px solid #d7e2ea; border-radius: 13px; background: #f8fafc; box-shadow: 0 22px 70px rgba(5, 24, 40, .32); }
 .hmi-layout-preview-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 16px; border-bottom: 1px solid #e4ebf0; background: #fff; }
+.hmi-layout-preview-header-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
 .hmi-layout-preview-header > div { display: flex; flex-direction: column; gap: 3px; }
 .hmi-layout-preview-header b { color: #274a65; font-size: 13px; }
 .hmi-layout-preview-header small { color: #8b9ba8; font-size: 9px; }
@@ -586,11 +587,11 @@ tbody tr:last-child td { border-bottom: 0; }
 .hmi-layout-card { position: relative; display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; padding: 4px; border: 1px solid #d4e0e8; border-radius: 8px; background: rgba(255,255,255,.97); box-shadow: 0 2px 7px rgba(26,54,74,.07); }
 .hmi-layout-card.is-selected { border: 2px solid #268ac0; box-shadow: 0 0 0 2px rgba(38,138,192,.13); }
 .hmi-layout-card-toolbar { display: flex; min-height: 28px; flex: 0 0 28px; align-items: center; justify-content: space-between; gap: 6px; padding: 0 3px 3px; }
-.hmi-layout-card-toolbar[data-hmi-layout-gesture="move"] { cursor: grab; touch-action: none; user-select: none; }
+.hmi-layout-card-toolbar[data-hmi-layout-gesture="move"] { position: relative; z-index: 3; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
 .hmi-layout-card-toolbar[data-hmi-layout-gesture="move"]:active { cursor: grabbing; }
 .hmi-layout-card-toolbar span { overflow: hidden; color: #73899a; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
 .hmi-layout-move { min-height: 21px; padding: 2px 7px; border: 1px solid #dbe5ec; border-radius: 5px; background: #f5f9fb; color: #55748b; cursor: inherit; font-size: 8px; touch-action: none; user-select: none; }
-.hmi-layout-card-content { display: flex; min-width: 0; min-height: 0; flex: 1; overflow: hidden; pointer-events: none; }
+.hmi-layout-card-content { display: flex; min-width: 0; min-height: 0; flex: 1; overflow: hidden; pointer-events: none; user-select: none; }
 .hmi-layout-card-content > .hmi-widget { width: 100%; height: 100%; border: 0; border-radius: 5px; box-shadow: none; }
 .hmi-layout-card-content .hmi-widget-body { min-height: 0; flex: 1; overflow: hidden; }
 .hmi-layout-resize { position: absolute; right: 1px; bottom: 1px; z-index: 2; display: grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 1px solid #bdd3e1; border-radius: 7px 0 7px 0; background: #eaf4f9; color: #286f95; cursor: nwse-resize; font-size: 17px; line-height: 1; touch-action: none; user-select: none; }
