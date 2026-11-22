@@ -160,6 +160,15 @@ export function arrangeHmiWidgetsSingleColumn(components) {
   });
 }
 
+export function hmiWidgetGridFromPointer(component, mode, deltaX, deltaY, columnStep, rowStep) {
+  const safeColumnStep = Number(columnStep);
+  const safeRowStep = Number(rowStep);
+  if (!(safeColumnStep > 0) || !(safeRowStep > 0)) return normalizeHmiWidgetGeometry(component);
+  const deltaColumn = Math.round(Number(deltaX || 0) / safeColumnStep);
+  const deltaRow = Math.round(Number(deltaY || 0) / safeRowStep);
+  return applyHmiWidgetGridGesture(component, mode, deltaColumn, deltaRow);
+}
+
 export function hmiChartRefreshIntervalMs(components) {
   const ranges = (Array.isArray(components) ? components : [])
     .filter(item => item?.type === "chart")
