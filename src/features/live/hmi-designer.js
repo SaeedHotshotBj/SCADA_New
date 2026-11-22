@@ -1,13 +1,18 @@
 import { api } from "../../services/api-client.js";
 import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
-import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_WIDGET_LIBRARY, createHmiWidget, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
+import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_WIDGET_LIBRARY, createHmiWidget, hmiWidgetGridStyle, normalizeHmiWidgetGeometry, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
 
 let activePageKey = null;
 let draft = null;
 let selectedWidgetId = null;
 let jsonError = "";
+let layoutPreviewOpen = false;
+let layoutGesture = null;
+let designerChartRefreshTimer = null;
+let designerChartRefreshInFlight = false;
 const chartHistory = new Map();
+const chartHistoryStatus = new Map();
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -26,10 +31,10 @@ function initializeDraft(pageId) {
     layout: [],
   };
   if (!Array.isArray(draft.layout)) draft.layout = [];
-  draft.layout = draft.layout.map((item, index) => ({
+  draft.layout = draft.layout.map((item, index) => normalizeHmiWidgetGeometry({
     ...item,
     widget_id: item.widget_id || ("hmi-existing-" + index + "-" + String(item.type || "widget")),
-  }));
+  }, index));
   selectedWidgetId = draft.layout[0]?.widget_id || null;
   jsonError = "";
 }
@@ -44,6 +49,14 @@ function chartHistorySeconds(component) {
   }
   const legacyHours = Number(component?.history_hours);
   return Number.isFinite(legacyHours) && legacyHours > 0 ? legacyHours * 3600 : 3600;
+}
+
+function chartHistoryKey(tagId, seconds) {
+  return String(tagId) + ":" + String(seconds);
+}
+
+function chartHistoryState(tagId, seconds) {
+  return chartHistoryStatus.get(chartHistoryKey(tagId, seconds)) || null;
 }
 
 function tagOptions(binding, selectedId) {
@@ -98,7 +111,8 @@ function propertiesMarkup() {
       { value: "line", label: "خطی" },
       { value: "bar", label: "ستونی" },
     ], component.chart_kind || "line");
-    fields += selectMarkup("بازه تاریخچه", "history_seconds", HMI_CHART_RANGES, chartHistorySeconds(component));
+    fields += selectMarkup("بازه زمانی نمایش", "history_seconds", HMI_CHART_RANGES, chartHistorySeconds(component));
+    fields += '<small class="hmi-field-help">این گزینه مدت تاریخچه‌ی قابل نمایش است، نه سرعت نمونه‌برداری. تعداد نقاط به Poll و فاصله ذخیره تاریخچه در تنظیمات PLC یا Edge بستگی دارد.</small>';
   }
   const warning = component.type === "write"
     ? '<div class="hmi-designer-warning">این جزء قابلیت ارسال مقدار دارد. نوشتن روی PLC واقعی فقط از مسیر مجوزهای ایمنی موجود و با تأیید صریح ممکن است؛ هیچ مجوزی از این صفحه فعال نمی‌شود.</div>'
@@ -115,8 +129,10 @@ function canvasMarkup() {
   }
   return draft.layout.map((component, index) => {
     const selected = component.widget_id === selectedWidgetId;
-    const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, chartHistorySeconds(component)) : [];
-    const widget = renderHmiWidget(component, tags, { preview: true, history });
+    const seconds = chartHistorySeconds(component);
+    const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, seconds) : [];
+    const historyState = component.type === "chart" ? chartHistoryState(component.tag_id, seconds) : null;
+    const widget = renderHmiWidget(component, tags, { preview: true, history, historyState });
     return '<div class="hmi-designer-item ' + (selected ? "is-selected" : "") + '" data-action="hmi-select-widget" data-widget-id="' + escapeHtml(component.widget_id) + '">' +
       '<div class="hmi-designer-item-toolbar"><small>' + String(index + 1).toLocaleString("fa-IR") + ' · ' + escapeHtml(component.type) + '</small>' +
       '<span><button type="button" title="انتقال به بالا" data-action="hmi-move-widget" data-widget-id="' + escapeHtml(component.widget_id) + '" data-direction="-1" ' + (index === 0 ? "disabled" : "") + '>↑</button>' +
