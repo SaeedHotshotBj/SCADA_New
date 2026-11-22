@@ -453,6 +453,7 @@ export function handleHmiDesignerInput(event) {
   component[property] = numeric ? (target.value === "" ? "" : Number(target.value)) : target.value;
   const canvas = document.getElementById("hmi-designer-canvas");
   if (canvas) canvas.innerHTML = canvasMarkup();
+  updateLayoutCardContents();
   syncJsonEditor();
   if (component.type === "chart" && ["tag_id", "history_seconds", "history_hours"].includes(property)) {
     void loadHmiDesignerChartData();
