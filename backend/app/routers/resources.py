@@ -24,7 +24,7 @@ ROLES = {"Organization Admin", "Factory Admin", "Engineer", "Operator",
          "Production Planner", "Quality Control", "Production Manager"}
 ADMIN_ROLES = {"Organization Admin", "Factory Admin"}
 TAG_TYPES = {"bool", "int16", "uint16", "int32", "uint32", "float32", "string"}
-HMI_CHART_RANGE_SECONDS = {5, 10, 30, 60, 300, 600, 900, 1800, 3600, 21600, 43200, 86400}
+HMI_CHART_RANGE_SECONDS = {1, 5, 10, 30, 60, 300, 600, 900, 1800, 3600, 21600, 43200, 86400}
 ENUMS = {
     "plcs.protocol": {"modbus-tcp", "modbus-rtu", "s7", "simulator"},
     "tags.type": TAG_TYPES,
