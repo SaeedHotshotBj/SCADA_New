@@ -84,6 +84,8 @@ console.log("HMI chart range and needle numeric readout checks passed.");
 const {
   normalizeHmiWidgetGeometry,
   hmiWidgetGridStyle,
+  applyHmiWidgetGridGesture,
+  hmiChartRefreshIntervalMs,
 } = await import("../src/features/live/hmi-widgets.js");
 const positionedCard = normalizeHmiWidgetGeometry({
   type: "chart", grid_col: 7, grid_row: 2, grid_w: 6, grid_h: 4,
@@ -91,6 +93,30 @@ const positionedCard = normalizeHmiWidgetGeometry({
 const expectedGridStyle = "grid-column:7 / span 6;grid-row:2 / span 4;";
 if (hmiWidgetGridStyle(positionedCard) !== expectedGridStyle) {
   throw new Error("HMI card position and size must be converted to the expected 12-column grid placement.");
+}
+const movedCard = applyHmiWidgetGridGesture({
+  grid_col: 2, grid_row: 3, grid_w: 4, grid_h: 3,
+}, "move", 2, 1);
+if (movedCard.grid_col !== 4 || movedCard.grid_row !== 4) {
+  throw new Error("Dragging a HMI card toolbar must change its grid column and row.");
+}
+const resizedCard = applyHmiWidgetGridGesture({
+  grid_col: 2, grid_row: 3, grid_w: 4, grid_h: 3,
+}, "resize", 2, 2);
+if (resizedCard.grid_w !== 6 || resizedCard.grid_h !== 5) {
+  throw new Error("Dragging the HMI resize handle must change the numeric grid width and height.");
+}
+const edgeResizedCard = applyHmiWidgetGridGesture({
+  grid_col: 10, grid_row: 3, grid_w: 3, grid_h: 11,
+}, "resize", 5, 5);
+if (edgeResizedCard.grid_w !== 3 || edgeResizedCard.grid_h !== 12) {
+  throw new Error("HMI card resizing must clamp width to the remaining columns and height to twelve rows.");
+}
+if (hmiChartRefreshIntervalMs([{ type: "chart", history_seconds: 1 }]) !== 750) {
+  throw new Error("A one-second HMI trend must refresh its history more frequently than the one-second display window.");
+}
+if (hmiChartRefreshIntervalMs([{ type: "chart", history_seconds: 3600 }]) !== 5000) {
+  throw new Error("Long HMI trend ranges must retain the slower history refresh cadence.");
 }
 const defaultSecondCard = normalizeHmiWidgetGeometry({ type: "value" }, 1);
 if (defaultSecondCard.grid_col !== 5 || defaultSecondCard.grid_row !== 1 ||
@@ -131,4 +157,13 @@ const failedHistoryChart = renderHmiWidget({
 if (!failedHistoryChart.includes("Backend unavailable")) {
   throw new Error("HMI trend must distinguish history fetch failures from an empty time window.");
 }
-console.log("HMI floating layout, card geometry and trend rendering checks passed.");
+const oneSecondEmptyChart = renderHmiWidget({
+  type: "chart", tag_id: "test-trend", history_seconds: 1,
+}, [chartTag], {
+  history: [],
+  historyState: { status: "empty", sampleCount: 0 },
+});
+if (!oneSecondEmptyChart.includes("فاصله ذخیره تاریخچه PLC/Edge را روی ۱ ثانیه تنظیم کن")) {
+  throw new Error("A one-second empty trend must explain the required PLC/Edge history sampling interval.");
+}
+console.log("HMI floating layout, card geometry, one-second refresh and trend rendering checks passed.");
