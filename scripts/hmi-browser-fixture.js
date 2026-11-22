@@ -3,13 +3,8 @@ import {
   renderHmiDesigner,
   handleHmiDesignerAction,
   handleHmiDesignerInput,
-  handleHmiDesignerPointerDown,
-  handleHmiDesignerPointerMove,
-  handleHmiDesignerPointerUp,
-  handleHmiDesignerMouseDown,
-  handleHmiDesignerMouseMove,
-  handleHmiDesignerMouseUp,
 } from "../src/features/live/hmi-designer.js";
+import { bindHmiDesignerGestureEvents } from "../src/features/live/hmi-designer-events.js";
 
 // Use the real HMI designer module and real application stylesheet, but keep
 // the browser test independent of authentication and the running API server.
@@ -45,28 +40,10 @@ document.addEventListener("click", event => {
   record("click:" + actionElement.dataset.action, event, handled);
 });
 
-document.addEventListener("pointerdown", event => {
-  record("pointerdown", event, handleHmiDesignerPointerDown(event));
-}, true);
-document.addEventListener("pointermove", event => {
-  record("pointermove", event, handleHmiDesignerPointerMove(event));
-}, true);
-document.addEventListener("pointerup", event => {
-  record("pointerup", event, handleHmiDesignerPointerUp(event));
-}, true);
-document.addEventListener("pointercancel", event => {
-  record("pointercancel", event, handleHmiDesignerPointerUp(event));
-}, true);
-
-document.addEventListener("mousedown", event => {
-  record("mousedown", event, handleHmiDesignerMouseDown(event));
-}, true);
-document.addEventListener("mousemove", event => {
-  record("mousemove", event, handleHmiDesignerMouseMove(event));
-}, true);
-document.addEventListener("mouseup", event => {
-  record("mouseup", event, handleHmiDesignerMouseUp());
-}, true);
+for (const eventName of ["pointerdown", "pointermove", "pointerup", "pointercancel", "mousedown", "mousemove", "mouseup"]) {
+  document.addEventListener(eventName, event => record(eventName, event), true);
+}
+bindHmiDesignerGestureEvents(document);
 
 document.addEventListener("input", handleHmiDesignerInput);
 document.addEventListener("change", event => {
