@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -85,6 +85,7 @@ const {
   normalizeHmiWidgetGeometry,
   hmiWidgetGridStyle,
   applyHmiWidgetGridGesture,
+  arrangeHmiWidgetsSingleColumn,
   hmiChartRefreshIntervalMs,
 } = await import("../src/features/live/hmi-widgets.js");
 const positionedCard = normalizeHmiWidgetGeometry({
@@ -105,6 +106,26 @@ const resizedCard = applyHmiWidgetGridGesture({
 }, "resize", 2, 2);
 if (resizedCard.grid_w !== 6 || resizedCard.grid_h !== 5) {
   throw new Error("Dragging the HMI resize handle must change the numeric grid width and height.");
+}
+const oneColumnCards = arrangeHmiWidgetsSingleColumn([
+  { widget_id: "one", type: "value", grid_col: 4, grid_row: 1, grid_w: 4, grid_h: 4 },
+  { widget_id: "two", type: "chart", grid_col: 8, grid_row: 1, grid_w: 4, grid_h: 3 },
+  { widget_id: "three", type: "gauge", grid_col: 1, grid_row: 5, grid_w: 4, grid_h: 5 },
+]);
+if (oneColumnCards.some(card => card.grid_col !== 1 || card.grid_w !== 12)) {
+  throw new Error("Single-column HMI layout must make every card span all twelve columns.");
+}
+if (oneColumnCards.map(card => card.grid_row).join(",") !== "1,5,8") {
+  throw new Error("Single-column HMI layout must place cards in consecutive, non-overlapping rows.");
+}
+if (hmiWidgetGridStyle(oneColumnCards[0]) !== "grid-column:1 / span 12;grid-row:1 / span 4;") {
+  throw new Error("Single-column layout must render each card at full row width.");
+}
+const maxOneColumnCards = arrangeHmiWidgetsSingleColumn(
+  Array.from({ length: 50 }, (_, index) => ({ type: "value", grid_h: 12, widget_id: "max-" + index }))
+);
+if (maxOneColumnCards[maxOneColumnCards.length - 1].grid_row !== 589) {
+  throw new Error("Single-column layout must support all 50 cards without row-position collisions.");
 }
 const edgeResizedCard = applyHmiWidgetGridGesture({
   grid_col: 10, grid_row: 3, grid_w: 3, grid_h: 11,
@@ -166,4 +187,11 @@ const oneSecondEmptyChart = renderHmiWidget({
 if (!oneSecondEmptyChart.includes("فاصله ذخیره تاریخچه PLC/Edge را روی ۱ ثانیه تنظیم کن")) {
   throw new Error("A one-second empty trend must explain the required PLC/Edge history sampling interval.");
 }
-console.log("HMI floating layout, card geometry, one-second refresh and trend rendering checks passed.");
+const designerSource = await readFile("src/features/live/hmi-designer.js", "utf8");
+if (designerSource.includes('hmi-layout-preview-backdrop" data-action="hmi-close-layout-preview"')) {
+  throw new Error("Clicking or dragging on the HMI preview backdrop must not close the layout editor.");
+}
+if (!designerSource.includes('data-action="hmi-layout-single-column"')) {
+  throw new Error("The floating HMI preview must expose a one-card-per-row layout command.");
+}
+console.log("HMI floating layout, drag-safe preview, single-column arrangement, numeric card geometry and trend rendering checks passed.");
