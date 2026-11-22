@@ -166,11 +166,27 @@ try {
       savedPage?.layout?.find(item => item.type === "chart")?.theme !== "blue") {
     throw new Error("HMI page and widget themes were not included in the saved resource: " + JSON.stringify(savedPage));
   }
-  if (pageErrors.length) throw new Error("Browser console errors: " + pageErrors.join("\n"));
 
-  console.log("HMI Chromium E2E passed: toolbar/body drag, resize, trend-history SVG, page/widget theme cascade, JSON and saved theme fields.");
+  // The saved layout must use the same page and card themes in the actual runtime page.
+  const runtimeCanvas = page.locator(".hmi-runtime-grid[data-hmi-page-theme]");
+  await runtimeCanvas.waitFor({ state: "visible" });
+  const runtimeChart = runtimeCanvas.locator(".hmi-runtime-item").filter({ has: page.locator(".hmi-widget--chart") }).first();
+  const runtimePageTheme = await runtimeCanvas.getAttribute("data-hmi-page-theme");
+  const runtimeWidgetTheme = await runtimeChart.locator(".hmi-widget").getAttribute("data-hmi-theme");
+  const runtimeWidgetBackground = await runtimeChart.locator(".hmi-widget").evaluate(element => getComputedStyle(element).backgroundColor);
+  const runtimePageBackground = await runtimeCanvas.evaluate(element => getComputedStyle(element).backgroundColor);
+  if (runtimePageTheme !== "dark" || runtimeWidgetTheme !== "blue" ||
+      runtimeWidgetBackground !== "rgb(248, 251, 255)" || runtimePageBackground !== "rgb(24, 35, 46)") {
+    throw new Error("Saved HMI runtime page did not apply the page/widget themes: " + JSON.stringify({
+      runtimePageTheme, runtimeWidgetTheme, runtimeWidgetBackground, runtimePageBackground,
+    }));
+  }
+  if (pageErrors.length) throw new Error("Browser console errors: " + pageErrors.join("\\n"));
+
+  console.log("HMI Chromium E2E passed: toolbar/body drag, resize, trend-history SVG, page/widget theme cascade in preview and runtime, JSON and saved theme fields.");
   console.log(JSON.stringify({
     initial, moved, resized, pageTheme, widgetTheme, widgetBackground, pageBackground,
+    runtimePageTheme, runtimeWidgetTheme, runtimeWidgetBackground, runtimePageBackground,
     historyRequests, browserEvents: await page.evaluate(() => window.__hmiBrowserEvents.length),
   }));
 } catch (error) {
