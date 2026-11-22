@@ -9,7 +9,6 @@ let selectedWidgetId = null;
 let jsonError = "";
 let layoutPreviewOpen = false;
 let layoutGesture = null;
-let designerChartRefreshTimer = null;
 let designerChartRefreshInFlight = false;
 const chartHistory = new Map();
 const chartHistoryStatus = new Map();
@@ -409,6 +408,9 @@ export function handleHmiDesignerInput(event) {
         previewRoot.hidden = !layoutPreviewOpen;
         previewRoot.innerHTML = layoutPreviewOpen ? layoutPreviewMarkup() : "";
       }
+      if (store.isConnected() && draft.layout.some(item => item.type === "chart" && item.tag_id)) {
+        void loadHmiDesignerChartData();
+      }
     } catch (error) {
       jsonError = error.message || "JSON نامعتبر است.";
       setJsonStatus(jsonError, "error");
@@ -452,7 +454,7 @@ export function handleHmiDesignerInput(event) {
   const canvas = document.getElementById("hmi-designer-canvas");
   if (canvas) canvas.innerHTML = canvasMarkup();
   syncJsonEditor();
-  if (component.type === "chart" && layoutPreviewOpen && ["tag_id", "history_seconds", "history_hours"].includes(property)) {
+  if (component.type === "chart" && ["tag_id", "history_seconds", "history_hours"].includes(property)) {
     void loadHmiDesignerChartData();
   }
   return true;
@@ -481,10 +483,6 @@ export function handleHmiDesignerAction(action, element) {
       root.innerHTML = layoutPreviewMarkup();
     }
     void loadHmiDesignerChartData();
-    if (designerChartRefreshTimer) window.clearInterval(designerChartRefreshTimer);
-    designerChartRefreshTimer = window.setInterval(() => {
-      if (layoutPreviewOpen && store.isConnected()) void loadHmiDesignerChartData();
-    }, 5000);
     return true;
   }
   if (action === "hmi-close-layout-preview") {
@@ -592,7 +590,7 @@ export async function loadHmiPageChartData(pageId) {
 }
 
 export async function loadHmiDesignerChartData() {
-  if (!layoutPreviewOpen || !draft || designerChartRefreshInFlight) return [];
+  if (!draft || designerChartRefreshInFlight) return [];
   if (!store.isConnected()) {
     for (const component of draft.layout.filter(item => item.type === "chart" && item.tag_id)) {
       chartHistoryStatus.set(chartHistoryKey(component.tag_id, chartHistorySeconds(component)), {
@@ -614,8 +612,6 @@ export async function loadHmiDesignerChartData() {
 export function closeHmiDesignerPreview() {
   layoutPreviewOpen = false;
   layoutGesture = null;
-  if (designerChartRefreshTimer) window.clearInterval(designerChartRefreshTimer);
-  designerChartRefreshTimer = null;
 }
 function updateLayoutCardStyle(component) {
   const index = draft.layout.findIndex(item => item.widget_id === component.widget_id);
