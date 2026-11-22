@@ -12,6 +12,8 @@ import {
   handleHmiDesignerPointerMove,
   handleHmiDesignerPointerUp,
   closeHmiDesignerPreview,
+  getHmiDesignerChartRefreshIntervalMs,
+  getHmiPageChartRefreshIntervalMs,
 } from "../features/live/hmi-designer.js";
 
 const root = document.getElementById("app");
@@ -19,9 +21,11 @@ let renderQueued = false;
 let liveSocket = null;
 let loadedHmiChartPageId = null;
 let hmiChartRefreshTimer = null;
+let hmiChartRefreshTimerInterval = null;
 let hmiChartRefreshInFlight = false;
 let loadedHmiDesignerChartPath = null;
 let hmiDesignerChartRefreshTimer = null;
+let hmiDesignerChartRefreshTimerInterval = null;
 let hmiDesignerChartRefreshInFlight = false;
 
 function render() {
@@ -66,6 +70,8 @@ function scheduleRender() {
 window.addEventListener("hashchange", () => { render(); syncLiveConnection(); });
 window.addEventListener("scada:state-changed", scheduleRender);
 window.addEventListener("scada:hmi-chart-updated", scheduleRender);
+window.addEventListener("scada:hmi-chart-config-changed", syncLiveConnection);
+window.addEventListener("blur", () => handleHmiDesignerPointerUp({}));
 
 document.addEventListener("click", event => {
   const routeLink = event.target.closest("a[href^='#/']");
@@ -181,7 +187,9 @@ function syncLiveConnection() {
           .finally(() => { hmiDesignerChartRefreshInFlight = false; });
       });
     }
-    if (!hmiDesignerChartRefreshTimer) {
+    const designerRefreshInterval = getHmiDesignerChartRefreshIntervalMs();
+    if (!hmiDesignerChartRefreshTimer || hmiDesignerChartRefreshTimerInterval !== designerRefreshInterval) {
+      if (hmiDesignerChartRefreshTimer) window.clearInterval(hmiDesignerChartRefreshTimer);
       hmiDesignerChartRefreshTimer = window.setInterval(() => {
         if (!currentPath().startsWith("/live/hmi-designer/") ||
             !store.isConnected() || hmiDesignerChartRefreshInFlight) return;
@@ -189,12 +197,14 @@ function syncLiveConnection() {
         loadHmiDesignerChartData()
           .catch(error => console.error("HMI designer chart history refresh failed", error))
           .finally(() => { hmiDesignerChartRefreshInFlight = false; });
-      }, 5000);
+      }, designerRefreshInterval);
+      hmiDesignerChartRefreshTimerInterval = designerRefreshInterval;
     }
   } else {
     loadedHmiDesignerChartPath = null;
     if (hmiDesignerChartRefreshTimer) window.clearInterval(hmiDesignerChartRefreshTimer);
     hmiDesignerChartRefreshTimer = null;
+    hmiDesignerChartRefreshTimerInterval = null;
     hmiDesignerChartRefreshInFlight = false;
   }
   const hmiRuntimeMatch = path.match(/^\/live\/hmi\/([^/]+)$/);
@@ -203,7 +213,9 @@ function syncLiveConnection() {
       loadedHmiChartPageId = hmiRuntimeMatch[1];
       loadHmiPageChartData(loadedHmiChartPageId).catch(error => console.error("HMI chart history load failed", error));
     }
-    if (!hmiChartRefreshTimer) {
+    const runtimeRefreshInterval = getHmiPageChartRefreshIntervalMs(hmiRuntimeMatch[1]);
+    if (!hmiChartRefreshTimer || hmiChartRefreshTimerInterval !== runtimeRefreshInterval) {
+      if (hmiChartRefreshTimer) window.clearInterval(hmiChartRefreshTimer);
       hmiChartRefreshTimer = window.setInterval(() => {
         const currentMatch = currentPath().match(/^\/live\/hmi\/([^/]+)$/);
         if (!currentMatch || !store.isConnected() || hmiChartRefreshInFlight) return;
@@ -211,12 +223,14 @@ function syncLiveConnection() {
         loadHmiPageChartData(currentMatch[1])
           .catch(error => console.error("HMI chart history refresh failed", error))
           .finally(() => { hmiChartRefreshInFlight = false; });
-      }, 5000);
+      }, runtimeRefreshInterval);
+      hmiChartRefreshTimerInterval = runtimeRefreshInterval;
     }
   } else {
     loadedHmiChartPageId = null;
     if (hmiChartRefreshTimer) window.clearInterval(hmiChartRefreshTimer);
     hmiChartRefreshTimer = null;
+    hmiChartRefreshTimerInterval = null;
     hmiChartRefreshInFlight = false;
   }
   const needsLive = ["/live/data", "/live/trends", "/live/alarms", "/live/classic", "/batch/run", "/batch/compare"].includes(path)
@@ -292,6 +306,8 @@ async function initialize() {
   }
   syncLiveConnection();
   render();
+  // Rendering initializes the HMI draft; recompute the chart timer with its actual layout.
+  syncLiveConnection();
 }
 
 initialize();
