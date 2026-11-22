@@ -101,7 +101,10 @@ if (!themedWidget.includes('data-hmi-theme="blue"')) {
 }
 const orderedTrend = renderHmiWidget({
   type: "chart", tag_id: "test-trend", history_seconds: 60,
-}, [chartTag], {
+}, [{
+  id: "test-trend", name: "Test trend", value: 12.5,
+  type: "float32", unit: "bar", quality: "GOOD",
+}], {
   history: [
     { value: 15, sampled_at: "2026-11-22T08:00:30+00:00" },
     { value: null, sampled_at: "2026-11-22T08:00:20+00:00" },
