@@ -173,7 +173,7 @@ try {
   const configuredStrokeWidth = await chartCard.locator(".hmi-chart-svg .hmi-chart-line").getAttribute("stroke-width");
   const chartTypographyStyle = await chartCard.locator(".hmi-widget").getAttribute("style");
   if (configuredStrokeWidth !== "4" ||
-      !chartTypographyStyle?.includes('--hmi-font-family:"Verdana", Arial, sans-serif') ||
+      !chartTypographyStyle?.includes('--hmi-font-family:Verdana, sans-serif') ||
       !chartTypographyStyle.includes("--hmi-number-scale:1.333") ||
       !chartTypographyStyle.includes("--hmi-text-scale:1.167")) {
     throw new Error("HMI chart typography and line width were not applied live: " + JSON.stringify({ configuredStrokeWidth, chartTypographyStyle }));
@@ -306,7 +306,7 @@ try {
   const runtimeStrokeWidth = await runtimeChart.locator(".hmi-chart-svg .hmi-chart-line").getAttribute("stroke-width");
   const runtimeTypography = await runtimeChart.locator(".hmi-widget").getAttribute("style");
   if (runtimeStrokeWidth !== "4" ||
-      !runtimeTypography?.includes('--hmi-font-family:"Verdana", Arial, sans-serif') ||
+      !runtimeTypography?.includes('--hmi-font-family:Verdana, sans-serif') ||
       !runtimeTypography.includes("--hmi-number-scale:1.333")) {
     throw new Error("The saved chart line thickness was not applied in HMI runtime: " + runtimeStrokeWidth);
   }

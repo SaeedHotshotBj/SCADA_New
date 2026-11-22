@@ -94,7 +94,7 @@ if (HMI_FONT_OPTIONS.length !== 5 ||
     normalizedTypography.font_family !== "Verdana" || normalizedTypography.number_font_size !== 32 ||
     normalizedTypography.text_font_size !== 14 || unsafeTypography.font_family !== "Tahoma" ||
     unsafeTypography.number_font_size !== 48 || unsafeTypography.text_font_size !== 8 ||
-    !typographyWidget.includes("--hmi-font-family:&quot;Verdana&quot;, Arial, sans-serif") ||
+    !typographyWidget.includes("--hmi-font-family:Verdana, sans-serif") ||
     !typographyWidget.includes("--hmi-number-scale:1.333") ||
     !typographyWidget.includes("--hmi-text-scale:1.167")) {
   throw new Error("All HMI cards must support safe font families and bounded number/text sizes.");
