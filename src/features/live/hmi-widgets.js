@@ -47,6 +47,51 @@ export function normalizeHmiWidgetTheme(theme) {
   return HMI_COMPONENT_THEME_VALUES.has(theme) ? theme : "inherit";
 }
 
+export const HMI_FONT_OPTIONS = [
+  { value: "Tahoma", label: "Tahoma" },
+  { value: "Segoe UI", label: "Segoe UI" },
+  { value: "Arial", label: "Arial" },
+  { value: "Verdana", label: "Verdana" },
+  { value: "Courier New", label: "Courier New" },
+];
+export const HMI_TEXT_FONT_SIZE_MIN = 8;
+export const HMI_TEXT_FONT_SIZE_MAX = 24;
+export const HMI_NUMBER_FONT_SIZE_MIN = 10;
+export const HMI_NUMBER_FONT_SIZE_MAX = 48;
+export const HMI_NUMBER_FONT_SIZE_DEFAULT = 24;
+
+const HMI_FONT_FAMILY_CSS = {
+  "Tahoma": '"Tahoma", Arial, sans-serif',
+  "Segoe UI": '"Segoe UI", Arial, sans-serif',
+  "Arial": 'Arial, sans-serif',
+  "Verdana": 'Verdana, sans-serif',
+  "Courier New": '"Courier New", monospace',
+};
+
+function normalizeFontSize(value, fallback, minimum, maximum) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(minimum, Math.min(maximum, Math.round(number)));
+}
+
+export function normalizeHmiWidgetTypography(component = {}) {
+  const font_family = Object.prototype.hasOwnProperty.call(HMI_FONT_FAMILY_CSS, component.font_family)
+    ? component.font_family
+    : "Tahoma";
+  return {
+    font_family,
+    number_font_size: normalizeFontSize(component.number_font_size, HMI_NUMBER_FONT_SIZE_DEFAULT, HMI_NUMBER_FONT_SIZE_MIN, HMI_NUMBER_FONT_SIZE_MAX),
+    text_font_size: normalizeFontSize(component.text_font_size, 12, HMI_TEXT_FONT_SIZE_MIN, HMI_TEXT_FONT_SIZE_MAX),
+  };
+}
+
+function hmiWidgetTypographyStyle(component) {
+  const typography = normalizeHmiWidgetTypography(component);
+  return "--hmi-font-family:" + HMI_FONT_FAMILY_CSS[typography.font_family] +
+    ";--hmi-number-scale:" + (typography.number_font_size / HMI_NUMBER_FONT_SIZE_DEFAULT).toFixed(3) +
+    ";--hmi-text-scale:" + (typography.text_font_size / 12).toFixed(3) + ";";
+}
+
 export const HMI_CHART_LINE_WIDTH_MIN = 0.5;
 export const HMI_CHART_LINE_WIDTH_MAX = 10;
 export const HMI_CHART_LINE_WIDTH_DEFAULT = 2.5;
@@ -404,7 +449,7 @@ function componentFrame(component, body, quality, preview, extraClass = "") {
   const tone = qualityTone(quality);
   const selectedClass = extraClass ? " " + extraClass : "";
   const theme = normalizeHmiWidgetTheme(component.theme);
-  return '<article class="hmi-widget hmi-widget--' + escapeHtml(component.type) + (preview ? " is-preview" : "") + selectedClass + '" data-hmi-theme="' + theme + '">' +
+  return '<article class="hmi-widget hmi-widget--' + escapeHtml(component.type) + (preview ? " is-preview" : "") + selectedClass + '" data-hmi-theme="' + theme + '" style="' + escapeHtml(hmiWidgetTypographyStyle(component)) + '">' +
     '<header class="hmi-widget-header"><b>' + label + '</b><span class="hmi-quality hmi-quality--' + tone + '">' + escapeHtml(quality) + '</span></header>' +
     '<div class="hmi-widget-body">' + body + '</div></article>';
 }
@@ -542,10 +587,10 @@ function renderChart(component, tag, preview, history, historyState) {
       yTicks.push(Number(value.toPrecision(12)));
     }
 
-    const left = 54;
+    const left = 48;
     const right = 350;
-    const top = 14;
-    const bottom = 152;
+    const top = 12;
+    const bottom = 132;
     const plotWidth = right - left;
     const plotHeight = bottom - top;
     let timeStart = hasTimeAxis ? sampleItems[0].time : NaN;
@@ -565,7 +610,7 @@ function renderChart(component, tag, preview, history, historyState) {
     };
     const yFor = value => bottom - ((value - axisMin) / (axisMax - axisMin)) * plotHeight;
     const formatAxisValue = value => Number(value.toFixed(6)).toLocaleString("fa-IR", {
-      maximumFractionDigits: 4,
+      maximumFractionDigits: 2,
     });
     const formatAxisTime = time => {
       if (!Number.isFinite(time)) return "—";
@@ -597,7 +642,7 @@ function renderChart(component, tag, preview, history, historyState) {
       const label = formatAxisTime(hasTimeAxis ? time : fallbackTime);
       const anchor = index === 0 ? "start" : index === 2 ? "end" : "middle";
       return '<path d="M' + x.toFixed(2) + ' ' + bottom + ' v4" class="hmi-chart-axis-tick"/>' +
-        '<text class="hmi-chart-x-tick" x="' + x.toFixed(2) + '" y="170" text-anchor="' + anchor +
+        '<text class="hmi-chart-x-tick" x="' + x.toFixed(2) + '" y="149" text-anchor="' + anchor +
         '">' + escapeHtml(label) + '</text>';
     }).join("");
 
@@ -624,13 +669,13 @@ function renderChart(component, tag, preview, history, historyState) {
         '" stroke-linecap="round" stroke-linejoin="round"/>';
     }
 
-    visual = '<svg class="hmi-chart-svg" viewBox="0 0 360 212" preserveAspectRatio="none" role="img" aria-label="نمودار مقدار برحسب زمان">' +
+    visual = '<svg class="hmi-chart-svg" viewBox="0 0 360 190" preserveAspectRatio="xMidYMid meet" role="img" aria-label="نمودار مقدار برحسب زمان">' +
       '<g class="hmi-chart-grid">' + yAxisMarkup + '</g>' +
       '<path d="M' + left + ' ' + top + ' V' + bottom + ' H' + right +
       '" class="hmi-chart-axis-line"/>' + xAxisMarkup + dataMarkup +
-      '<text class="hmi-chart-axis-title hmi-chart-axis-title--y" x="12" y="83" text-anchor="middle" transform="rotate(-90 12 83)">مقدار</text>' +
+      '<text class="hmi-chart-axis-title hmi-chart-axis-title--y" x="10" y="72" text-anchor="middle" transform="rotate(-90 10 72)">مقدار</text>' +
       '<text class="hmi-chart-axis-title hmi-chart-axis-title--x" x="' + ((left + right) / 2) +
-      '" y="205" text-anchor="middle">زمان</text></svg>';
+      '" y="184" text-anchor="middle">زمان</text></svg>';
   } else {
     let message = "برای دریافت تاریخچه، پیش‌نمایش شناور را باز کن.";
     if (historyState?.status === "loading") message = "در حال دریافت تاریخچه از Backend…";

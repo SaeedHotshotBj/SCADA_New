@@ -1093,15 +1093,19 @@ def test_hmi_page_and_widget_theme_presets_are_validated_and_persisted():
             "description": "Page and widget theme persistence",
             "theme": "dark",
             "layout": [
-                {"type": "value", "tag_id": "t3", "theme": "blue"},
-                {"type": "chart", "tag_id": "t6", "theme": "inherit", "history_seconds": 3600},
+                {"type": "value", "tag_id": "t3", "theme": "blue", "font_family": "Verdana", "number_font_size": 32, "text_font_size": 14},
+                {"type": "chart", "tag_id": "t6", "theme": "inherit", "history_seconds": 3600, "font_family": "Tahoma", "number_font_size": 21, "text_font_size": 11},
             ],
             "status": "فعال",
         })
         assert created.status_code == 201, created.text
         assert created.json()["theme"] == "dark"
         assert created.json()["layout"][0]["theme"] == "blue"
+        assert created.json()["layout"][0]["font_family"] == "Verdana"
+        assert created.json()["layout"][0]["number_font_size"] == 32
+        assert created.json()["layout"][0]["text_font_size"] == 14
         assert created.json()["layout"][1]["theme"] == "inherit"
+        assert created.json()["layout"][1]["font_family"] == "Tahoma"
 
         invalid_page_theme = client.post("/api/resources/hmiPages", json={
             "name": "Invalid page theme",
@@ -1122,6 +1126,26 @@ def test_hmi_page_and_widget_theme_presets_are_validated_and_persisted():
             "status": "فعال",
         })
         assert invalid_widget_theme.status_code == 422
+
+        invalid_widget_font = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid widget font",
+            "machine": "بانچر",
+            "description": "Reject untrusted per-card font families",
+            "theme": "light",
+            "layout": [{"type": "value", "tag_id": "t3", "font_family": "expression(alert(1))"}],
+            "status": "فعال",
+        })
+        assert invalid_widget_font.status_code == 422
+
+        invalid_widget_size = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid widget size",
+            "machine": "بانچر",
+            "description": "Reject out-of-range font sizes",
+            "theme": "light",
+            "layout": [{"type": "value", "tag_id": "t3", "number_font_size": 999}],
+            "status": "فعال",
+        })
+        assert invalid_widget_size.status_code == 422
 
 def test_hmi_media_upload_and_secure_retrieval():
     from app.database import connect

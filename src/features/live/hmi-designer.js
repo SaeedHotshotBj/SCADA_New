@@ -1,7 +1,7 @@
 import { api } from "../../services/api-client.js";
 import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
-import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_CHART_LINE_WIDTH_MIN, HMI_CHART_LINE_WIDTH_MAX, HMI_CHART_LINE_WIDTH_DEFAULT, normalizeHmiChartLineWidth, HMI_WIDGET_LIBRARY, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_LAYOUT_CANVAS_WIDTH, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetFreeformFromPointer, hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, normalizeHmiWidgetFreeformGeometry, normalizeHmiPageTheme, normalizeHmiWidgetTheme, hmiChartLiveIntervalMs, appendHmiLiveChartSamples, getHmiLiveChartSamples, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
+import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_CHART_LINE_WIDTH_MIN, HMI_CHART_LINE_WIDTH_MAX, HMI_CHART_LINE_WIDTH_DEFAULT, normalizeHmiChartLineWidth, HMI_FONT_OPTIONS, HMI_TEXT_FONT_SIZE_MIN, HMI_TEXT_FONT_SIZE_MAX, HMI_NUMBER_FONT_SIZE_MIN, HMI_NUMBER_FONT_SIZE_MAX, normalizeHmiWidgetTypography, HMI_WIDGET_LIBRARY, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_LAYOUT_CANVAS_WIDTH, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetFreeformFromPointer, hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, normalizeHmiWidgetFreeformGeometry, normalizeHmiPageTheme, normalizeHmiWidgetTheme, hmiChartLiveIntervalMs, appendHmiLiveChartSamples, getHmiLiveChartSamples, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
 
 let activePageKey = null;
 let draft = null;
@@ -106,8 +106,9 @@ function mediaPropertiesMarkup(component) {
     (component[key] === undefined ? (fallback ? "checked" : "") : (component[key] ? "checked" : "")) +
     '><span>' + label + '</span></label>';
   return '<div class="hmi-media-properties">' +
-    '<input type="file" data-hmi-media-input data-widget-id="' + widgetId + '" accept="' + accept + '" hidden>' +
-    '<button type="button" class="btn btn-light btn-sm" data-action="hmi-media-choose" data-widget-id="' + widgetId + '">انتخاب / جایگزینی فایل رسانه</button>' +
+    '<label class="hmi-media-upload-field"><span>فایل تصویر یا ویدئو از دستگاه</span>' +
+    '<input type="file" class="hmi-media-file-input" data-hmi-media-input data-widget-id="' + widgetId + '" accept="' + accept + '">' +
+    '</label><button type="button" class="btn btn-light btn-sm" data-action="hmi-media-choose" data-widget-id="' + widgetId + '">باز کردن انتخاب‌گر فایل</button>' +
     fileName +
     selectMarkup("نحوه قرارگیری فایل", "media_fit", [
       { value: "contain", label: "نمایش کامل (بدون برش)" },
@@ -122,6 +123,19 @@ function mediaPropertiesMarkup(component) {
     '</div>';
 }
 
+function typographyPropertiesMarkup(component) {
+  const typography = normalizeHmiWidgetTypography(component);
+  return '<div class="hmi-typography-properties"><div class="hmi-layout-properties-group-title">فونت و اندازه نوشته‌های کارت</div>' +
+    selectMarkup("فونت", "font_family", HMI_FONT_OPTIONS, typography.font_family) +
+    fieldMarkup("اندازه عددها (پیکسل)", "number_font_size", typography.number_font_size, "number", {
+      min: HMI_NUMBER_FONT_SIZE_MIN, max: HMI_NUMBER_FONT_SIZE_MAX, step: 1,
+    }) +
+    fieldMarkup("اندازه نوشته‌ها (پیکسل)", "text_font_size", typography.text_font_size, "number", {
+      min: HMI_TEXT_FONT_SIZE_MIN, max: HMI_TEXT_FONT_SIZE_MAX, step: 1,
+    }) +
+    '<small class="hmi-field-help">تنظیمات فونت و اندازه برای همین کارت ذخیره می‌شوند.</small></div>';
+}
+
 function propertiesMarkup() {
   const component = selectedWidget();
   if (!component) {
@@ -131,6 +145,7 @@ function propertiesMarkup() {
   const bindings = HMI_BINDINGS[component.type] || [];
   let fields = fieldMarkup("عنوان نمایشی", "label", component.label || "");
   fields += selectMarkup("پوسته این باکس", "theme", HMI_COMPONENT_THEME_OPTIONS, normalizeHmiWidgetTheme(component.theme));
+  fields += typographyPropertiesMarkup(component);
   fields += bindings.map(binding => bindingMarkup(binding, component)).join("");
   if (["gauge", "needle", "thermometer", "tank"].includes(component.type)) {
     fields += fieldMarkup("حداقل مقیاس", "min", component.min ?? 0, "number");
@@ -161,21 +176,30 @@ function propertiesMarkup() {
 
 function canvasMarkup() {
   const tags = store.list("tags");
-  if (!draft.layout.length) {
-    return '<div class="hmi-designer-empty"><span>＋</span><b>صفحه هنوز خالی است</b><small>از کتابخانه یک جزء صنعتی انتخاب کن تا به صفحه اضافه شود.</small></div>';
-  }
-  return draft.layout.map((component, index) => {
+  const cards = draft.layout.map((component, index) => {
     const selected = component.widget_id === selectedWidgetId;
     const seconds = chartHistorySeconds(component);
     const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, seconds) : [];
     const historyState = component.type === "chart" ? chartHistoryState(component.tag_id, seconds) : null;
     const widget = renderHmiWidget(component, tags, { preview: true, history, historyState, mediaBase: api.base });
-    return '<div class="hmi-designer-item ' + (selected ? "is-selected" : "") + '" data-action="hmi-select-widget" data-widget-id="' + escapeHtml(component.widget_id) + '">' +
-      '<div class="hmi-designer-item-toolbar"><small>' + String(index + 1).toLocaleString("fa-IR") + ' · ' + escapeHtml(component.type) + '</small>' +
-      '<span><button type="button" title="انتقال به بالا" data-action="hmi-move-widget" data-widget-id="' + escapeHtml(component.widget_id) + '" data-direction="-1" ' + (index === 0 ? "disabled" : "") + '>↑</button>' +
-      '<button type="button" title="انتقال به پایین" data-action="hmi-move-widget" data-widget-id="' + escapeHtml(component.widget_id) + '" data-direction="1" ' + (index === draft.layout.length - 1 ? "disabled" : "") + '>↓</button></span></div>' +
-      widget + '</div>';
+    return '<article class="hmi-designer-item ' + (selected ? "is-selected" : "") +
+      '" data-action="hmi-select-widget" data-widget-id="' + escapeHtml(component.widget_id) +
+      '" style="' + hmiWidgetFreeformStyle(component, index) + '">' +
+      '<div class="hmi-designer-item-toolbar"><small>' + String(index + 1).toLocaleString("fa-IR") +
+      ' · ' + escapeHtml(component.type) + '</small><span>' +
+      '<button type="button" title="انتقال به بالا" data-action="hmi-move-widget" data-widget-id="' +
+      escapeHtml(component.widget_id) + '" data-direction="-1" ' + (index === 0 ? "disabled" : "") + '>↑</button>' +
+      '<button type="button" title="انتقال به پایین" data-action="hmi-move-widget" data-widget-id="' +
+      escapeHtml(component.widget_id) + '" data-direction="1" ' +
+      (index === draft.layout.length - 1 ? "disabled" : "") + '>↓</button></span></div>' +
+      '<div class="hmi-designer-item-content">' + widget + '</div></article>';
   }).join("");
+  return '<div class="hmi-designer-canvas hmi-designer-canvas-stage" data-hmi-page-theme="' +
+    normalizeHmiPageTheme(draft.theme) + '" style="width:' + HMI_LAYOUT_CANVAS_WIDTH +
+    'px;height:' + hmiWidgetCanvasHeight(draft.layout) + 'px">' +
+    (cards || '<div class="hmi-designer-empty hmi-designer-canvas-empty"><span>＋</span><b>صفحه هنوز خالی است</b>' +
+      '<small>از کتابخانه یک جزء صنعتی انتخاب کن تا به صفحه اضافه شود.</small></div>') +
+    '</div>';
 }
 
 function setJsonStatus(message, tone = "success") {
@@ -252,6 +276,7 @@ function layoutPropertiesMarkup() {
   return '<section class="hmi-layout-properties"><div class="hmi-layout-properties-title"><b>چیدمان آزاد کارت</b><small>' +
     escapeHtml(component.label || component.type) + '</small></div>' +
     selectMarkup("پوسته این باکس", "theme", HMI_COMPONENT_THEME_OPTIONS, normalizeHmiWidgetTheme(component.theme)) +
+    typographyPropertiesMarkup(component) +
     (component.type === "chart"
       ? fieldMarkup("ضخامت خط نمودار", "line_width", normalizeHmiChartLineWidth(component.line_width), "number", {
           min: HMI_CHART_LINE_WIDTH_MIN, max: HMI_CHART_LINE_WIDTH_MAX, step: 0.5,
@@ -332,7 +357,7 @@ export function renderHmiDesigner(pageId = null) {
     '<div class="hmi-designer-workspace">' + libraryMarkup() +
     '<section class="hmi-designer-side-panel hmi-canvas-panel"><div class="hmi-designer-side-heading"><b>محیط طراحی</b><small>' +
     draft.layout.length.toLocaleString("fa-IR") + ' جزء · پیش‌نمایش بدون ارسال فرمان</small></div>' +
-    '<div id="hmi-designer-canvas" class="hmi-designer-canvas" data-hmi-page-theme="' + normalizeHmiPageTheme(draft.theme) + '">' + canvasMarkup() + '</div></section>' +
+    '<div id="hmi-designer-canvas" class="hmi-designer-canvas-scroll">' + canvasMarkup() + '</div></section>' +
     '<div id="hmi-designer-properties">' + propertiesMarkup() + '</div>' +
     '</div>' +
     '<div id="hmi-layout-preview-root" hidden></div>' +
@@ -383,6 +408,7 @@ function validateDraftLayout() {
       }
     }
     Object.assign(component, normalizeHmiWidgetFreeformGeometry(component, index));
+    Object.assign(component, normalizeHmiWidgetTypography(component));
     if (component.type === "chart") {
       if (!HMI_CHART_RANGES.some(range => range.value === chartHistorySeconds(component))) {
         throw new Error("بازه زمانی انتخاب‌شده برای نمودار معتبر نیست.");
@@ -516,7 +542,7 @@ export function handleHmiDesignerInput(event) {
   if (!property) return true;
   const component = selectedWidget();
   if (!component) return true;
-  const numeric = target.type === "number" || ["min", "max", "history_seconds", "line_width"].includes(property);
+  const numeric = target.type === "number" || ["min", "max", "history_seconds", "line_width", "number_font_size", "text_font_size"].includes(property);
   component[property] = target.type === "checkbox"
     ? target.checked
     : numeric ? (target.value === "" ? "" : Number(target.value)) : target.value;
@@ -546,7 +572,15 @@ export function handleHmiDesignerAction(action, element) {
     if (!component || component.type !== "media") return true;
     selectedWidgetId = component.widget_id;
     const panel = element.closest(".hmi-designer-properties, .hmi-layout-properties");
-    panel?.querySelector("[data-hmi-media-input]")?.click();
+    const fileInput = panel?.querySelector("[data-hmi-media-input]");
+    if (fileInput) {
+      try {
+        if (typeof fileInput.showPicker === "function") fileInput.showPicker();
+        else fileInput.click();
+      } catch {
+        fileInput.click();
+      }
+    }
     return true;
   }
   if (action === "hmi-select-widget") {

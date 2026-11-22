@@ -27,6 +27,11 @@ TAG_TYPES = {"bool", "int16", "uint16", "int32", "uint32", "float32", "string"}
 HMI_CHART_RANGE_SECONDS = {1, 5, 10, 30, 60, 300, 600, 900, 1800, 3600, 21600, 43200, 86400}
 HMI_PAGE_THEMES = {"light", "dark", "blue", "industrial"}
 HMI_WIDGET_THEMES = HMI_PAGE_THEMES | {"inherit"}
+HMI_WIDGET_FONT_FAMILIES = {"Tahoma", "Segoe UI", "Arial", "Verdana", "Courier New"}
+HMI_WIDGET_FONT_SIZES = {
+    "number_font_size": (10, 48),
+    "text_font_size": (8, 24),
+}
 ENUMS = {
     "plcs.protocol": {"modbus-tcp", "modbus-rtu", "s7", "simulator"},
     "tags.type": TAG_TYPES,
@@ -332,6 +337,17 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                 component_theme = component.get("theme", "inherit")
                 if component_theme not in HMI_WIDGET_THEMES:
                     raise HTTPException(status_code=422, detail=f"پوسته جزء شماره {number_in_layout} معتبر نیست.")
+                font_family = component.get("font_family", "Tahoma")
+                if font_family not in HMI_WIDGET_FONT_FAMILIES:
+                    raise HTTPException(status_code=422, detail=f"فونت جزء شماره {number_in_layout} مجاز نیست.")
+                for font_field, (minimum, maximum) in HMI_WIDGET_FONT_SIZES.items():
+                    if font_field in component:
+                        font_size = _finite_number(component.get(font_field))
+                        if font_size is None or not float(font_size).is_integer() or not minimum <= font_size <= maximum:
+                            raise HTTPException(
+                                status_code=422,
+                                detail=f"اندازه {font_field} در جزء شماره {number_in_layout} باید عدد صحیح بین {minimum} و {maximum} باشد.",
+                            )
                 fields = set(required_bindings[component_type])
                 if component_type in {"motor", "pump", "fan", "conveyor", "valve"}:
                     fields.update({"fault_tag_id"})
