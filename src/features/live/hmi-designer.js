@@ -539,29 +539,82 @@ export function handleHmiDesignerAction(action, element) {
 }
 
 export function getHmiChartHistory(tagId, seconds = 3600) {
-  return chartHistory.get(String(tagId) + ":" + String(seconds)) || [];
+  return chartHistory.get(chartHistoryKey(tagId, seconds)) || [];
+}
+
+export function getHmiChartHistoryState(tagId, seconds = 3600) {
+  return chartHistoryState(tagId, seconds);
+}
+
+async function loadChartDataForComponents(components) {
+  const chartComponents = (Array.isArray(components) ? components : [])
+    .filter(item => item?.type === "chart" && item.tag_id);
+  const keys = [...new Map(chartComponents.map(item => {
+    const seconds = chartHistorySeconds(item);
+    return [chartHistoryKey(item.tag_id, seconds), { tagId: item.tag_id, seconds }];
+  })).values()];
+  if (!keys.length) return [];
+  for (const item of keys) {
+    chartHistoryStatus.set(chartHistoryKey(item.tagId, item.seconds), { status: "loading", message: "" });
+  }
+  window.dispatchEvent(new CustomEvent("scada:hmi-chart-updated"));
+  const results = await Promise.all(keys.map(async item => {
+    const key = chartHistoryKey(item.tagId, item.seconds);
+    try {
+      const response = await api.telemetryHistorySeconds(item.tagId, item.seconds);
+      const items = Array.isArray(response.items) ? response.items : [];
+      chartHistory.set(key, items);
+      chartHistoryStatus.set(key, {
+        status: items.length ? "ready" : "empty",
+        message: "",
+        sampleCount: items.length,
+        fetchedAt: new Date().toISOString(),
+      });
+      return { key, items, error: null };
+    } catch (error) {
+      chartHistory.set(key, []);
+      chartHistoryStatus.set(key, {
+        status: "error",
+        message: error?.message || "خطا در دریافت تاریخچه",
+        sampleCount: 0,
+        fetchedAt: new Date().toISOString(),
+      });
+      return { key, items: [], error: error?.message || "خطا در دریافت تاریخچه" };
+    }
+  }));
+  window.dispatchEvent(new CustomEvent("scada:hmi-chart-updated"));
+  return results;
 }
 
 export async function loadHmiPageChartData(pageId) {
   const page = store.list("hmiPages").find(item => item.id === pageId);
   if (!page) return [];
-  const chartComponents = (Array.isArray(page.layout) ? page.layout : []).filter(item => item.type === "chart" && item.tag_id);
-  const keys = [...new Map(chartComponents.map(item => {
-    const seconds = chartHistorySeconds(item);
-    return [
-      String(item.tag_id) + ":" + String(seconds),
-      { tagId: item.tag_id, seconds },
-    ];
-  })).values()];
-  const results = await Promise.all(keys.map(async item => {
-    try {
-      const response = await api.telemetryHistorySeconds(item.tagId, item.seconds);
-      return [String(item.tagId) + ":" + String(item.seconds), response.items || []];
-    } catch {
-      return [String(item.tagId) + ":" + String(item.seconds), []];
+  return loadChartDataForComponents(page.layout);
+}
+
+export async function loadHmiDesignerChartData() {
+  if (!layoutPreviewOpen || !draft || designerChartRefreshInFlight) return [];
+  if (!store.isConnected()) {
+    for (const component of draft.layout.filter(item => item.type === "chart" && item.tag_id)) {
+      chartHistoryStatus.set(chartHistoryKey(component.tag_id, chartHistorySeconds(component)), {
+        status: "error",
+        message: "اتصال به Backend برقرار نیست.",
+      });
     }
-  }));
-  for (const [key, items] of results) chartHistory.set(key, items);
-  window.dispatchEvent(new CustomEvent("scada:hmi-chart-updated"));
-  return results;
+    window.dispatchEvent(new CustomEvent("scada:hmi-chart-updated"));
+    return [];
+  }
+  designerChartRefreshInFlight = true;
+  try {
+    return await loadChartDataForComponents(draft.layout);
+  } finally {
+    designerChartRefreshInFlight = false;
+  }
+}
+
+export function closeHmiDesignerPreview() {
+  layoutPreviewOpen = false;
+  layoutGesture = null;
+  if (designerChartRefreshTimer) window.clearInterval(designerChartRefreshTimer);
+  designerChartRefreshTimer = null;
 }
