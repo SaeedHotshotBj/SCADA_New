@@ -581,34 +581,52 @@ async function loadChartDataForComponents(components) {
     return [chartHistoryKey(item.tag_id, seconds), { tagId: item.tag_id, seconds }];
   })).values()];
   if (!keys.length) return [];
-  for (const item of keys) {
-    chartHistoryStatus.set(chartHistoryKey(item.tagId, item.seconds), { status: "loading", message: "" });
-  }
-  window.dispatchEvent(new CustomEvent("scada:hmi-chart-updated"));
-  const results = await Promise.all(keys.map(async item => {
+
+  const jobs = keys.map(item => {
     const key = chartHistoryKey(item.tagId, item.seconds);
-    try {
-      const response = await api.telemetryHistorySeconds(item.tagId, item.seconds);
-      const items = Array.isArray(response.items) ? response.items : [];
-      chartHistory.set(key, items);
-      chartHistoryStatus.set(key, {
-        status: items.length ? "ready" : "empty",
-        message: "",
-        sampleCount: items.length,
-        fetchedAt: new Date().toISOString(),
+    const pending = chartHistoryRequests.get(key);
+    if (pending) return pending;
+
+    chartHistoryStatus.set(key, { status: "loading", message: "" });
+    const request = api.telemetryHistorySeconds(item.tagId, item.seconds)
+      .then(response => {
+        const sourceItems = Array.isArray(response?.items) ? response.items : [];
+        const items = sourceItems
+          .filter(sample => sample?.value !== null && sample?.value !== undefined && sample?.value !== "" &&
+            Number.isFinite(Number(sample.value)))
+          .map(sample => ({ ...sample, value: Number(sample.value) }));
+        if (items.every(sample => sample.sampled_at && Number.isFinite(Date.parse(sample.sampled_at)))) {
+          items.sort((a, b) => Date.parse(a.sampled_at) - Date.parse(b.sampled_at));
+        }
+        chartHistory.set(key, items);
+        chartHistoryStatus.set(key, {
+          status: items.length ? "ready" : "empty",
+          message: "",
+          sampleCount: items.length,
+          fetchedAt: new Date().toISOString(),
+        });
+        return { key, items, error: null };
+      })
+      .catch(error => {
+        const message = error?.message || "خطا در دریافت تاریخچه";
+        chartHistory.set(key, []);
+        chartHistoryStatus.set(key, {
+          status: "error",
+          message,
+          sampleCount: 0,
+          fetchedAt: new Date().toISOString(),
+        });
+        return { key, items: [], error: message };
       });
-      return { key, items, error: null };
-    } catch (error) {
-      chartHistory.set(key, []);
-      chartHistoryStatus.set(key, {
-        status: "error",
-        message: error?.message || "خطا در دریافت تاریخچه",
-        sampleCount: 0,
-        fetchedAt: new Date().toISOString(),
-      });
-      return { key, items: [], error: error?.message || "خطا در دریافت تاریخچه" };
-    }
-  }));
+    chartHistoryRequests.set(key, request);
+    void request.finally(() => {
+      if (chartHistoryRequests.get(key) === request) chartHistoryRequests.delete(key);
+    });
+    return request;
+  });
+
+  window.dispatchEvent(new CustomEvent("scada:hmi-chart-updated"));
+  const results = await Promise.all(jobs);
   window.dispatchEvent(new CustomEvent("scada:hmi-chart-updated"));
   return results;
 }
@@ -620,7 +638,7 @@ export async function loadHmiPageChartData(pageId) {
 }
 
 export async function loadHmiDesignerChartData() {
-  if (!draft || designerChartRefreshInFlight) return [];
+  if (!draft) return [];
   if (!store.isConnected()) {
     for (const component of draft.layout.filter(item => item.type === "chart" && item.tag_id)) {
       chartHistoryStatus.set(chartHistoryKey(component.tag_id, chartHistorySeconds(component)), {
@@ -631,12 +649,9 @@ export async function loadHmiDesignerChartData() {
     window.dispatchEvent(new CustomEvent("scada:hmi-chart-updated"));
     return [];
   }
-  designerChartRefreshInFlight = true;
-  try {
-    return await loadChartDataForComponents(draft.layout);
-  } finally {
-    designerChartRefreshInFlight = false;
-  }
+  // Per tag/range requests are deduplicated by loadChartDataForComponents.
+  // This lets a newly selected chart tag load even when another chart is refreshing.
+  return loadChartDataForComponents(draft.layout);
 }
 
 export function closeHmiDesignerPreview() {
