@@ -203,14 +203,29 @@ const mainSource = await readFile("src/app/main.js", "utf8");
 if (!mainSource.includes('document.addEventListener("pointerdown"') ||
     !mainSource.includes('document.addEventListener("pointermove"') ||
     !mainSource.includes('document.addEventListener("pointerup"') ||
-    !mainSource.includes('document.addEventListener("pointercancel"')) {
-  throw new Error("HMI gestures must use captured document-level pointer down, move, up and cancel events.");
+    !mainSource.includes('document.addEventListener("pointercancel"') ||
+    !mainSource.includes('document.addEventListener("mousedown"') ||
+    !mainSource.includes('document.addEventListener("mousemove"') ||
+    !mainSource.includes('document.addEventListener("mouseup"')) {
+  throw new Error("HMI gestures must support captured pointer events and the desktop mouse fallback.");
+}
+if (!designerSource.includes("export function handleHmiDesignerMouseDown") ||
+    !designerSource.includes("export function handleHmiDesignerMouseMove") ||
+    !designerSource.includes("export function handleHmiDesignerMouseUp")) {
+  throw new Error("HMI layout gestures must expose mouse down, move and up handlers.");
 }
 if (!designerSource.includes('data-hmi-layout-card data-hmi-layout-gesture="move"') ||
+    !designerSource.includes('data-hmi-layout-gesture="move" title="برای جابه‌جایی، هر قسمت کارت را بکش"') ||
     !designerSource.includes('class="hmi-layout-resize" data-hmi-layout-gesture="resize"') ||
     designerSource.includes('draggable="true"') ||
     !designerSource.includes('handle.setPointerCapture?.(event.pointerId)')) {
-  throw new Error("The full HMI card must be movable, the corner must be resizable, and native drag must be disabled.");
+  throw new Error("The full HMI card and toolbar must be movable, the corner resizable and native drag disabled.");
+}
+const cssSource = await readFile("styles/app.css", "utf8");
+if (!cssSource.includes(".hmi-layout-card {") ||
+    !cssSource.includes("pointer-events: auto !important;") ||
+    !cssSource.includes(".hmi-layout-card .hmi-layout-resize")) {
+  throw new Error("HMI card surfaces and resize grips must remain explicit pointer hit targets.");
 }
 if (!mainSource.includes('document.addEventListener("dragstart"') ||
     !mainSource.includes('event.preventDefault()')) {
