@@ -231,11 +231,11 @@ function layoutPreviewCardMarkup(component, index) {
   return '<article class="hmi-layout-card ' + (component.widget_id === selectedWidgetId ? "is-selected" : "") +
     '" data-hmi-layout-card data-action="hmi-select-layout-widget" data-widget-id="' + escapeHtml(component.widget_id) + '" style="' +
     hmiWidgetGridStyle(component, index) + '">' +
-    '<header class="hmi-layout-card-toolbar" draggable="true" data-hmi-layout-gesture="move" data-widget-id="' + escapeHtml(component.widget_id) +
+    '<header class="hmi-layout-card-toolbar" data-hmi-layout-gesture="move" data-widget-id="' + escapeHtml(component.widget_id) +
     '" title="برای جابه‌جایی، هر نقطه از نوار بالایی کارت را بکش"><span class="hmi-layout-move">↕ جابه‌جایی</span><span>' +
     escapeHtml(component.label || component.type) + '</span></header>' +
     '<div class="hmi-layout-card-content">' + widget + '</div>' +
-    '<button type="button" draggable="true" class="hmi-layout-resize" data-hmi-layout-gesture="resize" data-widget-id="' +
+    '<button type="button" class="hmi-layout-resize" data-hmi-layout-gesture="resize" data-widget-id="' +
     escapeHtml(component.widget_id) + '" title="برای تغییر اندازه بکش" aria-label="تغییر اندازه کارت">◢</button></article>';
 }
 
@@ -714,31 +714,19 @@ function finishHmiLayoutGesture() {
   return true;
 }
 
-export function handleHmiDesignerDragStart(event) {
+export function handleHmiDesignerMouseDown(event) {
+  if (event?.button !== 0) return false;
   const handle = event.target?.closest?.("[data-hmi-layout-gesture]");
   if (!handle || !beginHmiLayoutGesture(handle, event)) return false;
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", handle.dataset.widgetId || "hmi-card");
-    try { event.dataTransfer.setDragImage(handle, 18, 14); } catch { /* Native default drag image is sufficient. */ }
-  }
+  event.preventDefault?.();
   return true;
 }
 
-export function handleHmiDesignerDragOver(event) {
+export function handleHmiDesignerMouseMove(event) {
   if (!layoutGesture) return false;
-  event.preventDefault();
-  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
   return updateHmiLayoutGesture(event);
 }
 
-export function handleHmiDesignerDrop(event) {
-  if (!layoutGesture) return false;
-  event.preventDefault();
-  updateHmiLayoutGesture(event);
-  return finishHmiLayoutGesture();
-}
-
-export function handleHmiDesignerDragEnd() {
+export function handleHmiDesignerMouseUp() {
   return finishHmiLayoutGesture();
 }
