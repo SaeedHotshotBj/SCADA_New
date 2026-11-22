@@ -61,7 +61,7 @@ const chart = createHmiWidget("chart");
 if (chart.history_seconds !== 3600) {
   throw new Error("New HMI trend charts must default to a one-hour range in seconds.");
 }
-const requiredRanges = [5, 10, 30, 60, 300, 600, 900, 1800, 3600, 21600, 43200, 86400];
+const requiredRanges = [1, 5, 10, 30, 60, 300, 600, 900, 1800, 3600, 21600, 43200, 86400];
 for (const seconds of requiredRanges) {
   if (!HMI_CHART_RANGES.some(range => range.value === seconds)) {
     throw new Error(`HMI trend chart is missing the ${seconds}-second range.`);
