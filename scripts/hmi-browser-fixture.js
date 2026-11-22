@@ -10,6 +10,7 @@ import {
 } from "../src/features/live/hmi-designer.js";
 import { bindHmiDesignerGestureEvents } from "../src/features/live/hmi-designer-events.js";
 import { renderLive, refreshHmiRuntimeLiveValues } from "../src/features/live/index.js";
+import { renderHmiWidget } from "../src/features/live/hmi-widgets.js";
 
 // Use the real HMI designer module and real application stylesheet. Only the
 // authenticated history endpoint and the final resource save are isolated.
@@ -26,6 +27,51 @@ store.replaceCollection("tags", [{
 }]);
 store.replaceCollection("hmiPages", []);
 store.isConnected = () => true;
+
+// Render every HMI widget type through the production renderer for resize-fit regression tests.
+
+const fitTags = [
+  ...store.list("tags"),
+  {
+    id: "tag-run", name: "Test.Run", type: "bool", access: "read_write",
+    value: true, quality: "GOOD", sampled_at: new Date().toISOString(),
+  },
+];
+window.__hmiFitWidgetTypes = [
+  "value", "status", "indicator", "gauge", "needle", "thermometer",
+  "chart", "motor", "pump", "fan", "conveyor", "tank", "valve", "write", "media",
+];
+window.__renderHmiFitWidget = type => {
+  const components = {
+    value: { type, label: "Value", tag_id: "tag-test" },
+    status: { type, label: "Status", tag_id: "tag-run" },
+    indicator: { type, label: "Indicator", tag_id: "tag-run" },
+    gauge: { type, label: "Gauge", tag_id: "tag-test", min: 0, max: 100 },
+    needle: { type, label: "Needle", tag_id: "tag-test", min: 0, max: 100 },
+    thermometer: { type, label: "Thermometer", tag_id: "tag-test", min: 0, max: 100 },
+    chart: { type, label: "Trend", tag_id: "tag-test", history_seconds: 60, chart_kind: "line" },
+    motor: { type, label: "Motor", run_tag_id: "tag-run" },
+    pump: { type, label: "Pump", run_tag_id: "tag-run" },
+    fan: { type, label: "Fan", run_tag_id: "tag-run" },
+    conveyor: { type, label: "Conveyor", run_tag_id: "tag-run" },
+    tank: { type, label: "Tank", level_tag_id: "tag-test", min: 0, max: 100 },
+    valve: { type, label: "Valve", open_tag_id: "tag-run" },
+    write: { type, label: "Write", tag_id: "tag-run" },
+    media: { type, label: "Media", media_id: "c".repeat(32), media_type: "image", media_fit: "contain" },
+  };
+  const history = type === "chart" ? [
+    { value: 11, sampled_at: new Date(Date.now() - 2000).toISOString() },
+    { value: 28, sampled_at: new Date(Date.now() - 1000).toISOString() },
+    { value: 19, sampled_at: new Date().toISOString() },
+  ] : [];
+  return renderHmiWidget(components[type], fitTags, {
+    history,
+    historyState: { status: "ready", sampleCount: history.length },
+    mediaBase: "http://127.0.0.1:8000",
+    active: true,
+  });
+};
+
 
 document.getElementById("app").innerHTML = renderHmiDesigner();
 

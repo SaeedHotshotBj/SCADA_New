@@ -893,3 +893,356 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 .hmi-chart-live-label span { font-weight: 800; letter-spacing: .4px; }
 .hmi-chart-live-label small { color: var(--hmi-muted, #8295a5); font-size: 8px; }
+
+
+/* Responsive HMI fitting: every widget and schematic scales into its assigned card. */
+.hmi-layout-card {
+  container-type: size;
+  box-sizing: border-box;
+}
+.hmi-layout-card-toolbar {
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  min-height: clamp(12px, 13cqb, 28px);
+  padding: clamp(1px, 1.2cqb, 3px) clamp(2px, 1.2cqi, 6px);
+  line-height: 1.1;
+}
+.hmi-layout-card-toolbar span {
+  min-width: 0;
+  font-size: clamp(5px, 3cqb, 8px);
+  line-height: 1.1;
+}
+.hmi-layout-card-content {
+  container-type: size;
+  display: flex;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.hmi-layout-card-content > .hmi-widget,
+.hmi-runtime-item > .hmi-widget {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.hmi-runtime-item {
+  container-type: size;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+}
+.hmi-widget-header {
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: clamp(12px, 15cqb, 34px);
+  max-height: 35%;
+  gap: clamp(2px, 1.8cqi, 8px);
+  padding: clamp(2px, 2cqb, 7px) clamp(3px, 2.3cqi, 10px);
+}
+.hmi-widget-header b {
+  min-width: 0;
+  font-size: clamp(6px, 4.5cqb, 10px);
+  line-height: 1.1;
+}
+.hmi-quality {
+  padding: clamp(1px, 1.3cqb, 3px) clamp(2px, 1.5cqi, 6px);
+  font-size: clamp(5px, 3.5cqb, 8px);
+  line-height: 1.1;
+}
+.hmi-widget-body {
+  display: flex;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  gap: clamp(1px, 2cqb, 7px);
+  padding: clamp(2px, 2.3cqb, 10px);
+}
+.hmi-widget-body > * {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  flex-shrink: 1;
+}
+.hmi-value-number {
+  max-height: 100%;
+  font-size: clamp(9px, 14cqb, 29px);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+.hmi-value-meta {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 28%;
+  flex-wrap: wrap;
+  gap: clamp(1px, 1.5cqi, 8px);
+  font-size: clamp(5px, 3.5cqb, 8px);
+  line-height: 1.1;
+}
+.hmi-value-meta small {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.hmi-status-display,
+.hmi-indicator-light {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  gap: clamp(3px, 2.5cqi, 9px);
+}
+.hmi-status-display i,
+.hmi-indicator-light i {
+  width: clamp(6px, 4cqi, 15px);
+  height: clamp(6px, 4cqi, 15px);
+  flex-basis: clamp(6px, 4cqi, 15px);
+}
+.hmi-status-display strong,
+.hmi-indicator-light b {
+  min-width: 0;
+  font-size: clamp(7px, 5.5cqb, 12px);
+  line-height: 1.1;
+}
+.hmi-gauge-visual {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+}
+.hmi-gauge-svg,
+.hmi-dial-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.hmi-dial-reading {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 28%;
+  margin-top: 0;
+}
+.hmi-dial-reading strong {
+  font-size: clamp(8px, 10.5cqb, 23px);
+  line-height: 1.05;
+}
+.hmi-thermometer-layout {
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  gap: clamp(5px, 4cqi, 15px);
+}
+.hmi-thermometer {
+  width: clamp(6px, 4.8cqi, 17px);
+  height: 100%;
+  max-height: 87px;
+  min-height: 0;
+  flex: 0 1 auto;
+  aspect-ratio: 17 / 87;
+}
+.hmi-thermometer-reading {
+  min-width: 0;
+  min-height: 0;
+  max-width: 65%;
+  font-size: clamp(6px, 4cqb, 9px);
+  line-height: 1.1;
+}
+.hmi-thermometer-reading strong {
+  max-width: 100%;
+  font-size: clamp(8px, 9cqb, 20px);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+.hmi-chart-svg {
+  display: block;
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.hmi-chart-empty {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  padding: clamp(2px, 2cqb, 15px) clamp(2px, 1.8cqi, 8px);
+  font-size: clamp(6px, 3.6cqb, 9px);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.hmi-chart-empty--detail {
+  min-height: 0;
+  gap: clamp(2px, 1.8cqb, 8px);
+}
+.hmi-chart-latest {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  gap: clamp(2px, 1.8cqi, 8px);
+  padding: clamp(2px, 1.5cqb, 5px) clamp(3px, 2cqi, 9px);
+}
+.hmi-chart-latest small {
+  font-size: clamp(5px, 3.2cqb, 8px);
+}
+.hmi-chart-latest strong {
+  min-width: 0;
+  font-size: clamp(8px, 8cqb, 16px);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+.hmi-chart-live-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-height: 25%;
+  flex-wrap: wrap;
+  gap: clamp(1px, 1.5cqi, 8px);
+  font-size: clamp(5px, 3.6cqb, 9px);
+  line-height: 1.1;
+}
+.hmi-chart-live-label small {
+  min-width: 0;
+  font-size: clamp(5px, 3.2cqb, 8px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.hmi-machine-graphic {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+.hmi-machine-svg {
+  width: 100%;
+  height: 100%;
+  max-width: 180px;
+  max-height: 94px;
+  min-width: 0;
+  min-height: 0;
+  object-fit: contain;
+}
+.hmi-machine-footer {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: 30%;
+  flex-wrap: wrap;
+  gap: clamp(2px, 1.8cqi, 8px);
+  font-size: clamp(5px, 3.5cqb, 8px);
+  line-height: 1.1;
+}
+.hmi-machine-footer b {
+  min-width: 0;
+  max-width: 100%;
+  font-size: clamp(5px, 3.5cqb, 8px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.hmi-machine-state {
+  padding: clamp(1px, 1cqb, 4px) clamp(2px, 1.8cqi, 8px);
+  font-size: clamp(5px, 3.5cqb, 8px);
+}
+.hmi-tank-layout {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  gap: clamp(4px, 3cqi, 12px);
+  overflow: hidden;
+}
+.hmi-tank-svg {
+  width: auto;
+  height: 100%;
+  max-width: 50%;
+  max-height: 105px;
+  min-width: 0;
+  min-height: 0;
+  flex: 0 1 auto;
+  object-fit: contain;
+}
+.hmi-tank-layout > div {
+  min-width: 0;
+  min-height: 0;
+  max-width: 60%;
+  font-size: clamp(6px, 4cqb, 9px);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.hmi-tank-layout strong {
+  font-size: clamp(8px, 9cqb, 20px);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+.hmi-valve-graphic {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+.hmi-valve-graphic svg {
+  width: 100%;
+  height: 100%;
+  max-width: 175px;
+  max-height: 92px;
+  min-width: 0;
+  min-height: 0;
+  object-fit: contain;
+}
+.hmi-media-empty {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(2px, 2.3cqb, 16px);
+  font-size: clamp(6px, 3.7cqb, 10px);
+  overflow-wrap: anywhere;
+}
+.hmi-widget-body > button {
+  flex: 0 1 auto;
+  min-height: clamp(14px, 8cqb, 30px);
+  max-width: 100%;
+  padding: clamp(1px, 1.2cqb, 5px) clamp(3px, 2cqi, 9px);
+  font-size: clamp(6px, 3.8cqb, 12px);
+  line-height: 1.1;
+}
+.hmi-layout-card .hmi-layout-resize {
+  width: clamp(16px, 16cqi, 32px);
+  height: clamp(16px, 16cqi, 32px);
+  font-size: clamp(8px, 7cqi, 17px);
+}
+

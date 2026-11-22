@@ -327,6 +327,14 @@ if (designerSource.includes('hmi-layout-preview-backdrop" data-action="hmi-close
 if (!designerSource.includes('data-action="hmi-layout-single-column"')) {
   throw new Error("The floating HMI preview must expose a one-card-per-row layout command.");
 }
+if (!cssSource.includes(".hmi-layout-card-content {") ||
+    !cssSource.includes("container-type: size;") ||
+    !cssSource.includes(".hmi-runtime-item {") ||
+    !cssSource.includes("flex: 1 1 0;") ||
+    !cssSource.includes(".hmi-machine-svg {") ||
+    !cssSource.includes(".hmi-chart-svg {")) {
+  throw new Error("All HMI widget types must use responsive, size-constrained fitting inside their assigned cards.");
+}
 if (!cssSource.includes(".hmi-runtime-grid[data-hmi-page-theme] {\n  background-image: none !important;") ||
     !cssSource.includes(".hmi-designer-canvas[data-hmi-page-theme]")) {
   throw new Error("HMI runtime must remove the design grid while retaining the designer grid.");

@@ -266,15 +266,96 @@ try {
       runtimePageTheme, runtimeWidgetTheme, runtimeWidgetBackground, runtimePageBackground,
     }));
   }
+
+  // Regression: every chart, indicator and machine schematic must fit inside
+  // the exact card size selected by the operator, in both narrow and short cards.
+  const fitReport = await page.evaluate(() => {
+    const types = window.__hmiFitWidgetTypes || [];
+    const sizes = [
+      { width: 120, height: 80 },
+      { width: 160, height: 96 },
+      { width: 320, height: 100 },
+      { width: 140, height: 220 },
+    ];
+    const stage = document.createElement("div");
+    stage.id = "hmi-fit-regression-stage";
+    stage.style.cssText = "position:fixed;left:0;top:0;z-index:-1;opacity:0.01;pointer-events:none;display:flex;flex-wrap:wrap;align-items:flex-start;gap:4px;";
+    document.body.appendChild(stage);
+    const cases = [];
+    for (const size of sizes) {
+      for (const type of types) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "hmi-runtime-item hmi-fit-regression-item";
+        wrapper.dataset.widgetType = type;
+        wrapper.dataset.testWidth = String(size.width);
+        wrapper.dataset.testHeight = String(size.height);
+        wrapper.style.cssText = "position:relative;display:block;flex:none;width:" + size.width +
+          "px;height:" + size.height + "px;overflow:hidden;";
+        wrapper.innerHTML = window.__renderHmiFitWidget(type);
+        stage.appendChild(wrapper);
+        cases.push({ type, width: size.width, height: size.height, wrapper });
+      }
+    }
+    const issues = [];
+    for (const item of cases) {
+      const root = item.wrapper.querySelector(".hmi-widget");
+      const header = root && root.querySelector(".hmi-widget-header");
+      const body = root && root.querySelector(".hmi-widget-body");
+      if (!root || !header || !body) {
+        issues.push({ type: item.type, size: item.width + "x" + item.height, reason: "missing widget/header/body" });
+        continue;
+      }
+      const bounds = element => {
+        const r = element.getBoundingClientRect();
+        return { left:r.left, top:r.top, right:r.right, bottom:r.bottom, width:r.width, height:r.height };
+      };
+      const wrapperRect = bounds(item.wrapper);
+      const rootRect = bounds(root);
+      const bodyRect = bounds(body);
+      const tolerance = 1.5;
+      if (rootRect.width > wrapperRect.width + tolerance || rootRect.height > wrapperRect.height + tolerance ||
+          rootRect.left < wrapperRect.left - tolerance || rootRect.top < wrapperRect.top - tolerance) {
+        issues.push({ type:item.type, size:item.width + "x" + item.height, reason:"widget root exceeds its assigned card", wrapper:wrapperRect, root:rootRect });
+      }
+      if (bodyRect.bottom > rootRect.bottom + tolerance || bodyRect.right > rootRect.right + tolerance ||
+          bodyRect.top < rootRect.top - tolerance || bodyRect.left < rootRect.left - tolerance) {
+        issues.push({ type:item.type, size:item.width + "x" + item.height, reason:"widget body exceeds widget bounds", root:rootRect, body:bodyRect });
+      }
+      const visibleParts = body.querySelectorAll(
+        ".hmi-chart-svg,.hmi-chart-empty,.hmi-gauge-svg,.hmi-dial-svg,.hmi-thermometer-layout," +
+        ".hmi-machine-svg,.hmi-tank-svg,.hmi-valve-graphic svg,.hmi-media-frame,.hmi-value-number," +
+        ".hmi-value-meta,.hmi-chart-live-label,.hmi-machine-footer,.hmi-status-display,.hmi-indicator-light," +
+        ".hmi-media-empty,button"
+      );
+      for (const part of visibleParts) {
+        const r = bounds(part);
+        if (!r.width || !r.height) continue;
+        if (r.left < bodyRect.left - tolerance || r.top < bodyRect.top - tolerance ||
+            r.right > bodyRect.right + tolerance || r.bottom > bodyRect.bottom + tolerance) {
+          issues.push({ type:item.type, size:item.width + "x" + item.height, reason:"visual part is clipped by widget body", part:part.className?.baseVal || part.className || part.tagName, body:bodyRect, partBounds:r });
+          break;
+        }
+      }
+      if (body.scrollWidth > body.clientWidth + 1 || body.scrollHeight > body.clientHeight + 1) {
+        issues.push({ type:item.type, size:item.width + "x" + item.height, reason:"widget body has overflowing content", scroll:[body.scrollWidth,body.scrollHeight], client:[body.clientWidth,body.clientHeight] });
+      }
+    }
+    stage.remove();
+    return { total: cases.length, issues };
+  });
+  if (fitReport.issues.length) {
+    throw new Error("HMI responsive-fit regression failed: " + JSON.stringify(fitReport.issues.slice(0, 20)));
+  }
+
   if (pageErrors.length) throw new Error("Browser console errors: " + pageErrors.join("\\n"));
 
-  console.log("HMI Chromium E2E passed: drag/resize, historical and one-second live trend SVG, zero history polling for live mode, media upload/render, page/widget themes, runtime grid removal and persistent video/image DOM.");
+  console.log("HMI Chromium E2E passed: drag/resize, chart history/live SVG, media upload/render, themes, runtime grid removal and responsive fit for every widget at four card sizes.");
   console.log(JSON.stringify({
     initial, moved, resized, pageTheme, widgetTheme, widgetBackground, pageBackground,
     livePolyline, importedImage, runtimePageTheme, runtimeWidgetTheme,
     runtimeWidgetBackground, runtimePageBackground, runtimeBackgroundImage,
     designerBackgroundImage, runtimeImageSrc, runtimeRefresh, historyRequests,
-    browserEvents: await page.evaluate(() => window.__hmiBrowserEvents.length),
+    browserEvents: await page.evaluate(() => window.__hmiBrowserEvents.length), fitReport,
   }));
 } catch (error) {
   if (page) {
