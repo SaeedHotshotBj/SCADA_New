@@ -62,7 +62,6 @@ try {
   await chartCard.locator(".hmi-chart-svg polyline").waitFor({ state: "visible", timeout: 5000 });
   const chartMarkup = await chartCard.locator(".hmi-chart-svg").evaluate(element => ({
     polyline: element.querySelector("polyline")?.getAttribute("points") || "",
-    sampleCount: chartCardText => chartCardText,
   }));
   if (!chartMarkup.polyline || chartMarkup.polyline.trim().split(/\s+/).length !== 3) {
     throw new Error("HMI trend history did not render three ordered line points: " + JSON.stringify(chartMarkup));
