@@ -35,16 +35,18 @@ try {
 
   const historyRequests = [];
   const mediaId = "c".repeat(32);
+  let mediaUploadCount = 0;
   const mediaSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><rect width="24" height="24" fill="#267fc3"/><circle cx="12" cy="12" r="7" fill="#fff"/></svg>';
   await page.route("http://127.0.0.1:8000/api/hmi/media", async route => {
     if (route.request().method() !== "POST") return route.continue();
+    mediaUploadCount += 1;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         id: mediaId,
         url: "/api/hmi/media/" + mediaId,
-        filename: "plant-diagram.svg",
+        filename: mediaUploadCount === 1 ? "plant-diagram.svg" : "plant-diagram-edit.svg",
         content_type: "image/svg+xml",
         media_type: "image",
         size_bytes: Buffer.byteLength(mediaSvg),
@@ -344,8 +346,9 @@ try {
   });
   await page.evaluate(async () => { await window.__mediaUpload; });
   const uploadedEditName = await page.locator("#hmi-designer-properties .hmi-media-current-file").textContent();
-  if (!uploadedEditName?.includes("plant-diagram-edit.svg")) {
-    throw new Error("Media upload from normal HMI edit properties failed: " + uploadedEditName);
+  if (!uploadedEditName?.includes("plant-diagram-edit.svg") || mediaUploadCount !== 2) {
+    throw new Error("Media upload from normal HMI edit properties failed or the second upload request was not sent: " +
+      JSON.stringify({ uploadedEditName, mediaUploadCount }));
   }
   await page.evaluate(() => window.__returnToHmiRuntime());
 
