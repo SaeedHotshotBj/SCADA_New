@@ -85,6 +85,7 @@ const {
   normalizeHmiWidgetGeometry,
   hmiWidgetGridStyle,
   applyHmiWidgetGridGesture,
+  hmiWidgetGridFromPointer,
   arrangeHmiWidgetsSingleColumn,
   hmiChartRefreshIntervalMs,
 } = await import("../src/features/live/hmi-widgets.js");
@@ -95,11 +96,21 @@ const expectedGridStyle = "grid-column:7 / span 6;grid-row:2 / span 4;";
 if (hmiWidgetGridStyle(positionedCard) !== expectedGridStyle) {
   throw new Error("HMI card position and size must be converted to the expected 12-column grid placement.");
 }
-const movedCard = applyHmiWidgetGridGesture({
-  grid_col: 2, grid_row: 3, grid_w: 4, grid_h: 3,
-}, "move", 2, 1);
+const moveStart = { grid_col: 2, grid_row: 3, grid_w: 4, grid_h: 3 };
+const movedCard = applyHmiWidgetGridGesture(moveStart, "move", 2, 1);
 if (movedCard.grid_col !== 4 || movedCard.grid_row !== 4) {
   throw new Error("Dragging a HMI card toolbar must change its grid column and row.");
+}
+const pointerMoveOnce = hmiWidgetGridFromPointer(moveStart, "move", 130, 72, 65, 72);
+const pointerMoveAgain = hmiWidgetGridFromPointer(moveStart, "move", 130, 72, 65, 72);
+if (pointerMoveOnce.grid_col !== 4 || pointerMoveOnce.grid_row !== 4 ||
+    pointerMoveAgain.grid_col !== pointerMoveOnce.grid_col ||
+    pointerMoveAgain.grid_row !== pointerMoveOnce.grid_row) {
+  throw new Error("HMI pointer drag must calculate from the original card geometry instead of accumulating total pointer deltas.");
+}
+const pointerResize = hmiWidgetGridFromPointer(moveStart, "resize", 130, 144, 65, 72);
+if (pointerResize.grid_w !== 6 || pointerResize.grid_h !== 5) {
+  throw new Error("HMI pointer resize must calculate the requested width and height from the drag start geometry.");
 }
 const resizedCard = applyHmiWidgetGridGesture({
   grid_col: 2, grid_row: 3, grid_w: 4, grid_h: 3,
@@ -188,6 +199,11 @@ if (!oneSecondEmptyChart.includes("فاصله ذخیره تاریخچه PLC/Edge
   throw new Error("A one-second empty trend must explain the required PLC/Edge history sampling interval.");
 }
 const designerSource = await readFile("src/features/live/hmi-designer.js", "utf8");
+const mainSource = await readFile("src/app/main.js", "utf8");
+if (!mainSource.includes('window.addEventListener("pointermove"') ||
+    !mainSource.includes('window.addEventListener("pointerup"')) {
+  throw new Error("HMI layout gestures must receive pointer movement and release at window capture level.");
+}
 if (designerSource.includes('hmi-layout-preview-backdrop" data-action="hmi-close-layout-preview"')) {
   throw new Error("Clicking or dragging on the HMI preview backdrop must not close the layout editor.");
 }
