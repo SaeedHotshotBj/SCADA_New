@@ -1078,3 +1078,47 @@ def test_telemetry_history_supports_seconds_and_legacy_hours_windows():
 
         ambiguous = client.get(f"/api/telemetry/history?tag_id={tag_id}&seconds=60&hours=1")
         assert ambiguous.status_code == 422
+
+def test_hmi_page_and_widget_theme_presets_are_validated_and_persisted():
+    with TestClient(app) as client:
+        login = client.post("/api/auth/login", json={
+            "email": "admin@demo-cable.local",
+            "password": "demo1234",
+        })
+        assert login.status_code == 200
+
+        created = client.post("/api/resources/hmiPages", json={
+            "name": "Themed HMI",
+            "machine": "بانچر",
+            "description": "Page and widget theme persistence",
+            "theme": "dark",
+            "layout": [
+                {"type": "value", "tag_id": "t3", "theme": "blue"},
+                {"type": "chart", "tag_id": "t6", "theme": "inherit", "history_seconds": 3600},
+            ],
+            "status": "فعال",
+        })
+        assert created.status_code == 201, created.text
+        assert created.json()["theme"] == "dark"
+        assert created.json()["layout"][0]["theme"] == "blue"
+        assert created.json()["layout"][1]["theme"] == "inherit"
+
+        invalid_page_theme = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid page theme",
+            "machine": "بانچر",
+            "description": "Reject untrusted CSS values",
+            "theme": "url(javascript:alert(1))",
+            "layout": [{"type": "value", "tag_id": "t3"}],
+            "status": "فعال",
+        })
+        assert invalid_page_theme.status_code == 422
+
+        invalid_widget_theme = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid widget theme",
+            "machine": "بانچر",
+            "description": "Reject untrusted per-widget CSS values",
+            "theme": "light",
+            "layout": [{"type": "value", "tag_id": "t3", "theme": "expression(alert(1))"}],
+            "status": "فعال",
+        })
+        assert invalid_widget_theme.status_code == 422
