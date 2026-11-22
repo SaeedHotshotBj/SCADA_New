@@ -477,7 +477,7 @@ function renderThermometer(component, tag, preview) {
 
 function renderChart(component, tag, preview, history, historyState) {
   const quality = qualityOf(tag);
-  const sampleItems = (Array.isArray(history) ? history : [])
+  let sampleItems = (Array.isArray(history) ? history : [])
     .map(item => typeof item === "number" ? { value: item } : item)
     .filter(item => item?.value !== null && item?.value !== undefined && item?.value !== "" &&
       Number.isFinite(Number(item.value)))
@@ -485,39 +485,90 @@ function renderChart(component, tag, preview, history, historyState) {
   if (sampleItems.every(item => item.sampled_at && Number.isFinite(Date.parse(item.sampled_at)))) {
     sampleItems.sort((a, b) => Date.parse(a.sampled_at) - Date.parse(b.sampled_at));
   }
-  const samples = sampleItems.map(item => item.value);
   const rangeSeconds = Number(component.history_seconds ?? Number(component.history_hours || 1) * 3600);
   const isLive = rangeSeconds === 1;
+  let liveWindowStart = null;
+  if (isLive) {
+    const sampleTimes = sampleItems.map(item => Date.parse(item.sampled_at)).filter(Number.isFinite);
+    const windowEnd = sampleTimes.length ? Math.max(Date.now(), ...sampleTimes) : Date.now();
+    liveWindowStart = windowEnd - LIVE_CHART_WINDOW_MS;
+    // Keep the live X axis tied to elapsed time, not to the current number of samples.
+    // This prevents a one-second trend from stretching and reshaping as points arrive.
+    sampleItems = sampleItems.filter(item => {
+      const sampledAt = Date.parse(item.sampled_at);
+      return Number.isFinite(sampledAt) && sampledAt >= liveWindowStart && sampledAt <= windowEnd;
+    });
+  }
+  const samples = sampleItems.map(item => item.value);
   const rangeLabel = HMI_CHART_RANGES.find(item => item.value === rangeSeconds)?.label || "بازه انتخاب‌شده";
+  const xForSample = (item, index) => {
+    if (isLive && liveWindowStart !== null) {
+      const sampledAt = Date.parse(item.sampled_at);
+      const elapsed = Math.max(0, Math.min(LIVE_CHART_WINDOW_MS, sampledAt - liveWindowStart));
+      return 8 + elapsed * 244 / LIVE_CHART_WINDOW_MS;
+    }
+    return sampleItems.length === 1 ? 130 : 8 + index * 244 / (sampleItems.length - 1);
+  };
   let visual = "";
   if (samples.length) {
     const min = Math.min(...samples);
     const max = Math.max(...samples);
-    const span = max - min || 1;
+    const rawSpan = max - min;
+    const padding = isLive
+      ? (rawSpan > 0 ? rawSpan * 0.08 : Math.max(Math.abs(max) * 0.02, 1))
+      : 0;
+    const scaleMin = min - padding;
+    const span = rawSpan + padding * 2 || 1;
+    const yForValue = value => 68 - (value - scaleMin) * 58 / span;
+    const horizontalGrid = '<path d="M8 10 H252 M8 40 H252 M8 70 H252" stroke="var(--hmi-chart-grid, #edf1f4)" stroke-dasharray="3 4" fill="none"/>';
+    const liveTimeGrid = isLive
+      ? '<path d="M8 10 V70 M130 10 V70 M252 10 V70" stroke="var(--hmi-chart-grid, #edf1f4)" stroke-dasharray="2 4" fill="none"/>'
+      : "";
     if (samples.length === 1) {
-      const y = 68 - (samples[0] - min) * 58 / span;
+      const x = xForSample(sampleItems[0], 0);
+      const y = yForValue(samples[0]);
       visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="یک نمونه از نمودار روند">' +
-        '<path d="M8 10 H252 M8 40 H252 M8 70 H252" stroke="var(--hmi-chart-grid, #edf1f4)" stroke-dasharray="3 4" fill="none"/>' +
-        '<circle class="hmi-chart-single-point" cx="130" cy="' + y.toFixed(1) + '" r="5" fill="#218fbd"/>' +
-        '<text x="130" y="78" text-anchor="middle" fill="#8498a8" font-size="9">' + escapeHtml(String(samples[0])) + '</text></svg>';
+        horizontalGrid + liveTimeGrid +
+        '<circle class="hmi-chart-single-point" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="5"/>' +
+        '<text x="' + x.toFixed(1) + '" y="78" text-anchor="middle" fill="var(--hmi-muted, #8498a8)" font-size="9">' +
+        escapeHtml(String(samples[0])) + '</text></svg>';
+    } else if (component.chart_kind === "bar") {
+      const slot = isLive ? 244 / (LIVE_CHART_WINDOW_MS / 1000) : 244 / samples.length;
+      const bars = sampleItems.map((item, index) => {
+        const height = 8 + ((item.value - min) / (rawSpan || 1)) * 52;
+        const x = xForSample(item, index);
+        return '<rect x="' + (x - Math.max(1, slot - 1) / 2).toFixed(1) + '" y="' + (70 - height).toFixed(1) +
+          '" width="' + Math.max(1, slot - 1).toFixed(1) + '" height="' + height.toFixed(1) +
+          '" rx="1" fill="var(--hmi-chart-bar, #2b9dba)"/>';
+      }).join("");
+      visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="نمودار میله‌ای">' +
+        horizontalGrid + liveTimeGrid + bars + '</svg>';
+    } else if (isLive) {
+      const groups = [];
+      for (let index = 0; index < sampleItems.length; index += 1) {
+        const item = sampleItems[index];
+        const sampledAt = Date.parse(item.sampled_at);
+        const previous = index > 0 ? Date.parse(sampleItems[index - 1].sampled_at) : NaN;
+        if (!groups.length || (Number.isFinite(previous) && sampledAt - previous > 2500)) groups.push([]);
+        groups[groups.length - 1].push(
+          xForSample(item, index).toFixed(1) + "," + yForValue(item.value).toFixed(1)
+        );
+      }
+      const segments = groups.map(points => points.length > 1
+        ? '<polyline points="' + points.join(" ") + '" fill="none" stroke="var(--hmi-chart-line, #218fbd)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
+        : '<circle class="hmi-chart-single-point" cx="' + points[0].split(",")[0] +
+          '" cy="' + points[0].split(",")[1] + '" r="3.5"/>'
+      ).join("");
+      visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="نمودار روند زنده با محور زمانی ثابت">' +
+        horizontalGrid + liveTimeGrid + segments + '</svg>';
     } else {
       const points = samples.map((value, index) => {
-        const x = 8 + index * 244 / (samples.length - 1);
-        const y = 68 - (value - min) * 58 / span;
+        const x = xForSample(sampleItems[index], index);
+        const y = yForValue(value);
         return x.toFixed(1) + "," + y.toFixed(1);
       });
-      if (component.chart_kind === "bar") {
-        const slot = 244 / samples.length;
-        const bars = samples.map((value, index) => {
-          const height = 8 + ((value - min) / span) * 52;
-          const x = 8 + index * slot;
-          return '<rect x="' + x.toFixed(1) + '" y="' + (70 - height).toFixed(1) + '" width="' + Math.max(2, slot - 3).toFixed(1) + '" height="' + height.toFixed(1) + '" rx="2" fill="var(--hmi-chart-bar, #2b9dba)"/>';
-        }).join("");
-        visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="نمودار میله‌ای">' + bars + '</svg>';
-      } else {
-        visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="نمودار روند"><path d="M8 10 H252 M8 40 H252 M8 70 H252" stroke="var(--hmi-chart-grid, #edf1f4)" stroke-dasharray="3 4" fill="none"/>' +
-          '<polyline points="' + points.join(" ") + '" fill="none" stroke="var(--hmi-chart-line, #218fbd)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-      }
+      visual = '<svg class="hmi-chart-svg" viewBox="0 0 260 82" role="img" aria-label="نمودار روند"><path d="M8 10 H252 M8 40 H252 M8 70 H252" stroke="var(--hmi-chart-grid, #edf1f4)" stroke-dasharray="3 4" fill="none"/>' +
+        '<polyline points="' + points.join(" ") + '" fill="none" stroke="var(--hmi-chart-line, #218fbd)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     }
   } else {
     let message = "برای دریافت تاریخچه، پیش‌نمایش شناور را باز کن.";
@@ -537,12 +588,11 @@ function renderChart(component, tag, preview, history, historyState) {
       : "";
     visual = '<div class="hmi-chart-empty hmi-chart-empty--detail"><span>' + escapeHtml(message) + '</span>' + liveReading + '</div>';
   }
-  const liveLabel = isLive ? '<div class="hmi-chart-live-label"><span>● LIVE</span><small>پنجره‌ی لغزان ۶۰ ثانیه‌ای · دریافت از جریان زنده</small></div>' : "";
+  const liveLabel = isLive ? '<div class="hmi-chart-live-label"><span>● LIVE</span><small>پنجره‌ی لغزان ۶۰ ثانیه‌ای · محور زمان ثابت · دریافت از جریان زنده</small></div>' : "";
   const body = visual + liveLabel + '<div class="hmi-value-meta"><span>' + escapeHtml(tag?.unit || "") + '</span><small>' +
     escapeHtml(tag?.name || "تگ انتخاب نشده") + ' · ' + String(samples.length).toLocaleString("fa-IR") + ' نمونه</small></div>';
   return componentFrame(component, body, quality, preview, isLive ? "hmi-widget--chart-live" : "");
 }
-
 function renderMachine(component, tags, preview, type) {
   const runTag = tagFor(tags, component.run_tag_id);
   const faultTag = tagFor(tags, component.fault_tag_id);

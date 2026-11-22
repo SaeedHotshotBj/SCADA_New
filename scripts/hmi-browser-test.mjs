@@ -98,19 +98,27 @@ try {
 
   // Feed two distinct real-time snapshots through the same function used by the WebSocket listener.
   const liveChartCard = page.locator("[data-hmi-layout-card]").filter({ has: page.locator(".hmi-widget--chart-live") }).first();
-  await page.evaluate(() => window.__feedHmiLive({
+  const firstLiveAt = Date.now() - 1000;
+  const secondLiveAt = firstLiveAt + 1000;
+  await page.evaluate(sampledAt => window.__feedHmiLive({
     id: "tag-test", value: 31.25, quality: "GOOD",
-    sampled_at: new Date(Date.now() - 1000).toISOString(),
-  }));
-  await page.evaluate(() => window.__feedHmiLive({
+    sampled_at: new Date(sampledAt).toISOString(),
+  }), firstLiveAt);
+  await page.evaluate(sampledAt => window.__feedHmiLive({
     id: "tag-test", value: 38.5, quality: "GOOD",
-    sampled_at: new Date().toISOString(),
-  }));
+    sampled_at: new Date(sampledAt).toISOString(),
+  }), secondLiveAt);
   await liveChartCard.locator(".hmi-chart-svg polyline").waitFor({ state: "visible", timeout: 5000 });
   const livePolyline = await liveChartCard.locator(".hmi-chart-svg polyline").getAttribute("points");
-  if (!livePolyline || livePolyline.trim().split(/\s+/).length !== 2 ||
+  const livePoints = livePolyline?.trim().split(/\s+/).map(point => point.split(",").map(Number)) || [];
+  const actualLiveXDelta = livePoints.length === 2 ? livePoints[1][0] - livePoints[0][0] : NaN;
+  const expectedLiveXDelta = 244 * (secondLiveAt - firstLiveAt) / 60000;
+  if (livePoints.length !== 2 ||
+      !Number.isFinite(actualLiveXDelta) ||
+      Math.abs(actualLiveXDelta - expectedLiveXDelta) > 1.5 ||
       !(await liveChartCard.locator(".hmi-chart-live-label").count())) {
-    throw new Error("The one-second trend did not draw a continuous line from two incoming live samples: " + livePolyline);
+    throw new Error("The one-second trend must position points by elapsed time on a fixed 60-second axis. " +
+      JSON.stringify({ livePolyline, actualLiveXDelta, expectedLiveXDelta }));
   }
 
   // Import an SVG asset through the real designer upload flow; only the API transport is mocked.
