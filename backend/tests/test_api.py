@@ -529,6 +529,18 @@ def test_hmi_layout_validates_tag_bindings_and_write_access():
         })
         assert invalid_grid.status_code == 422
 
+        invalid_row = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid HMI row",
+            "machine": "بانچر",
+            "description": "grid row out of accepted range",
+            "layout": [{
+                "type": "gauge", "tag_id": "t3", "min": 0, "max": 100,
+                "grid_col": 1, "grid_row": 1001, "grid_w": 12, "grid_h": 3,
+            }],
+            "status": "فعال",
+        })
+        assert invalid_row.status_code == 422
+
 
 def test_resource_update_returns_factory_scope_and_user_update_is_safe():
     with TestClient(app) as client:
