@@ -656,9 +656,16 @@ tbody tr:last-child td { border-bottom: 0; }
   position: absolute;
   box-sizing: border-box;
   cursor: move;
+  pointer-events: auto !important;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+}
+.hmi-layout-card-toolbar {
+  pointer-events: auto !important;
+}
+.hmi-layout-card .hmi-layout-resize {
+  pointer-events: auto !important;
 }
 .hmi-layout-card.is-selected {
   z-index: 20;
