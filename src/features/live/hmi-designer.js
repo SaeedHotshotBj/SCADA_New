@@ -488,7 +488,6 @@ export function handleHmiDesignerAction(action, element) {
     return true;
   }
   if (action === "hmi-close-layout-preview") {
-    if (element.classList.contains("hmi-layout-preview-backdrop") && element.dataset.directBackdropClick !== "true") return true;
     closeHmiDesignerPreview();
     const root = document.getElementById("hmi-layout-preview-root");
     if (root) {
