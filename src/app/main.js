@@ -91,7 +91,6 @@ document.addEventListener("click", event => {
   }
   const actionElement = event.target.closest("[data-action]");
   if (!actionElement) return;
-  if (actionElement.classList.contains("hmi-layout-preview-backdrop") && event.target !== actionElement) return;
   const action = actionElement.dataset.action;
   if (action === "toggle-password") {
     const input = actionElement.parentElement.querySelector("input");
