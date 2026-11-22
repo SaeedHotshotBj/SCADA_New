@@ -56,12 +56,31 @@ try {
   await page.mouse.up();
   await page.waitForTimeout(50);
 
+  const movedFromToolbar = await card.evaluate(element => ({
+    left: Number.parseFloat(element.style.left),
+    top: Number.parseFloat(element.style.top),
+  }));
+  if (movedFromToolbar.left < initial.left + 70 || movedFromToolbar.top < initial.top + 45) {
+    throw new Error(`HMI toolbar drag did not move the card enough. Before=${JSON.stringify(initial)} After=${JSON.stringify(movedFromToolbar)} Events=${JSON.stringify(await page.evaluate(() => window.__hmiBrowserEvents))}`);
+  }
+
+  // The user must also be able to start a move from the widget body, not only
+  // the toolbar. The body uses pointer-events:none in the preview CSS, so this
+  // specifically verifies that hit testing reaches the containing card.
+  const contentBox = await card.locator(".hmi-layout-card-content").boundingBox();
+  if (!contentBox) throw new Error("The HMI card body is not visible.");
+  await page.mouse.move(contentBox.x + contentBox.width / 2, contentBox.y + contentBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(contentBox.x + contentBox.width / 2 + 40, contentBox.y + contentBox.height / 2 + 30, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(50);
+
   const moved = await card.evaluate(element => ({
     left: Number.parseFloat(element.style.left),
     top: Number.parseFloat(element.style.top),
   }));
-  if (moved.left < initial.left + 70 || moved.top < initial.top + 45) {
-    throw new Error(`HMI drag did not move the card enough. Before=${JSON.stringify(initial)} After=${JSON.stringify(moved)} Events=${JSON.stringify(await page.evaluate(() => window.__hmiBrowserEvents))}`);
+  if (moved.left < movedFromToolbar.left + 30 || moved.top < movedFromToolbar.top + 20) {
+    throw new Error(`HMI card-body drag did not move the card. After toolbar=${JSON.stringify(movedFromToolbar)} After body=${JSON.stringify(moved)} Events=${JSON.stringify(await page.evaluate(() => window.__hmiBrowserEvents))}`);
   }
 
   // Resize from the actual lower-right grip using the same real browser input.
@@ -101,7 +120,7 @@ try {
     try {
       const diagnostics = await page.evaluate(() => ({
         events: window.__hmiBrowserEvents || [],
-        card: document.querySelector("[data-hmi-layout-card")?.getAttribute("style") || null,
+        card: document.querySelector("[data-hmi-layout-card]")?.getAttribute("style") || null,
         json: document.getElementById("hmi-json-source")?.value || null,
       }));
       console.error("HMI browser diagnostics:", JSON.stringify(diagnostics));
