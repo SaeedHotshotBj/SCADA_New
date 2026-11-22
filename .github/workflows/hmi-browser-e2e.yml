@@ -1,0 +1,40 @@
+name: HMI browser drag and resize regression
+
+on:
+  push:
+    branches: [backend-integrated]
+  pull_request:
+    branches: [rebuild-from-video]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hmi-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Playwright
+        run: npm install --no-save playwright
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Test HMI drag and resize in Chromium
+        run: node scripts/hmi-browser-test.mjs
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hmi-browser-failure
+          path: artifacts/hmi-browser/
+          if-no-files-found: ignore
