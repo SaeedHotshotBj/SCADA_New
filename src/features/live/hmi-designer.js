@@ -1,7 +1,7 @@
 import { api } from "../../services/api-client.js";
 import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
-import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_WIDGET_LIBRARY, createHmiWidget, hmiWidgetGridStyle, normalizeHmiWidgetGeometry, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
+import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_WIDGET_LIBRARY, applyHmiWidgetGridGesture, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetGridStyle, normalizeHmiWidgetGeometry, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
 
 let activePageKey = null;
 let draft = null;
@@ -212,12 +212,14 @@ function layoutPropertiesMarkup() {
     return '<section class="hmi-layout-properties"><b>چیدمان کارت</b><p>یک کارت را انتخاب کن تا جایگاه و اندازه‌ی آن را تنظیم کنی.</p></section>';
   }
   return '<section class="hmi-layout-properties"><div class="hmi-layout-properties-title"><b>چیدمان کارت</b><small>' +
-    escapeHtml(component.label || component.type) + '</small></div><div class="hmi-layout-properties-fields">' +
-    '<label class="field"><span>ستون شروع (۱ تا ۱۲)</span><input type="number" min="1" max="12" step="1" data-hmi-layout-prop="grid_col" value="' + component.grid_col + '"></label>' +
-    '<label class="field"><span>ردیف شروع</span><input type="number" min="1" max="200" step="1" data-hmi-layout-prop="grid_row" value="' + component.grid_row + '"></label>' +
-    '<label class="field"><span>عرض (تعداد ستون)</span><input type="number" min="1" max="12" step="1" data-hmi-layout-prop="grid_w" value="' + component.grid_w + '"></label>' +
-    '<label class="field"><span>ارتفاع (تعداد ردیف)</span><input type="number" min="1" max="12" step="1" data-hmi-layout-prop="grid_h" value="' + component.grid_h + '"></label>' +
-    '</div><p class="hmi-field-help">برای جابه‌جایی، دستگیره‌ی بالای کارت را بکش. برای تغییر اندازه، گوشه‌ی پایین کارت را بکش. تغییرات در JSON و صفحه‌ی نهایی ذخیره می‌شوند.</p>' +
+    escapeHtml(component.label || component.type) + '</small></div>' +
+    '<div class="hmi-layout-properties-group-title">موقعیت عددی کارت</div><div class="hmi-layout-properties-fields">' +
+    '<label class="field"><span>ستون شروع (عدد ۱ تا ۱۲)</span><input type="number" inputmode="numeric" min="1" max="12" step="1" aria-label="ستون شروع کارت" data-hmi-layout-prop="grid_col" value="' + component.grid_col + '"></label>' +
+    '<label class="field"><span>ردیف شروع (عدد ۱ تا ۲۰۰)</span><input type="number" inputmode="numeric" min="1" max="200" step="1" aria-label="ردیف شروع کارت" data-hmi-layout-prop="grid_row" value="' + component.grid_row + '"></label>' +
+    '</div><div class="hmi-layout-properties-group-title">اندازه عددی کارت</div><div class="hmi-layout-properties-fields">' +
+    '<label class="field"><span>عرض کارت (تعداد ستون، ۱ تا ۱۲)</span><input type="number" inputmode="numeric" min="1" max="12" step="1" aria-label="عرض عددی کارت بر حسب ستون" data-hmi-layout-prop="grid_w" value="' + component.grid_w + '"></label>' +
+    '<label class="field"><span>ارتفاع کارت (تعداد ردیف، ۱ تا ۱۲)</span><input type="number" inputmode="numeric" min="1" max="12" step="1" aria-label="ارتفاع عددی کارت بر حسب ردیف" data-hmi-layout-prop="grid_h" value="' + component.grid_h + '"></label>' +
+    '</div><p class="hmi-field-help">عرض و ارتفاع را با عدد صحیح وارد کن؛ عرض بر حسب ستون‌های شبکه ۱۲ ستونی و ارتفاع بر حسب ردیف است. همچنین می‌توانی نوار بالای کارت را برای جابه‌جایی و گوشه پایین آن را برای تغییر اندازه بکشی. تغییرات در JSON و صفحه نهایی ذخیره می‌شوند.</p>' +
     '<button type="button" class="btn btn-light btn-sm" data-action="hmi-reset-layout-widget" data-widget-id="' + escapeHtml(component.widget_id) + '">بازنشانی اندازه و جایگاه</button></section>';
 }
 
@@ -229,8 +231,8 @@ function layoutPreviewCardMarkup(component, index) {
   return '<article class="hmi-layout-card ' + (component.widget_id === selectedWidgetId ? "is-selected" : "") +
     '" data-hmi-layout-card data-action="hmi-select-layout-widget" data-widget-id="' + escapeHtml(component.widget_id) + '" style="' +
     hmiWidgetGridStyle(component, index) + '">' +
-    '<header class="hmi-layout-card-toolbar"><button type="button" class="hmi-layout-move" data-hmi-layout-gesture="move" data-widget-id="' +
-    escapeHtml(component.widget_id) + '" title="برای جابه‌جایی بکش">↕ جابه‌جایی</button><span>' +
+    '<header class="hmi-layout-card-toolbar" data-hmi-layout-gesture="move" data-widget-id="' + escapeHtml(component.widget_id) +
+    '" title="برای جابه‌جایی، هر نقطه از نوار بالایی کارت را بکش"><span class="hmi-layout-move">↕ جابه‌جایی</span><span>' +
     escapeHtml(component.label || component.type) + '</span></header>' +
     '<div class="hmi-layout-card-content">' + widget + '</div>' +
     '<button type="button" class="hmi-layout-resize" data-hmi-layout-gesture="resize" data-widget-id="' +
@@ -408,6 +410,7 @@ export function handleHmiDesignerInput(event) {
         previewRoot.hidden = !layoutPreviewOpen;
         previewRoot.innerHTML = layoutPreviewOpen ? layoutPreviewMarkup() : "";
       }
+      window.dispatchEvent(new CustomEvent("scada:hmi-chart-config-changed"));
       if (store.isConnected() && draft.layout.some(item => item.type === "chart" && item.tag_id)) {
         void loadHmiDesignerChartData();
       }
@@ -457,6 +460,7 @@ export function handleHmiDesignerInput(event) {
   syncJsonEditor();
   if (component.type === "chart" && ["tag_id", "history_seconds", "history_hours"].includes(property)) {
     void loadHmiDesignerChartData();
+    window.dispatchEvent(new CustomEvent("scada:hmi-chart-config-changed"));
   }
   return true;
 }
@@ -613,7 +617,18 @@ export async function loadHmiDesignerChartData() {
 export function closeHmiDesignerPreview() {
   layoutPreviewOpen = false;
   layoutGesture = null;
+  document.documentElement?.classList.remove("hmi-layout-dragging");
 }
+
+export function getHmiDesignerChartRefreshIntervalMs() {
+  return hmiChartRefreshIntervalMs(draft?.layout || []);
+}
+
+export function getHmiPageChartRefreshIntervalMs(pageId) {
+  const page = store.list("hmiPages").find(item => item.id === pageId);
+  return hmiChartRefreshIntervalMs(page?.layout || []);
+}
+
 function updateLayoutCardStyle(component) {
   const index = draft.layout.findIndex(item => item.widget_id === component.widget_id);
   const card = [...document.querySelectorAll("[data-hmi-layout-card]")].find(item => item.dataset.widgetId === component.widget_id);
@@ -634,6 +649,7 @@ export function handleHmiDesignerPointerDown(event) {
   const paddingX = (Number.parseFloat(styles.paddingLeft) || 12) + (Number.parseFloat(styles.paddingRight) || 12);
   const cellWidth = (canvas.clientWidth - paddingX - gapX * 11) / 12;
   const rowHeight = Number.parseFloat(styles.gridAutoRows) || 64;
+  if (!(cellWidth > 0) || !(rowHeight > 0)) return false;
   layoutGesture = {
     pointerId: event.pointerId,
     mode: handle.dataset.hmiLayoutGesture,
@@ -647,8 +663,13 @@ export function handleHmiDesignerPointerDown(event) {
     columnStep: cellWidth + gapX,
     rowStep: rowHeight + gapY,
   };
-  try { handle.setPointerCapture(event.pointerId); } catch { /* Older browsers may not support pointer capture. */ }
+  // Capture on the stable canvas, not on the small handle that may move under the pointer.
+  try {
+    if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
+  } catch { /* Document-level pointer listeners remain the fallback. */ }
   event.preventDefault();
+  event.stopPropagation?.();
+  document.documentElement?.classList.add("hmi-layout-dragging");
 
   const props = document.getElementById("hmi-layout-preview-properties");
   if (props) props.innerHTML = layoutPropertiesMarkup();
@@ -665,20 +686,23 @@ export function handleHmiDesignerPointerMove(event) {
 
   const deltaCol = Math.round((event.clientX - layoutGesture.startX) / layoutGesture.columnStep);
   const deltaRow = Math.round((event.clientY - layoutGesture.startY) / layoutGesture.rowStep);
-  if (layoutGesture.mode === "move") {
-    component.grid_col = Math.max(1, Math.min(13 - component.grid_w, layoutGesture.startCol + deltaCol));
-    component.grid_row = Math.max(1, Math.min(200, layoutGesture.startRow + deltaRow));
-  } else if (layoutGesture.mode === "resize") {
-    component.grid_w = Math.max(1, Math.min(13 - component.grid_col, layoutGesture.startW + deltaCol));
-    component.grid_h = Math.max(1, Math.min(12, layoutGesture.startH + deltaRow));
-  }
+  Object.assign(component, applyHmiWidgetGridGesture(component, layoutGesture.mode, deltaCol, deltaRow));
+  event.preventDefault?.();
   updateLayoutCardStyle(component);
   return true;
 }
 
 export function handleHmiDesignerPointerUp(event) {
   if (!layoutGesture || (event?.pointerId !== undefined && event.pointerId !== layoutGesture.pointerId)) return false;
+  const completedGesture = layoutGesture;
   layoutGesture = null;
+  document.documentElement?.classList.remove("hmi-layout-dragging");
+  try {
+    const canvas = document.getElementById("hmi-layout-preview-canvas");
+    if (canvas?.hasPointerCapture?.(completedGesture.pointerId)) {
+      canvas.releasePointerCapture(completedGesture.pointerId);
+    }
+  } catch { /* Pointer capture is released automatically by the browser on pointerup. */ }
   const component = selectedWidget();
   const props = document.getElementById("hmi-layout-preview-properties");
   if (props) props.innerHTML = layoutPropertiesMarkup();
