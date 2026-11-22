@@ -8,16 +8,12 @@ import {
   loadHmiPageChartData,
   loadHmiDesignerChartData,
   refreshHmiDesignerLivePreview,
-  handleHmiDesignerPointerDown,
-  handleHmiDesignerPointerMove,
   handleHmiDesignerPointerUp,
-  handleHmiDesignerMouseDown,
-  handleHmiDesignerMouseMove,
-  handleHmiDesignerMouseUp,
   closeHmiDesignerPreview,
   getHmiDesignerChartRefreshIntervalMs,
   getHmiPageChartRefreshIntervalMs,
 } from "../features/live/hmi-designer.js";
+import { bindHmiDesignerGestureEvents } from "../features/live/hmi-designer-events.js";
 
 const root = document.getElementById("app");
 let renderQueued = false;
@@ -111,36 +107,8 @@ document.addEventListener("click", event => {
   });
 });
 
-// All card surfaces are move handles; the bottom-right grip starts a resize.
-// Pointer events cover mouse, pen and touch, and document capture keeps the gesture
-// alive when the pointer leaves the card or crosses another card.
-document.addEventListener("dragstart", event => {
-  if (event.target?.closest?.(".hmi-layout-preview-window")) event.preventDefault();
-}, true);
-document.addEventListener("pointerdown", event => {
-  handleHmiDesignerPointerDown(event);
-}, true);
-document.addEventListener("pointermove", event => {
-  handleHmiDesignerPointerMove(event);
-}, true);
-document.addEventListener("pointerup", event => {
-  handleHmiDesignerPointerUp(event);
-}, true);
-document.addEventListener("pointercancel", event => {
-  handleHmiDesignerPointerUp(event);
-}, true);
-
-// Desktop mouse fallback: pointer events remain primary (including touch/pen),
-// while these listeners keep drag/resize working if pointer delivery is interrupted.
-document.addEventListener("mousedown", event => {
-  handleHmiDesignerMouseDown(event);
-}, true);
-document.addEventListener("mousemove", event => {
-  handleHmiDesignerMouseMove(event);
-}, true);
-document.addEventListener("mouseup", () => {
-  handleHmiDesignerMouseUp();
-}, true);
+// The application and browser regression share the exact same HMI gesture wiring.
+bindHmiDesignerGestureEvents(document);
 
 document.addEventListener("input", event => {
   try {
