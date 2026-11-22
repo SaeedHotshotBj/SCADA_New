@@ -125,6 +125,87 @@ export function normalizeHmiWidgetGeometry(component, index = 0) {
   return { ...component, grid_col, grid_row, grid_w, grid_h };
 }
 
+export const HMI_LAYOUT_CANVAS_WIDTH = 1200;
+export const HMI_LAYOUT_MIN_CANVAS_HEIGHT = 800;
+export const HMI_LAYOUT_MIN_CARD_WIDTH = 120;
+export const HMI_LAYOUT_MIN_CARD_HEIGHT = 80;
+
+function boundedPixel(value, fallback, min, max) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(min, Math.min(max, Math.round(number))) : fallback;
+}
+
+// Freeform layout uses a fixed logical design surface. Old grid layouts are
+// migrated once to pixel coordinates so existing HMI pages remain visible.
+export function normalizeHmiWidgetFreeformGeometry(component, index = 0) {
+  const source = component && typeof component === "object" ? component : {};
+  const hasFreeform = ["x", "y", "width", "height"].every(key =>
+    source[key] !== undefined && source[key] !== null && source[key] !== "" && Number.isFinite(Number(source[key]))
+  );
+  let width;
+  let height;
+  let x;
+  let y;
+  if (hasFreeform) {
+    width = boundedPixel(source.width, 360, HMI_LAYOUT_MIN_CARD_WIDTH, HMI_LAYOUT_CANVAS_WIDTH);
+    height = boundedPixel(source.height, 220, HMI_LAYOUT_MIN_CARD_HEIGHT, 4000);
+    x = boundedPixel(source.x, 0, 0, HMI_LAYOUT_CANVAS_WIDTH - width);
+    y = boundedPixel(source.y, 0, 0, 100000);
+  } else if (source.grid_col !== undefined || source.grid_row !== undefined ||
+             source.grid_w !== undefined || source.grid_h !== undefined) {
+    const gridCol = boundedInteger(source.grid_col, 1, 1, 12);
+    const gridRow = boundedInteger(source.grid_row, 1, 1, 1000);
+    const gridWidth = boundedInteger(source.grid_w, 4, 1, 12);
+    const gridHeight = boundedInteger(source.grid_h, 3, 1, 12);
+    width = boundedPixel(gridWidth * 98 - 8, 360, HMI_LAYOUT_MIN_CARD_WIDTH, HMI_LAYOUT_CANVAS_WIDTH);
+    height = boundedPixel(gridHeight * 72 - 8, 220, HMI_LAYOUT_MIN_CARD_HEIGHT, 4000);
+    x = boundedPixel(12 + (gridCol - 1) * 98, 24, 0, HMI_LAYOUT_CANVAS_WIDTH - width);
+    y = boundedPixel(12 + (gridRow - 1) * 72, 24, 0, 100000);
+  } else {
+    const column = index % 3;
+    const row = Math.floor(index / 3);
+    width = 360;
+    height = 220;
+    x = 24 + column * 390;
+    y = 24 + row * 250;
+  }
+  x = boundedPixel(x, 0, 0, HMI_LAYOUT_CANVAS_WIDTH - width);
+  y = boundedPixel(y, 0, 0, 100000);
+  return { ...source, x, y, width, height };
+}
+
+export function hmiWidgetFreeformStyle(component, index = 0) {
+  const geometry = normalizeHmiWidgetFreeformGeometry(component, index);
+  return "position:absolute;left:" + geometry.x + "px;top:" + geometry.y +
+    "px;width:" + geometry.width + "px;height:" + geometry.height + "px;";
+}
+
+export function hmiWidgetCanvasHeight(components) {
+  const bottom = (Array.isArray(components) ? components : []).reduce((max, item, index) => {
+    const geometry = normalizeHmiWidgetFreeformGeometry(item, index);
+    return Math.max(max, geometry.y + geometry.height + 24);
+  }, HMI_LAYOUT_MIN_CANVAS_HEIGHT);
+  return Math.min(100000, Math.max(HMI_LAYOUT_MIN_CANVAS_HEIGHT, bottom));
+}
+
+export function applyHmiWidgetFreeformGesture(component, mode, deltaX = 0, deltaY = 0) {
+  const next = normalizeHmiWidgetFreeformGeometry(component);
+  const dx = Number.isFinite(Number(deltaX)) ? Math.round(Number(deltaX)) : 0;
+  const dy = Number.isFinite(Number(deltaY)) ? Math.round(Number(deltaY)) : 0;
+  if (mode === "move") {
+    next.x = Math.max(0, Math.min(HMI_LAYOUT_CANVAS_WIDTH - next.width, next.x + dx));
+    next.y = Math.max(0, Math.min(100000, next.y + dy));
+  } else if (mode === "resize") {
+    next.width = Math.max(HMI_LAYOUT_MIN_CARD_WIDTH, Math.min(HMI_LAYOUT_CANVAS_WIDTH - next.x, next.width + dx));
+    next.height = Math.max(HMI_LAYOUT_MIN_CARD_HEIGHT, Math.min(4000, next.height + dy));
+  }
+  return normalizeHmiWidgetFreeformGeometry(next);
+}
+
+export function hmiWidgetFreeformFromPointer(component, mode, deltaX, deltaY) {
+  return applyHmiWidgetFreeformGesture(component, mode, deltaX, deltaY);
+}
+
 export function hmiWidgetGridStyle(component, index = 0) {
   const geometry = normalizeHmiWidgetGeometry(component, index);
   return "grid-column:" + geometry.grid_col + " / span " + geometry.grid_w +
@@ -146,16 +227,16 @@ export function applyHmiWidgetGridGesture(component, mode, deltaColumn = 0, delt
 }
 
 export function arrangeHmiWidgetsSingleColumn(components) {
-  let nextRow = 1;
+  let nextY = 24;
   return (Array.isArray(components) ? components : []).map((component, index) => {
-    const normalized = normalizeHmiWidgetGeometry(component, index);
-    const placed = normalizeHmiWidgetGeometry({
+    const normalized = normalizeHmiWidgetFreeformGeometry(component, index);
+    const placed = normalizeHmiWidgetFreeformGeometry({
       ...normalized,
-      grid_col: 1,
-      grid_row: nextRow,
-      grid_w: 12,
+      x: 24,
+      y: nextY,
+      width: HMI_LAYOUT_CANVAS_WIDTH - 48,
     }, index);
-    nextRow += placed.grid_h;
+    nextY += placed.height + 24;
     return placed;
   });
 }
