@@ -541,6 +541,20 @@ def test_hmi_layout_validates_tag_bindings_and_write_access():
         })
         assert invalid_row.status_code == 422
 
+        stacked_row = client.post("/api/resources/hmiPages", json={
+            "name": "Valid HMI single column",
+            "machine": "بانچر",
+            "description": "full width card at a long row index",
+            "layout": [{
+                "type": "gauge", "tag_id": "t3", "min": 0, "max": 100,
+                "grid_col": 1, "grid_row": 589, "grid_w": 12, "grid_h": 12,
+            }],
+            "status": "فعال",
+        })
+        assert stacked_row.status_code == 201, stacked_row.text
+        assert stacked_row.json()["layout"][0]["grid_row"] == 589
+        assert stacked_row.json()["layout"][0]["grid_w"] == 12
+
 
 def test_resource_update_returns_factory_scope_and_user_update_is_safe():
     with TestClient(app) as client:
