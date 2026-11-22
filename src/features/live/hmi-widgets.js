@@ -524,7 +524,9 @@ function renderChart(component, tag, preview, history, historyState) {
     if (historyState?.status === "loading") message = "در حال دریافت تاریخچه از Backend…";
     else if (historyState?.status === "error") message = "دریافت تاریخچه ناموفق بود: " + (historyState.message || "خطای نامشخص");
     else if (historyState?.status === "empty") {
-      message = "در " + rangeLabel + " اخیر نمونه‌ی ذخیره‌شده‌ای وجود ندارد.";
+      message = isLive
+        ? "در انتظار اولین نمونه زنده از PLC یا Edge…"
+        : "در " + rangeLabel + " اخیر نمونه‌ی ذخیره‌شده‌ای وجود ندارد.";
     } else if (isLive) {
       message = "در انتظار اولین نمونه زنده از PLC یا Edge…";
     }
