@@ -404,6 +404,11 @@ export function handleHmiDesignerInput(event) {
       const properties = document.getElementById("hmi-designer-properties");
       if (canvas) canvas.innerHTML = canvasMarkup();
       if (properties) properties.innerHTML = propertiesMarkup();
+      const previewRoot = document.getElementById("hmi-layout-preview-root");
+      if (previewRoot) {
+        previewRoot.hidden = !layoutPreviewOpen;
+        previewRoot.innerHTML = layoutPreviewOpen ? layoutPreviewMarkup() : "";
+      }
     } catch (error) {
       jsonError = error.message || "JSON نامعتبر است.";
       setJsonStatus(jsonError, "error");
@@ -415,6 +420,29 @@ export function handleHmiDesignerInput(event) {
     draft[pageField] = target.value;
     return true;
   }
+  const layoutProperty = target.dataset.hmiLayoutProp;
+  if (layoutProperty) {
+    const component = selectedWidget();
+    if (!component || target.value === "") return true;
+    const limits = {
+      grid_col: [1, 12],
+      grid_row: [1, 200],
+      grid_w: [1, 12],
+      grid_h: [1, 12],
+    }[layoutProperty];
+    if (!limits) return true;
+    const value = Number(target.value);
+    if (!Number.isFinite(value)) return true;
+    component[layoutProperty] = Math.max(limits[0], Math.min(limits[1], Math.round(value)));
+    const index = draft.layout.findIndex(item => item.widget_id === component.widget_id);
+    Object.assign(component, normalizeHmiWidgetGeometry(component, index));
+    const card = [...document.querySelectorAll("[data-hmi-layout-card]")].find(item => item.dataset.widgetId === component.widget_id);
+    if (card) card.style.cssText = hmiWidgetGridStyle(component, index);
+    const inputs = document.querySelectorAll("#hmi-layout-preview-properties [data-hmi-layout-prop]");
+    for (const input of inputs) input.value = component[input.dataset.hmiLayoutProp];
+    syncJsonEditor();
+    return true;
+  }
   const property = target.dataset.hmiProp;
   if (!property) return true;
   const component = selectedWidget();
@@ -424,6 +452,9 @@ export function handleHmiDesignerInput(event) {
   const canvas = document.getElementById("hmi-designer-canvas");
   if (canvas) canvas.innerHTML = canvasMarkup();
   syncJsonEditor();
+  if (component.type === "chart" && layoutPreviewOpen && ["tag_id", "history_seconds", "history_hours"].includes(property)) {
+    void loadHmiDesignerChartData();
+  }
   return true;
 }
 
@@ -431,7 +462,7 @@ export function handleHmiDesignerAction(action, element) {
   if (!element?.closest(".hmi-designer-page")) return false;
   if (action === "hmi-add-widget") {
     if (draft.layout.length >= 50) throw new Error("حداکثر ۵۰ جزء در هر صفحه HMI قابل افزودن است.");
-    const component = createHmiWidget(element.dataset.widgetType);
+    const component = normalizeHmiWidgetGeometry(createHmiWidget(element.dataset.widgetType), draft.layout.length);
     draft.layout.push(component);
     selectedWidgetId = component.widget_id;
     refreshDesignerPanels();
@@ -440,6 +471,48 @@ export function handleHmiDesignerAction(action, element) {
   if (action === "hmi-select-widget") {
     selectedWidgetId = element.dataset.widgetId;
     refreshDesignerPanels();
+    return true;
+  }
+  if (action === "hmi-open-layout-preview") {
+    layoutPreviewOpen = true;
+    const root = document.getElementById("hmi-layout-preview-root");
+    if (root) {
+      root.hidden = false;
+      root.innerHTML = layoutPreviewMarkup();
+    }
+    void loadHmiDesignerChartData();
+    if (designerChartRefreshTimer) window.clearInterval(designerChartRefreshTimer);
+    designerChartRefreshTimer = window.setInterval(() => {
+      if (layoutPreviewOpen && store.isConnected()) void loadHmiDesignerChartData();
+    }, 5000);
+    return true;
+  }
+  if (action === "hmi-close-layout-preview") {
+    if (element.classList.contains("hmi-layout-preview-backdrop") && element.dataset.directBackdropClick !== "true") return true;
+    closeHmiDesignerPreview();
+    const root = document.getElementById("hmi-layout-preview-root");
+    if (root) {
+      root.hidden = true;
+      root.innerHTML = "";
+    }
+    return true;
+  }
+  if (action === "hmi-select-layout-widget") {
+    selectedWidgetId = element.dataset.widgetId;
+    const props = document.getElementById("hmi-layout-preview-properties");
+    if (props) props.innerHTML = layoutPropertiesMarkup();
+    for (const card of document.querySelectorAll("[data-hmi-layout-card]")) {
+      card.classList.toggle("is-selected", card.dataset.widgetId === selectedWidgetId);
+    }
+    return true;
+  }
+  if (action === "hmi-reset-layout-widget") {
+    const component = selectedWidget();
+    if (component) {
+      const index = draft.layout.indexOf(component);
+      Object.assign(component, normalizeHmiWidgetGeometry({}, index));
+      refreshDesignerPanels();
+    }
     return true;
   }
   if (action === "hmi-remove-widget") {
