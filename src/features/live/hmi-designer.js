@@ -667,6 +667,11 @@ function beginHmiLayoutGesture(handle, event) {
       height: component.height,
     },
   };
+  try {
+    handle.setPointerCapture?.(event.pointerId);
+  } catch {
+    // Document-level pointer listeners remain as a fallback when capture is unavailable.
+  }
   document.documentElement?.classList.add("hmi-layout-dragging");
 
   const props = document.getElementById("hmi-layout-preview-properties");
