@@ -113,6 +113,25 @@ try {
     throw new Error("The one-second trend did not draw a continuous line from two incoming live samples: " + livePolyline);
   }
 
+  
+  // Verify both axes, the latest-value tile and configurable line thickness.
+  const renderedChart = await chartCard.locator(".hmi-chart-svg").evaluate(svg => ({
+    xTitle: svg.querySelector(".hmi-chart-axis-title--x")?.textContent || "",
+    yTitle: svg.querySelector(".hmi-chart-axis-title--y")?.textContent || "",
+    xTicks: [...svg.querySelectorAll(".hmi-chart-x-tick")].map(node => node.textContent),
+    yTicks: [...svg.querySelectorAll(".hmi-chart-y-tick")].map(node => node.textContent),
+    strokeWidth: svg.querySelector(".hmi-chart-line")?.getAttribute("stroke-width") || "",
+  }));
+  const latestValueBox = chartCard.locator(".hmi-chart-value-box");
+  await latestValueBox.waitFor({ state: "visible" });
+  const latestDisplayedValue = (await latestValueBox.locator("strong").textContent())?.trim();
+  if (renderedChart.xTitle !== "زمان" || renderedChart.yTitle !== "مقدار" ||
+      renderedChart.xTicks.length !== 3 || renderedChart.xTicks.some(label => !label || label === "—") ||
+      renderedChart.yTicks.length < 3 || !latestDisplayedValue) {
+    throw new Error("HMI trend must render timestamp X ticks, numeric Y ticks and an in-card latest-value box: " +
+      JSON.stringify({ renderedChart, latestDisplayedValue }));
+  }
+
   // Import an SVG asset through the real designer upload flow; only the API transport is mocked.
   const mediaCard = page.locator("[data-hmi-layout-card]").filter({ has: page.locator(".hmi-widget--media") }).first();
   await mediaCard.locator(".hmi-layout-card-toolbar").click();
@@ -139,7 +158,13 @@ try {
   // Apply a per-widget theme and verify it overrides the selected page theme.
   const chartTheme = page.locator("#hmi-layout-preview-properties [data-hmi-prop=\"theme\"]");
   await chartTheme.selectOption("blue");
+  const lineWidthInput = page.locator('#hmi-layout-preview-properties [data-hmi-prop="line_width"]');
+  await lineWidthInput.fill("4");
   await page.waitForTimeout(50);
+  const configuredStrokeWidth = await chartCard.locator(".hmi-chart-svg .hmi-chart-line").getAttribute("stroke-width");
+  if (configuredStrokeWidth !== "4") {
+    throw new Error("The HMI designer line-width setting did not update the rendered trend: " + configuredStrokeWidth);
+  }
   const pageTheme = await page.locator("#hmi-layout-preview-canvas").getAttribute("data-hmi-page-theme");
   const widgetTheme = await chartCard.locator(".hmi-widget").getAttribute("data-hmi-theme");
   const widgetBackground = await chartCard.locator(".hmi-widget").evaluate(element => getComputedStyle(element).backgroundColor);
@@ -230,7 +255,8 @@ try {
       valueLayout?.y !== moved.top ||
       valueLayout?.width !== resized.width ||
       valueLayout?.height !== resized.height ||
-      chartLayout?.theme !== "blue") {
+      chartLayout?.theme !== "blue" ||
+      chartLayout?.line_width !== 4) {
     throw new Error(`HMI JSON did not persist final geometry and per-widget theme. JSON=${saved}`);
   }
 
@@ -257,6 +283,10 @@ try {
   const runtimeRefresh = await page.evaluate(() => window.__refreshRuntimeLiveValues());
   if (!runtimeRefresh.refreshed || !runtimeRefresh.mediaWidgetPreserved || !runtimeRefresh.mediaElementPreserved) {
     throw new Error("Live runtime telemetry refresh must update data widgets without replacing the imported media element: " + JSON.stringify(runtimeRefresh));
+  }
+  const runtimeStrokeWidth = await runtimeChart.locator(".hmi-chart-svg .hmi-chart-line").getAttribute("stroke-width");
+  if (runtimeStrokeWidth !== "4") {
+    throw new Error("The saved chart line thickness was not applied in HMI runtime: " + runtimeStrokeWidth);
   }
   if (runtimePageTheme !== "dark" || runtimeWidgetTheme !== "blue" ||
       runtimeWidgetBackground !== "rgb(248, 251, 255)" || runtimePageBackground !== "rgb(24, 35, 46)" ||
@@ -349,7 +379,7 @@ try {
 
   if (pageErrors.length) throw new Error("Browser console errors: " + pageErrors.join("\\n"));
 
-  console.log("HMI Chromium E2E passed: drag/resize, chart history/live SVG, media upload/render, themes, runtime grid removal and responsive fit for every widget at four card sizes.");
+  console.log("HMI Chromium E2E passed: time/value axes, latest-value box, configurable line width, live/history trends, drag/resize, media, themes and responsive fit.");
   console.log(JSON.stringify({
     initial, moved, resized, pageTheme, widgetTheme, widgetBackground, pageBackground,
     livePolyline, importedImage, runtimePageTheme, runtimeWidgetTheme,

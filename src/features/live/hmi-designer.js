@@ -1,7 +1,7 @@
 import { api } from "../../services/api-client.js";
 import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
-import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_WIDGET_LIBRARY, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_LAYOUT_CANVAS_WIDTH, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetFreeformFromPointer, hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, normalizeHmiWidgetFreeformGeometry, normalizeHmiPageTheme, normalizeHmiWidgetTheme, hmiChartLiveIntervalMs, appendHmiLiveChartSamples, getHmiLiveChartSamples, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
+import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_CHART_LINE_WIDTH_MIN, HMI_CHART_LINE_WIDTH_MAX, HMI_CHART_LINE_WIDTH_DEFAULT, normalizeHmiChartLineWidth, HMI_WIDGET_LIBRARY, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_LAYOUT_CANVAS_WIDTH, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetFreeformFromPointer, hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, normalizeHmiWidgetFreeformGeometry, normalizeHmiPageTheme, normalizeHmiWidgetTheme, hmiChartLiveIntervalMs, appendHmiLiveChartSamples, getHmiLiveChartSamples, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
 
 let activePageKey = null;
 let draft = null;
@@ -142,6 +142,12 @@ function propertiesMarkup() {
       { value: "bar", label: "ستونی" },
     ], component.chart_kind || "line");
     fields += selectMarkup("بازه زمانی نمایش", "history_seconds", HMI_CHART_RANGES, chartHistorySeconds(component));
+    fields += fieldMarkup("ضخامت خط نمودار", "line_width", normalizeHmiChartLineWidth(component.line_width), "number", {
+      min: HMI_CHART_LINE_WIDTH_MIN,
+      max: HMI_CHART_LINE_WIDTH_MAX,
+      step: 0.5,
+    });
+    fields += '<small class="hmi-field-help">محور عمودی مقدار تگ و محور افقی زمان نمونه‌ها را نشان می‌دهد. مقدار آخرین نمونه نیز در باکس جداگانه داخل نمودار نمایش داده می‌شود. ضخامت خط بین ۰٫۵ تا ۱۰ قابل تنظیم است.</small>';
     fields += '<small class="hmi-field-help">حالت ۱ ثانیه، تاریخچه را مکرراً درخواست نمی‌کند؛ نمودار از WebSocket داده زنده می‌گیرد و ۶۰ ثانیه اخیر را پیوسته نمایش می‌دهد. برای نمونه جدید در هر ثانیه، Poll خود PLC را روی ۱ s یا ارسال Edge را روی ۱ ثانیه تنظیم کن.</small>';
   }
   if (component.type === "media") fields += mediaPropertiesMarkup(component);
@@ -246,6 +252,11 @@ function layoutPropertiesMarkup() {
   return '<section class="hmi-layout-properties"><div class="hmi-layout-properties-title"><b>چیدمان آزاد کارت</b><small>' +
     escapeHtml(component.label || component.type) + '</small></div>' +
     selectMarkup("پوسته این باکس", "theme", HMI_COMPONENT_THEME_OPTIONS, normalizeHmiWidgetTheme(component.theme)) +
+    (component.type === "chart"
+      ? fieldMarkup("ضخامت خط نمودار", "line_width", normalizeHmiChartLineWidth(component.line_width), "number", {
+          min: HMI_CHART_LINE_WIDTH_MIN, max: HMI_CHART_LINE_WIDTH_MAX, step: 0.5,
+        })
+      : "") +
     (component.type === "media" ? mediaPropertiesMarkup(component) : "") +
     '<div class="hmi-layout-properties-group-title">موقعیت آزاد روی بوم (پیکسل)</div><div class="hmi-layout-properties-fields">' +
     '<label class="field"><span>موقعیت افقی X</span><input type="number" inputmode="numeric" min="0" max="1200" step="1" aria-label="موقعیت افقی کارت" data-hmi-layout-prop="x" value="' + component.x + '"></label>' +
@@ -372,8 +383,15 @@ function validateDraftLayout() {
       }
     }
     Object.assign(component, normalizeHmiWidgetFreeformGeometry(component, index));
-    if (component.type === "chart" && !HMI_CHART_RANGES.some(range => range.value === chartHistorySeconds(component))) {
-      throw new Error("بازه زمانی انتخاب‌شده برای نمودار معتبر نیست.");
+    if (component.type === "chart") {
+      if (!HMI_CHART_RANGES.some(range => range.value === chartHistorySeconds(component))) {
+        throw new Error("بازه زمانی انتخاب‌شده برای نمودار معتبر نیست.");
+      }
+      const lineWidth = Number(component.line_width ?? HMI_CHART_LINE_WIDTH_DEFAULT);
+      if (!Number.isFinite(lineWidth) || lineWidth < HMI_CHART_LINE_WIDTH_MIN || lineWidth > HMI_CHART_LINE_WIDTH_MAX) {
+        throw new Error("ضخامت خط نمودار باید بین ۰٫۵ تا ۱۰ باشد.");
+      }
+      component.line_width = normalizeHmiChartLineWidth(lineWidth);
     }
   }
 }
@@ -498,7 +516,7 @@ export function handleHmiDesignerInput(event) {
   if (!property) return true;
   const component = selectedWidget();
   if (!component) return true;
-  const numeric = target.type === "number" || ["min", "max", "history_seconds"].includes(property);
+  const numeric = target.type === "number" || ["min", "max", "history_seconds", "line_width"].includes(property);
   component[property] = target.type === "checkbox"
     ? target.checked
     : numeric ? (target.value === "" ? "" : Number(target.value)) : target.value;

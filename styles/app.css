@@ -1246,3 +1246,160 @@ tbody tr:last-child td { border-bottom: 0; }
   font-size: clamp(8px, 7cqi, 17px);
 }
 
+
+/* Trend chart: time/value axes, a dedicated live-value tile and adaptive plot sizing. */
+.hmi-widget--chart .hmi-widget-body {
+  align-items: stretch;
+  justify-content: flex-start;
+}
+.hmi-chart-layout {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  gap: clamp(1px, 1.2cqb, 5px);
+}
+.hmi-chart-value-box {
+  display: grid;
+  flex: 0 1 auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  width: 100%;
+  min-width: 0;
+  max-height: 28%;
+  overflow: hidden;
+  box-sizing: border-box;
+  align-items: center;
+  gap: clamp(2px, 1.8cqi, 8px);
+  padding: clamp(2px, 1.5cqb, 6px) clamp(4px, 2.2cqi, 10px);
+  border: 1px solid var(--hmi-border, #dce7ed);
+  border-radius: 6px;
+  background: var(--hmi-soft-bg, #f5f9fb);
+  text-align: start;
+}
+.hmi-chart-value-box span {
+  min-width: 0;
+  color: var(--hmi-muted, #8295a5);
+  font-size: clamp(5px, 3.8cqb, 9px);
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hmi-chart-value-box strong {
+  min-width: 0;
+  color: var(--hmi-heading, #294d68);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: clamp(8px, 8.5cqb, 18px);
+  font-weight: 800;
+  line-height: 1.05;
+  direction: ltr;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hmi-chart-value-box small {
+  min-width: 0;
+  color: var(--hmi-muted, #8295a5);
+  font-size: clamp(5px, 3.6cqb, 8px);
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hmi-chart-plot {
+  display: flex;
+  flex: 1 1 0;
+  align-items: stretch;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.hmi-chart-plot > .hmi-chart-svg {
+  display: block;
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+}
+.hmi-chart-svg .hmi-chart-grid-line {
+  fill: none;
+  stroke: var(--hmi-chart-grid, #e5edf2);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.hmi-chart-svg .hmi-chart-axis-line {
+  fill: none;
+  stroke: var(--hmi-muted, #8295a5);
+  stroke-width: 1;
+}
+.hmi-chart-svg .hmi-chart-axis-tick {
+  fill: none;
+  stroke: var(--hmi-muted, #8295a5);
+  stroke-width: 1;
+}
+.hmi-chart-svg .hmi-chart-y-tick,
+.hmi-chart-svg .hmi-chart-x-tick {
+  fill: var(--hmi-muted, #8295a5);
+  font-size: 11px;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+.hmi-chart-svg .hmi-chart-axis-title {
+  fill: var(--hmi-heading, #294d68);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+.hmi-chart-plot .hmi-chart-empty {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  padding: clamp(2px, 2cqb, 10px);
+  font-size: clamp(6px, 3.7cqb, 9px);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.hmi-chart-layout .hmi-chart-live-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-height: 18%;
+  flex-wrap: wrap;
+  gap: clamp(1px, 1cqi, 5px);
+  font-size: clamp(5px, 3.3cqb, 8px);
+  line-height: 1.1;
+}
+.hmi-chart-layout .hmi-chart-live-label small {
+  min-width: 0;
+  font-size: clamp(5px, 3cqb, 7px);
+  overflow-wrap: anywhere;
+}
+.hmi-chart-meta {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: 18%;
+  flex-wrap: wrap;
+  font-size: clamp(5px, 3.2cqb, 8px);
+  line-height: 1.1;
+}
+.hmi-chart-meta small {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+

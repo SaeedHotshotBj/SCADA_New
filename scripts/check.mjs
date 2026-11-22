@@ -61,17 +61,26 @@ console.log("HMI Designer route render passed (15 library widgets, canvas, prope
 const {
   HMI_CHART_RANGES, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_WIDGET_LIBRARY,
   createHmiWidget, renderHmiWidget, normalizeHmiPageTheme, normalizeHmiWidgetTheme,
+  HMI_CHART_LINE_WIDTH_MIN, HMI_CHART_LINE_WIDTH_MAX, HMI_CHART_LINE_WIDTH_DEFAULT, normalizeHmiChartLineWidth,
   appendHmiLiveChartSamples, getHmiLiveChartSamples, hmiChartLiveIntervalMs,
 } = await import("../src/features/live/hmi-widgets.js");
 const chart = createHmiWidget("chart");
-if (chart.history_seconds !== 3600) {
-  throw new Error("New HMI trend charts must default to a one-hour range in seconds.");
+if (chart.history_seconds !== 3600 ||
+    chart.line_width !== 2.5) {
+  throw new Error("New HMI trend charts must default to a one-hour range and a 2.5px line.");
 }
 const requiredRanges = [1, 5, 10, 30, 60, 300, 600, 900, 1800, 3600, 21600, 43200, 86400];
 for (const seconds of requiredRanges) {
   if (!HMI_CHART_RANGES.some(range => range.value === seconds)) {
     throw new Error(`HMI trend chart is missing the ${seconds}-second range.`);
   }
+}
+if (HMI_CHART_LINE_WIDTH_MIN !== 0.5 || HMI_CHART_LINE_WIDTH_MAX !== 10 ||
+    HMI_CHART_LINE_WIDTH_DEFAULT !== 2.5 ||
+    normalizeHmiChartLineWidth(4) !== 4 ||
+    normalizeHmiChartLineWidth(0) !== 0.5 ||
+    normalizeHmiChartLineWidth(14) !== 10) {
+  throw new Error("HMI chart line thickness must be normalized to the supported 0.5–10px range.");
 }
 const needleHtml = renderHmiWidget({
   type: "needle", label: "فشار", tag_id: "test-pressure", min: 0, max: 100,
@@ -102,7 +111,7 @@ if (!themedWidget.includes('data-hmi-theme="blue"')) {
   throw new Error("Per-widget HMI themes must be present on the rendered widget root.");
 }
 const orderedTrend = renderHmiWidget({
-  type: "chart", tag_id: "test-trend", history_seconds: 60,
+  type: "chart", tag_id: "test-trend", history_seconds: 60, line_width: 4,
 }, [{
   id: "test-trend", name: "Test trend", value: 12.5,
   type: "float32", unit: "bar", quality: "GOOD",
@@ -115,9 +124,20 @@ const orderedTrend = renderHmiWidget({
   ],
   historyState: { status: "ready", sampleCount: 3 },
 });
-const trendPoints = orderedTrend.match(/<polyline points="([^"]+)"/)?.[1] || "";
-if (trendPoints !== "8.0,68.0 130.0,10.0 252.0,39.0") {
-  throw new Error("HMI trends must discard invalid values and render samples in chronological order: " + trendPoints);
+const trendPoints = orderedTrend.match(/<polyline[^>]*points="([^"]+)"/)?.[1] || "";
+if (trendPoints !== "54.00,152.00 202.00,14.00 350.00,83.00") {
+  throw new Error("HMI trends must use chronological timestamps for X and numeric values for Y: " + trendPoints);
+}
+if (!orderedTrend.includes('class="hmi-chart-axis-title hmi-chart-axis-title--y"') ||
+    !orderedTrend.includes('class="hmi-chart-axis-title hmi-chart-axis-title--x"') ||
+    !orderedTrend.includes(">مقدار</text>") ||
+    !orderedTrend.includes(">زمان</text>") ||
+    !orderedTrend.includes('class="hmi-chart-value-box hmi-chart-latest"') ||
+    !orderedTrend.includes("۱۵") ||
+    !orderedTrend.includes('stroke-width="4"') ||
+    (orderedTrend.match(/class="hmi-chart-y-tick"/g) || []).length < 3 ||
+    (orderedTrend.match(/class="hmi-chart-x-tick"/g) || []).length !== 3) {
+  throw new Error("HMI trend must show numeric/time axes, the latest-value tile, axis ticks and the configured line thickness.");
 }
 console.log("HMI chart range and needle numeric readout checks passed.");
 
@@ -208,8 +228,10 @@ const singleSampleChart = renderHmiWidget({
   history: [{ value: 12.5, sampled_at: "2026-11-22T08:00:00+00:00" }],
   historyState: { status: "ready", sampleCount: 1 },
 });
-if (!singleSampleChart.includes("hmi-chart-single-point") || !singleSampleChart.includes("12")) {
-  throw new Error("HMI trend must render a visible point when the history contains exactly one sample.");
+if (!singleSampleChart.includes("hmi-chart-single-point") ||
+    !singleSampleChart.includes("hmi-chart-value-box") ||
+    !singleSampleChart.includes("۱۲")) {
+  throw new Error("HMI trend must render its single sample and numeric value tile when history contains one sample.");
 }
 const emptyHistoryChart = renderHmiWidget({
   type: "chart", tag_id: "test-trend", history_seconds: 60,
@@ -326,6 +348,13 @@ if (designerSource.includes('hmi-layout-preview-backdrop" data-action="hmi-close
 }
 if (!designerSource.includes('data-action="hmi-layout-single-column"')) {
   throw new Error("The floating HMI preview must expose a one-card-per-row layout command.");
+}
+if (!cssSource.includes(".hmi-chart-value-box {") ||
+    !cssSource.includes(".hmi-chart-axis-title") ||
+    !cssSource.includes(".hmi-chart-x-tick") ||
+    !cssSource.includes(".hmi-chart-y-tick") ||
+    !cssSource.includes(".hmi-chart-plot {")) {
+  throw new Error("HMI chart styling must keep its value tile and both time/value axes responsive inside the card.");
 }
 if (!cssSource.includes(".hmi-layout-card-content {") ||
     !cssSource.includes("container-type: size;") ||
