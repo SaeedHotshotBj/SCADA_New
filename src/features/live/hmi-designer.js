@@ -1,7 +1,7 @@
 import { api } from "../../services/api-client.js";
 import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
-import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_WIDGET_LIBRARY, applyHmiWidgetGridGesture, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetGridStyle, normalizeHmiWidgetGeometry, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
+import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_WIDGET_LIBRARY, applyHmiWidgetGridGesture, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetGridStyle, normalizeHmiWidgetGeometry, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
 
 let activePageKey = null;
 let draft = null;
@@ -215,7 +215,7 @@ function layoutPropertiesMarkup() {
     escapeHtml(component.label || component.type) + '</small></div>' +
     '<div class="hmi-layout-properties-group-title">موقعیت عددی کارت</div><div class="hmi-layout-properties-fields">' +
     '<label class="field"><span>ستون شروع (عدد ۱ تا ۱۲)</span><input type="number" inputmode="numeric" min="1" max="12" step="1" aria-label="ستون شروع کارت" data-hmi-layout-prop="grid_col" value="' + component.grid_col + '"></label>' +
-    '<label class="field"><span>ردیف شروع (عدد ۱ تا ۲۰۰)</span><input type="number" inputmode="numeric" min="1" max="200" step="1" aria-label="ردیف شروع کارت" data-hmi-layout-prop="grid_row" value="' + component.grid_row + '"></label>' +
+    '<label class="field"><span>ردیف شروع (عدد ۱ تا ۱۰۰۰)</span><input type="number" inputmode="numeric" min="1" max="1000" step="1" aria-label="ردیف شروع کارت" data-hmi-layout-prop="grid_row" value="' + component.grid_row + '"></label>' +
     '</div><div class="hmi-layout-properties-group-title">اندازه عددی کارت</div><div class="hmi-layout-properties-fields">' +
     '<label class="field"><span>عرض کارت (تعداد ستون، ۱ تا ۱۲)</span><input type="number" inputmode="numeric" min="1" max="12" step="1" aria-label="عرض عددی کارت بر حسب ستون" data-hmi-layout-prop="grid_w" value="' + component.grid_w + '"></label>' +
     '<label class="field"><span>ارتفاع کارت (تعداد ردیف، ۱ تا ۱۲)</span><input type="number" inputmode="numeric" min="1" max="12" step="1" aria-label="ارتفاع عددی کارت بر حسب ردیف" data-hmi-layout-prop="grid_h" value="' + component.grid_h + '"></label>' +
@@ -241,10 +241,11 @@ function layoutPreviewCardMarkup(component, index) {
 
 function layoutPreviewMarkup() {
   const cards = draft.layout.map(layoutPreviewCardMarkup).join("");
-  return '<div class="hmi-layout-preview-backdrop" data-action="hmi-close-layout-preview">' +
+  return '<div class="hmi-layout-preview-backdrop">' +
     '<section class="hmi-layout-preview-window" role="dialog" aria-modal="true" aria-label="پیش‌نمایش و چیدمان صفحه HMI">' +
-    '<header class="hmi-layout-preview-header"><div><b>پیش‌نمایش شناور صفحه HMI</b><small>کارت‌ها را جابه‌جا و از گوشه‌ی پایین اندازه‌ی آن‌ها را تغییر بده.</small></div>' +
-    '<button type="button" class="btn btn-light btn-sm" data-action="hmi-close-layout-preview">بستن پیش‌نمایش</button></header>' +
+    '<header class="hmi-layout-preview-header"><div><b>پیش‌نمایش شناور صفحه HMI</b><small>برای جابه‌جایی نوار بالای کارت را بکش؛ برای تنظیم اندازه از گوشه پایین یا اعداد پنل استفاده کن.</small></div>' +
+    '<div class="hmi-layout-preview-header-actions"><button type="button" class="btn btn-primary btn-sm" data-action="hmi-layout-single-column">یک کارت در هر ردیف</button>' +
+    '<button type="button" class="btn btn-light btn-sm" data-action="hmi-close-layout-preview">بستن پیش‌نمایش</button></div></header>' +
     '<div class="hmi-layout-preview-body"><main class="hmi-layout-preview-main"><div class="hmi-layout-stage-scroll">' +
     '<div id="hmi-layout-preview-canvas" class="hmi-layout-preview-canvas">' +
     (cards || '<div class="hmi-layout-preview-empty">ابتدا از کتابخانه، جزءهای موردنیاز را به صفحه اضافه کن.</div>') +
@@ -431,7 +432,7 @@ export function handleHmiDesignerInput(event) {
     if (!component || target.value === "") return true;
     const limits = {
       grid_col: [1, 12],
-      grid_row: [1, 200],
+      grid_row: [1, 1000],
       grid_w: [1, 12],
       grid_h: [1, 12],
     }[layoutProperty];
@@ -506,6 +507,14 @@ export function handleHmiDesignerAction(action, element) {
     for (const card of document.querySelectorAll("[data-hmi-layout-card]")) {
       card.classList.toggle("is-selected", card.dataset.widgetId === selectedWidgetId);
     }
+    return true;
+  }
+  if (action === "hmi-layout-single-column") {
+    draft.layout = arrangeHmiWidgetsSingleColumn(draft.layout);
+    selectedWidgetId = selectedWidgetId && draft.layout.some(item => item.widget_id === selectedWidgetId)
+      ? selectedWidgetId
+      : (draft.layout[0]?.widget_id || null);
+    refreshDesignerPanels();
     return true;
   }
   if (action === "hmi-reset-layout-widget") {
