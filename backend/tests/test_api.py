@@ -480,7 +480,7 @@ def test_hmi_layout_validates_tag_bindings_and_write_access():
             "description": "layout validation",
             "layout": [
                 {"type": "gauge", "tag_id": "t3", "label": "Current", "min": 0, "max": 300},
-                {"type": "chart", "tag_id": "t3", "label": "Short trend", "chart_kind": "line", "history_seconds": 5},
+                {"type": "chart", "tag_id": "t3", "label": "Short trend", "chart_kind": "line", "history_seconds": 1},
                 {"type": "write", "tag_id": "t7", "label": "Speed setpoint"},
             ],
             "status": "فعال",
