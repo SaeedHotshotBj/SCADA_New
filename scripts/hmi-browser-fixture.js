@@ -7,6 +7,7 @@ import {
   refreshHmiDesignerLivePreview,
   recordHmiDesignerLiveChartData,
   handleHmiDesignerMediaUpload,
+  closeHmiDesignerPreview,
 } from "../src/features/live/hmi-designer.js";
 import { bindHmiDesignerGestureEvents } from "../src/features/live/hmi-designer-events.js";
 import { renderLive, refreshHmiRuntimeLiveValues } from "../src/features/live/index.js";
@@ -153,6 +154,27 @@ window.__saveHmiDraft = async () => {
   const saved = await handleHmiDesignerSubmit(form);
   const runtimePage = { id: saved.id, ...window.__savedHmiPage };
   store.replaceCollection("hmiPages", [runtimePage]);
+  closeHmiDesignerPreview();
+  document.getElementById("app").innerHTML = renderLive("/live/hmi-designer/" + runtimePage.id);
+  window.__hmiEditCardLayout = [...document.querySelectorAll("#hmi-designer-canvas .hmi-designer-item")].map(card => ({
+    widgetId: card.dataset.widgetId,
+    left: Number.parseFloat(card.style.left),
+    top: Number.parseFloat(card.style.top),
+    width: Number.parseFloat(card.style.width),
+    height: Number.parseFloat(card.style.height),
+  }));
+  window.__renderHmiEditForMediaUpload = () => {
+    document.getElementById("app").innerHTML = renderLive("/live/hmi-designer/" + runtimePage.id);
+    const mediaCard = [...document.querySelectorAll("#hmi-designer-canvas .hmi-designer-item")]
+      .find(card => card.querySelector(".hmi-widget--media"));
+    if (!mediaCard) throw new Error("Saved media card is missing from the regular HMI edit screen.");
+    mediaCard.click();
+    const input = document.querySelector("#hmi-designer-properties [data-hmi-media-input]");
+    return { visible: Boolean(input && input.getClientRects().length), widgetId: mediaCard.dataset.widgetId };
+  };
+  window.__returnToHmiRuntime = () => {
+    document.getElementById("app").innerHTML = renderLive("/live/hmi/" + runtimePage.id);
+  };
   document.getElementById("app").innerHTML = renderLive("/live/hmi/" + runtimePage.id);
   window.__refreshRuntimeLiveValues = () => {
     const previousWidget = document.querySelector(".hmi-runtime-grid .hmi-widget--media");

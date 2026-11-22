@@ -62,6 +62,7 @@ const {
   HMI_CHART_RANGES, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_WIDGET_LIBRARY,
   createHmiWidget, renderHmiWidget, normalizeHmiPageTheme, normalizeHmiWidgetTheme,
   HMI_CHART_LINE_WIDTH_MIN, HMI_CHART_LINE_WIDTH_MAX, HMI_CHART_LINE_WIDTH_DEFAULT, normalizeHmiChartLineWidth,
+  HMI_FONT_OPTIONS, normalizeHmiWidgetTypography,
   appendHmiLiveChartSamples, getHmiLiveChartSamples, hmiChartLiveIntervalMs,
 } = await import("../src/features/live/hmi-widgets.js");
 const chart = createHmiWidget("chart");
@@ -82,6 +83,23 @@ if (HMI_CHART_LINE_WIDTH_MIN !== 0.5 || HMI_CHART_LINE_WIDTH_MAX !== 10 ||
     normalizeHmiChartLineWidth(14) !== 10) {
   throw new Error("HMI chart line thickness must be normalized to the supported 0.5–10px range.");
 }
+const normalizedTypography = normalizeHmiWidgetTypography({font_family:"Verdana",number_font_size:32,text_font_size:14});
+const unsafeTypography = normalizeHmiWidgetTypography({font_family:"expression(alert(1))",number_font_size:999,text_font_size:1});
+const typographyWidget = renderHmiWidget({
+  type: "value", tag_id: "test-pressure", font_family: "Verdana", number_font_size: 32, text_font_size: 14,
+}, [{
+  id: "test-pressure", name: "Pressure", value: 42.5, type: "float32", unit: "bar", quality: "GOOD",
+}]);
+if (HMI_FONT_OPTIONS.length !== 5 ||
+    normalizedTypography.font_family !== "Verdana" || normalizedTypography.number_font_size !== 32 ||
+    normalizedTypography.text_font_size !== 14 || unsafeTypography.font_family !== "Tahoma" ||
+    unsafeTypography.number_font_size !== 48 || unsafeTypography.text_font_size !== 8 ||
+    !typographyWidget.includes("--hmi-font-family:&quot;Verdana&quot;, Arial, sans-serif") ||
+    !typographyWidget.includes("--hmi-number-scale:1.333") ||
+    !typographyWidget.includes("--hmi-text-scale:1.167")) {
+  throw new Error("All HMI cards must support safe font families and bounded number/text sizes.");
+}
+
 const needleHtml = renderHmiWidget({
   type: "needle", label: "فشار", tag_id: "test-pressure", min: 0, max: 100,
 }, [{
@@ -125,10 +143,12 @@ const orderedTrend = renderHmiWidget({
   historyState: { status: "ready", sampleCount: 3 },
 });
 const trendPoints = orderedTrend.match(/<polyline[^>]*points="([^"]+)"/)?.[1] || "";
-if (trendPoints !== "54.00,152.00 202.00,14.00 350.00,83.00") {
+if (trendPoints !== "48.00,132.00 199.00,12.00 350.00,72.00") {
   throw new Error("HMI trends must use chronological timestamps for X and numeric values for Y: " + trendPoints);
 }
-if (!orderedTrend.includes('class="hmi-chart-axis-title hmi-chart-axis-title--y"') ||
+if (!orderedTrend.includes('viewBox="0 0 360 190"') ||
+    !orderedTrend.includes('preserveAspectRatio="xMidYMid meet"') ||
+    !orderedTrend.includes('class="hmi-chart-axis-title hmi-chart-axis-title--y"') ||
     !orderedTrend.includes('class="hmi-chart-axis-title hmi-chart-axis-title--x"') ||
     !orderedTrend.includes(">مقدار</text>") ||
     !orderedTrend.includes(">زمان</text>") ||
@@ -353,7 +373,12 @@ if (!cssSource.includes(".hmi-chart-value-box {") ||
     !cssSource.includes(".hmi-chart-axis-title") ||
     !cssSource.includes(".hmi-chart-x-tick") ||
     !cssSource.includes(".hmi-chart-y-tick") ||
-    !cssSource.includes(".hmi-chart-plot {")) {
+    !cssSource.includes(".hmi-chart-plot {") ||
+    !cssSource.includes(".hmi-designer-canvas-scroll") ||
+    !cssSource.includes(".hmi-media-file-input") ||
+    !cssSource.includes("--hmi-number-scale") ||
+    !designerSource.includes("typographyPropertiesMarkup(component)") ||
+    !designerSource.includes('class="hmi-designer-item-content"')) {
   throw new Error("HMI chart styling must keep its value tile and both time/value axes responsive inside the card.");
 }
 if (!cssSource.includes(".hmi-layout-card-content {") ||

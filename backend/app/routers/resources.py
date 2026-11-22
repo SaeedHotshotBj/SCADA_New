@@ -338,7 +338,7 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                 if component_theme not in HMI_WIDGET_THEMES:
                     raise HTTPException(status_code=422, detail=f"پوسته جزء شماره {number_in_layout} معتبر نیست.")
                 font_family = component.get("font_family", "Tahoma")
-                if font_family not in HMI_WIDGET_FONT_FAMILIES:
+                if not isinstance(font_family, str) or font_family not in HMI_WIDGET_FONT_FAMILIES:
                     raise HTTPException(status_code=422, detail=f"فونت جزء شماره {number_in_layout} مجاز نیست.")
                 for font_field, (minimum, maximum) in HMI_WIDGET_FONT_SIZES.items():
                     if font_field in component:

@@ -125,9 +125,15 @@ try {
   const latestValueBox = chartCard.locator(".hmi-chart-value-box");
   await latestValueBox.waitFor({ state: "visible" });
   const latestDisplayedValue = (await latestValueBox.locator("strong").textContent())?.trim();
+  const chartSvgRatio = await chartCard.locator(".hmi-chart-svg").evaluate(svg => {
+    const rect = svg.getBoundingClientRect();
+    return rect.width / Math.max(rect.height, 1);
+  });
+  const chartPreserveRatio = await chartCard.locator(".hmi-chart-svg").getAttribute("preserveAspectRatio");
   if (renderedChart.xTitle !== "زمان" || renderedChart.yTitle !== "مقدار" ||
       renderedChart.xTicks.length !== 3 || renderedChart.xTicks.some(label => !label || label === "—") ||
-      renderedChart.yTicks.length < 3 || !latestDisplayedValue) {
+      renderedChart.yTicks.length < 3 || !latestDisplayedValue ||
+      chartPreserveRatio !== "xMidYMid meet" || chartSvgRatio < 1.5 || chartSvgRatio > 2.3) {
     throw new Error("HMI trend must render timestamp X ticks, numeric Y ticks and an in-card latest-value box: " +
       JSON.stringify({ renderedChart, latestDisplayedValue }));
   }
@@ -158,12 +164,22 @@ try {
   // Apply a per-widget theme and verify it overrides the selected page theme.
   const chartTheme = page.locator("#hmi-layout-preview-properties [data-hmi-prop=\"theme\"]");
   await chartTheme.selectOption("blue");
+  const fontFamily = page.locator('#hmi-layout-preview-properties [data-hmi-prop="font_family"]');
+  await fontFamily.selectOption("Verdana");
+  const numberFontSize = page.locator('#hmi-layout-preview-properties [data-hmi-prop="number_font_size"]');
+  await numberFontSize.fill("32");
+  const textFontSize = page.locator('#hmi-layout-preview-properties [data-hmi-prop="text_font_size"]');
+  await textFontSize.fill("14");
   const lineWidthInput = page.locator('#hmi-layout-preview-properties [data-hmi-prop="line_width"]');
   await lineWidthInput.fill("4");
   await page.waitForTimeout(50);
   const configuredStrokeWidth = await chartCard.locator(".hmi-chart-svg .hmi-chart-line").getAttribute("stroke-width");
-  if (configuredStrokeWidth !== "4") {
-    throw new Error("The HMI designer line-width setting did not update the rendered trend: " + configuredStrokeWidth);
+  const chartTypographyStyle = await chartCard.locator(".hmi-widget").getAttribute("style");
+  if (configuredStrokeWidth !== "4" ||
+      !chartTypographyStyle?.includes('--hmi-font-family:"Verdana", Arial, sans-serif') ||
+      !chartTypographyStyle.includes("--hmi-number-scale:1.333") ||
+      !chartTypographyStyle.includes("--hmi-text-scale:1.167")) {
+    throw new Error("HMI chart typography and line width were not applied live: " + JSON.stringify({ configuredStrokeWidth, chartTypographyStyle }));
   }
   const pageTheme = await page.locator("#hmi-layout-preview-canvas").getAttribute("data-hmi-page-theme");
   const widgetTheme = await chartCard.locator(".hmi-widget").getAttribute("data-hmi-theme");
@@ -256,7 +272,10 @@ try {
       valueLayout?.width !== resized.width ||
       valueLayout?.height !== resized.height ||
       chartLayout?.theme !== "blue" ||
-      chartLayout?.line_width !== 4) {
+      chartLayout?.line_width !== 4 ||
+      chartLayout?.font_family !== "Verdana" ||
+      chartLayout?.number_font_size !== 32 ||
+      chartLayout?.text_font_size !== 14) {
     throw new Error(`HMI JSON did not persist final geometry and per-widget theme. JSON=${saved}`);
   }
 
@@ -264,6 +283,9 @@ try {
   const savedPage = await page.evaluate(() => window.__savedHmiPage);
   if (savedPage?.theme !== "dark" ||
       savedPage?.layout?.find(item => item.type === "chart")?.theme !== "blue" ||
+      savedPage?.layout?.find(item => item.type === "chart")?.font_family !== "Verdana" ||
+      savedPage?.layout?.find(item => item.type === "chart")?.number_font_size !== 32 ||
+      savedPage?.layout?.find(item => item.type === "chart")?.text_font_size !== 14 ||
       savedPage?.layout?.find(item => item.type === "media")?.media_id !== mediaId) {
     throw new Error("HMI page and widget themes were not included in the saved resource: " + JSON.stringify(savedPage));
   }
@@ -285,7 +307,10 @@ try {
     throw new Error("Live runtime telemetry refresh must update data widgets without replacing the imported media element: " + JSON.stringify(runtimeRefresh));
   }
   const runtimeStrokeWidth = await runtimeChart.locator(".hmi-chart-svg .hmi-chart-line").getAttribute("stroke-width");
-  if (runtimeStrokeWidth !== "4") {
+  const runtimeTypography = await runtimeChart.locator(".hmi-widget").getAttribute("style");
+  if (runtimeStrokeWidth !== "4" ||
+      !runtimeTypography?.includes('--hmi-font-family:"Verdana", Arial, sans-serif') ||
+      !runtimeTypography.includes("--hmi-number-scale:1.333")) {
     throw new Error("The saved chart line thickness was not applied in HMI runtime: " + runtimeStrokeWidth);
   }
   if (runtimePageTheme !== "dark" || runtimeWidgetTheme !== "blue" ||
@@ -296,6 +321,36 @@ try {
       runtimePageTheme, runtimeWidgetTheme, runtimeWidgetBackground, runtimePageBackground,
     }));
   }
+
+  const editCardLayout = await page.evaluate(() => window.__hmiEditCardLayout);
+  const expectedEditLayout = layout.map(item => ({
+    widgetId: item.widget_id, left: item.x, top: item.y, width: item.width, height: item.height,
+  }));
+  if (!editCardLayout || editCardLayout.length !== expectedEditLayout.length ||
+      expectedEditLayout.some(expected => {
+        const actual = editCardLayout.find(item => item.widgetId === expected.widgetId);
+        return !actual || actual.left !== expected.left || actual.top !== expected.top ||
+          actual.width !== expected.width || actual.height !== expected.height;
+      })) {
+    throw new Error("HMI edit screen must preserve saved freeform geometry: " +
+      JSON.stringify({ expectedEditLayout, editCardLayout }));
+  }
+  const regularEdit = await page.evaluate(() => window.__renderHmiEditForMediaUpload());
+  const regularMediaInput = page.locator("#hmi-designer-properties [data-hmi-media-input]");
+  if (!regularEdit.visible || !(await regularMediaInput.isVisible())) {
+    throw new Error("Normal HMI edit properties must expose a visible media file field.");
+  }
+  await regularMediaInput.setInputFiles({
+    name: "plant-diagram-edit.svg",
+    mimeType: "image/svg+xml",
+    buffer: Buffer.from(mediaSvg),
+  });
+  await page.evaluate(async () => { await window.__mediaUpload; });
+  const uploadedEditName = await page.locator("#hmi-designer-properties .hmi-media-current-file").textContent();
+  if (!uploadedEditName?.includes("plant-diagram-edit.svg")) {
+    throw new Error("Media upload from normal HMI edit properties failed: " + uploadedEditName);
+  }
+  await page.evaluate(() => window.__returnToHmiRuntime());
 
   // Regression: every chart, indicator and machine schematic must fit inside
   // the exact card size selected by the operator, in both narrow and short cards.
@@ -379,7 +434,7 @@ try {
 
   if (pageErrors.length) throw new Error("Browser console errors: " + pageErrors.join("\\n"));
 
-  console.log("HMI Chromium E2E passed: time/value axes, latest-value box, configurable line width, live/history trends, drag/resize, media, themes and responsive fit.");
+  console.log("HMI Chromium E2E passed: proportional charts, configurable typography, edit geometry, visible media upload, live/history trends, drag/resize, themes and responsive fit.");
   console.log(JSON.stringify({
     initial, moved, resized, pageTheme, widgetTheme, widgetBackground, pageBackground,
     livePolyline, importedImage, runtimePageTheme, runtimeWidgetTheme,
