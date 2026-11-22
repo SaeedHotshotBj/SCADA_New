@@ -180,7 +180,7 @@ const chartRenderChecks = {
   surface: orderedTrend.includes('data-hmi-chart-surface="navy"'),
   area: orderedTrend.includes('class="hmi-chart-area"'),
   topbar: orderedTrend.includes('class="hmi-chart-topbar"'),
-  reading: orderedTrend.includes('class="hmi-chart-reading"'),
+  reading: orderedTrend.includes("hmi-chart-reading"),
   lineWidth: orderedTrend.includes('stroke-width="4"'),
   fillOpacity: orderedTrend.includes('stop-opacity="0.35"'),
   yTitle: orderedTrend.includes('class="hmi-chart-axis-title hmi-chart-axis-title--y"'),

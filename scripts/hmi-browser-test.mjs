@@ -195,6 +195,7 @@ try {
       JSON.stringify({ configuredStrokeWidth, chartTypographyStyle, chartSurfaceSetting, enabledAxisTicks }));
   }
   
+  const pageTheme = await page.locator("#hmi-layout-preview-canvas").getAttribute("data-hmi-page-theme");
   const widgetTheme = await chartCard.locator(".hmi-widget").getAttribute("data-hmi-theme");
   const widgetBackground = await chartCard.locator(".hmi-widget").evaluate(element => getComputedStyle(element).backgroundImage);
   const pageBackground = await page.locator("#hmi-layout-preview-canvas").evaluate(element => getComputedStyle(element).backgroundColor);
