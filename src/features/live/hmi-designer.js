@@ -1,7 +1,7 @@
 import { api } from "../../services/api-client.js";
 import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
-import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_WIDGET_LIBRARY, applyHmiWidgetGridGesture, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetGridStyle, normalizeHmiWidgetGeometry, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
+import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_WIDGET_LIBRARY, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetGridFromPointer, hmiWidgetGridStyle, normalizeHmiWidgetGeometry, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
 
 let activePageKey = null;
 let draft = null;
@@ -645,6 +645,7 @@ function updateLayoutCardStyle(component) {
 }
 
 export function handleHmiDesignerPointerDown(event) {
+  if (event.button !== undefined && event.button !== 0) return false;
   const handle = event.target?.closest?.("[data-hmi-layout-gesture]");
   if (!handle || !layoutPreviewOpen) return false;
   const component = draft?.layout?.find(item => item.widget_id === handle.dataset.widgetId);
@@ -669,15 +670,20 @@ export function handleHmiDesignerPointerDown(event) {
     startRow: component.grid_row,
     startW: component.grid_w,
     startH: component.grid_h,
+    startGeometry: {
+      grid_col: component.grid_col,
+      grid_row: component.grid_row,
+      grid_w: component.grid_w,
+      grid_h: component.grid_h,
+    },
     columnStep: cellWidth + gapX,
     rowStep: rowHeight + gapY,
   };
   // Capture on the stable canvas, not on the small handle that may move under the pointer.
   try {
     if (typeof canvas.setPointerCapture === "function") canvas.setPointerCapture(event.pointerId);
-  } catch { /* Document-level pointer listeners remain the fallback. */ }
+  } catch { /* Window capture listeners remain the fallback. */ }
   event.preventDefault();
-  event.stopPropagation?.();
   document.documentElement?.classList.add("hmi-layout-dragging");
 
   const props = document.getElementById("hmi-layout-preview-properties");
@@ -693,9 +699,15 @@ export function handleHmiDesignerPointerMove(event) {
   const component = draft?.layout?.find(item => item.widget_id === layoutGesture.widgetId);
   if (!component) return false;
 
-  const deltaCol = Math.round((event.clientX - layoutGesture.startX) / layoutGesture.columnStep);
-  const deltaRow = Math.round((event.clientY - layoutGesture.startY) / layoutGesture.rowStep);
-  Object.assign(component, applyHmiWidgetGridGesture(component, layoutGesture.mode, deltaCol, deltaRow));
+  const baseline = { ...component, ...layoutGesture.startGeometry };
+  Object.assign(component, hmiWidgetGridFromPointer(
+    baseline,
+    layoutGesture.mode,
+    event.clientX - layoutGesture.startX,
+    event.clientY - layoutGesture.startY,
+    layoutGesture.columnStep,
+    layoutGesture.rowStep,
+  ));
   event.preventDefault?.();
   updateLayoutCardStyle(component);
   return true;
