@@ -125,15 +125,12 @@ try {
   const latestValueBox = chartCard.locator(".hmi-chart-value-box");
   await latestValueBox.waitFor({ state: "visible" });
   const latestDisplayedValue = (await latestValueBox.locator("strong").textContent())?.trim();
-  const chartSvgRatio = await chartCard.locator(".hmi-chart-svg").evaluate(svg => {
-    const rect = svg.getBoundingClientRect();
-    return rect.width / Math.max(rect.height, 1);
-  });
   const chartPreserveRatio = await chartCard.locator(".hmi-chart-svg").getAttribute("preserveAspectRatio");
+  const chartViewBox = await chartCard.locator(".hmi-chart-svg").getAttribute("viewBox");
   if (renderedChart.xTitle !== "زمان" || renderedChart.yTitle !== "مقدار" ||
       renderedChart.xTicks.length !== 3 || renderedChart.xTicks.some(label => !label || label === "—") ||
       renderedChart.yTicks.length < 3 || !latestDisplayedValue ||
-      chartPreserveRatio !== "xMidYMid meet" || chartSvgRatio < 1.5 || chartSvgRatio > 2.3) {
+      chartPreserveRatio !== "xMidYMid meet" || chartViewBox !== "0 0 360 190") {
     throw new Error("HMI trend must render timestamp X ticks, numeric Y ticks and an in-card latest-value box: " +
       JSON.stringify({ renderedChart, latestDisplayedValue }));
   }
