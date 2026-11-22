@@ -490,6 +490,45 @@ def test_hmi_layout_validates_tag_bindings_and_write_access():
         assert valid.json()["layout"][0]["grid_w"] == 6
         assert valid.json()["layout"][1]["grid_col"] == 7
 
+        freeform_hmi = client.post("/api/resources/hmiPages", json={
+            "name": "HMI freeform",
+            "machine": "بانچر",
+            "description": "free pixel positioning, arbitrary dimensions and overlapping cards",
+            "layout": [
+                {"type": "gauge", "tag_id": "t3", "x": 1040, "y": 620, "width": 160, "height": 300},
+                {"type": "chart", "tag_id": "t3", "x": 1040, "y": 620, "width": 160, "height": 300},
+            ],
+            "status": "فعال",
+        })
+        assert freeform_hmi.status_code == 201, freeform_hmi.text
+        assert freeform_hmi.json()["layout"][0]["x"] == 1040
+        assert freeform_hmi.json()["layout"][0]["width"] == 160
+        assert freeform_hmi.json()["layout"][1]["y"] == 620
+
+        invalid_freeform = client.post("/api/resources/hmiPages", json={
+            "name": "HMI out of canvas",
+            "machine": "بانچر",
+            "description": "card exceeds freeform canvas boundary",
+            "layout": [{
+                "type": "gauge", "tag_id": "t3",
+                "x": 1081, "y": 620, "width": 120, "height": 300,
+            }],
+            "status": "فعال",
+        })
+        assert invalid_freeform.status_code == 422
+
+        incomplete_freeform = client.post("/api/resources/hmiPages", json={
+            "name": "HMI incomplete geometry",
+            "machine": "بانچر",
+            "description": "freeform geometry must include all four values",
+            "layout": [{
+                "type": "gauge", "tag_id": "t3",
+                "x": 100, "y": 100, "width": 300,
+            }],
+            "status": "فعال",
+        })
+        assert incomplete_freeform.status_code == 422
+
         read_only_write = client.post("/api/resources/hmiPages", json={
             "name": "Invalid HMI",
             "machine": "بانچر",
