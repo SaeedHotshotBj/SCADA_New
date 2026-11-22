@@ -466,7 +466,7 @@ try {
   console.log("HMI Chromium E2E passed: dark smooth-area charts, palette/surface/axes/fill/smoothing, typography, edit geometry, media upload, live/history, drag/resize and responsive fit.");
   console.log(JSON.stringify({
     initial, moved, resized, pageTheme, widgetTheme, widgetBackground, pageBackground,
-    livePolyline, importedImage, runtimePageTheme, runtimeWidgetTheme,
+    livePointCount, importedImage, runtimePageTheme, runtimeWidgetTheme,
     runtimeWidgetBackground, runtimePageBackground, runtimeBackgroundImage,
     designerBackgroundImage, runtimeImageSrc, runtimeRefresh, historyRequests,
     browserEvents: await page.evaluate(() => window.__hmiBrowserEvents.length), fitReport,
