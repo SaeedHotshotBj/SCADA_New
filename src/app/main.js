@@ -3,12 +3,22 @@ import { handleAction, handleSubmit, showToast } from "./actions.js";
 import { bindShellEvents } from "../layouts/shell.js";
 import { api } from "../services/api-client.js";
 import { store } from "../services/demo-store.js";
-import { handleHmiDesignerInput, loadHmiPageChartData, refreshHmiDesignerLivePreview } from "../features/live/hmi-designer.js";
+import {
+  handleHmiDesignerInput,
+  loadHmiPageChartData,
+  refreshHmiDesignerLivePreview,
+  handleHmiDesignerPointerDown,
+  handleHmiDesignerPointerMove,
+  handleHmiDesignerPointerUp,
+  closeHmiDesignerPreview,
+} from "../features/live/hmi-designer.js";
 
 const root = document.getElementById("app");
 let renderQueued = false;
 let liveSocket = null;
 let loadedHmiChartPageId = null;
+let hmiChartRefreshTimer = null;
+let hmiChartRefreshInFlight = false;
 
 function render() {
   const path = currentPath();
@@ -71,6 +81,7 @@ document.addEventListener("click", event => {
   }
   const actionElement = event.target.closest("[data-action]");
   if (!actionElement) return;
+  if (actionElement.classList.contains("hmi-layout-preview-backdrop") && event.target !== actionElement) return;
   const action = actionElement.dataset.action;
   if (action === "toggle-password") {
     const input = actionElement.parentElement.querySelector("input");
@@ -86,6 +97,19 @@ document.addEventListener("click", event => {
     console.error(error);
     showToast(error.message || "عملیات انجام نشد.", "error");
   });
+});
+
+document.addEventListener("pointerdown", event => {
+  handleHmiDesignerPointerDown(event);
+});
+document.addEventListener("pointermove", event => {
+  handleHmiDesignerPointerMove(event);
+});
+document.addEventListener("pointerup", event => {
+  handleHmiDesignerPointerUp(event);
+});
+document.addEventListener("pointercancel", event => {
+  handleHmiDesignerPointerUp(event);
 });
 
 document.addEventListener("input", event => {
@@ -140,14 +164,28 @@ document.addEventListener("submit", async event => {
 
 function syncLiveConnection() {
   const path = currentPath();
+  if (!path.startsWith("/live/hmi-designer/")) closeHmiDesignerPreview();
   const hmiRuntimeMatch = path.match(/^\/live\/hmi\/([^/]+)$/);
   if (hmiRuntimeMatch && store.isConnected()) {
     if (loadedHmiChartPageId !== hmiRuntimeMatch[1]) {
       loadedHmiChartPageId = hmiRuntimeMatch[1];
       loadHmiPageChartData(loadedHmiChartPageId).catch(error => console.error("HMI chart history load failed", error));
     }
+    if (!hmiChartRefreshTimer) {
+      hmiChartRefreshTimer = window.setInterval(() => {
+        const currentMatch = currentPath().match(/^\/live\/hmi\/([^/]+)$/);
+        if (!currentMatch || !store.isConnected() || hmiChartRefreshInFlight) return;
+        hmiChartRefreshInFlight = true;
+        loadHmiPageChartData(currentMatch[1])
+          .catch(error => console.error("HMI chart history refresh failed", error))
+          .finally(() => { hmiChartRefreshInFlight = false; });
+      }, 5000);
+    }
   } else {
     loadedHmiChartPageId = null;
+    if (hmiChartRefreshTimer) window.clearInterval(hmiChartRefreshTimer);
+    hmiChartRefreshTimer = null;
+    hmiChartRefreshInFlight = false;
   }
   const needsLive = ["/live/data", "/live/trends", "/live/alarms", "/live/classic", "/batch/run", "/batch/compare"].includes(path)
     || path.startsWith("/live/hmi/")
