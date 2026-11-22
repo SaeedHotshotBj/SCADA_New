@@ -1,7 +1,7 @@
 import { api } from "../../services/api-client.js";
 import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
-import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_CHART_LINE_WIDTH_MIN, HMI_CHART_LINE_WIDTH_MAX, HMI_CHART_LINE_WIDTH_DEFAULT, normalizeHmiChartLineWidth, HMI_FONT_OPTIONS, HMI_TEXT_FONT_SIZE_MIN, HMI_TEXT_FONT_SIZE_MAX, HMI_NUMBER_FONT_SIZE_MIN, HMI_NUMBER_FONT_SIZE_MAX, normalizeHmiWidgetTypography, HMI_WIDGET_LIBRARY, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_LAYOUT_CANVAS_WIDTH, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetFreeformFromPointer, hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, normalizeHmiWidgetFreeformGeometry, normalizeHmiPageTheme, normalizeHmiWidgetTheme, hmiChartLiveIntervalMs, appendHmiLiveChartSamples, getHmiLiveChartSamples, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
+import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_CHART_LINE_WIDTH_MIN, HMI_CHART_LINE_WIDTH_MAX, HMI_CHART_LINE_WIDTH_DEFAULT, normalizeHmiChartLineWidth, HMI_CHART_COLOR_OPTIONS, HMI_CHART_SURFACE_OPTIONS, HMI_CHART_SMOOTHNESS_MIN, HMI_CHART_SMOOTHNESS_MAX, HMI_CHART_FILL_OPACITY_MIN, HMI_CHART_FILL_OPACITY_MAX, normalizeHmiChartAppearance, HMI_FONT_OPTIONS, HMI_TEXT_FONT_SIZE_MIN, HMI_TEXT_FONT_SIZE_MAX, HMI_NUMBER_FONT_SIZE_MIN, HMI_NUMBER_FONT_SIZE_MAX, normalizeHmiWidgetTypography, HMI_WIDGET_LIBRARY, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_LAYOUT_CANVAS_WIDTH, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetFreeformFromPointer, hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, normalizeHmiWidgetFreeformGeometry, normalizeHmiPageTheme, normalizeHmiWidgetTheme, hmiChartLiveIntervalMs, appendHmiLiveChartSamples, getHmiLiveChartSamples, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
 
 let activePageKey = null;
 let draft = null;
@@ -136,6 +136,23 @@ function typographyPropertiesMarkup(component) {
     '<small class="hmi-field-help">تنظیمات فونت و اندازه برای همین کارت ذخیره می‌شوند.</small></div>';
 }
 
+function chartPropertiesMarkup(component) {
+  const appearance = normalizeHmiChartAppearance(component);
+  return '<div class="hmi-chart-properties"><div class="hmi-layout-properties-group-title">ظاهر نمودار</div>' +
+    selectMarkup("رنگ خط و سطح", "chart_color", HMI_CHART_COLOR_OPTIONS, appearance.chart_color) +
+    selectMarkup("پس‌زمینه نمودار", "chart_surface", HMI_CHART_SURFACE_OPTIONS, appearance.chart_surface) +
+    fieldMarkup("نرمی منحنی (%)", "chart_smoothing", appearance.chart_smoothing, "number", {
+      min: HMI_CHART_SMOOTHNESS_MIN, max: HMI_CHART_SMOOTHNESS_MAX, step: 5,
+    }) +
+    fieldMarkup("شفافیت سطح زیر خط (%)", "chart_fill_opacity", appearance.chart_fill_opacity, "number", {
+      min: HMI_CHART_FILL_OPACITY_MIN, max: HMI_CHART_FILL_OPACITY_MAX, step: 5,
+    }) +
+    '<label class="hmi-chart-axes-toggle"><input type="checkbox" data-hmi-prop="chart_show_axes" ' +
+      (appearance.chart_show_axes ? "checked" : "") +
+      '><span>نمایش اعداد محور و زمان نمونه‌ها</span></label>' +
+    '<small class="hmi-field-help">حالت پیش‌فرض، مانند نمودار مرجع، بدون نوشته‌های محور و با شبکه‌ی ظریف است. برای دیدن مقیاس و زمان، گزینه‌ی بالا را فعال کن.</small></div>';
+}
+
 function propertiesMarkup() {
   const component = selectedWidget();
   if (!component) {
@@ -153,17 +170,15 @@ function propertiesMarkup() {
   }
   if (component.type === "chart") {
     fields += selectMarkup("نوع نمودار", "chart_kind", [
-      { value: "line", label: "خطی" },
+      { value: "line", label: "خطی نرم" },
       { value: "bar", label: "ستونی" },
     ], component.chart_kind || "line");
     fields += selectMarkup("بازه زمانی نمایش", "history_seconds", HMI_CHART_RANGES, chartHistorySeconds(component));
-    fields += fieldMarkup("ضخامت خط نمودار", "line_width", normalizeHmiChartLineWidth(component.line_width), "number", {
-      min: HMI_CHART_LINE_WIDTH_MIN,
-      max: HMI_CHART_LINE_WIDTH_MAX,
-      step: 0.5,
+    fields += fieldMarkup("ضخامت خط (پیکسل)", "line_width", normalizeHmiChartLineWidth(component.line_width), "number", {
+      min: HMI_CHART_LINE_WIDTH_MIN, max: HMI_CHART_LINE_WIDTH_MAX, step: 0.5,
     });
-    fields += '<small class="hmi-field-help">محور عمودی مقدار تگ و محور افقی زمان نمونه‌ها را نشان می‌دهد. مقدار آخرین نمونه نیز در باکس جداگانه داخل نمودار نمایش داده می‌شود. ضخامت خط بین ۰٫۵ تا ۱۰ قابل تنظیم است.</small>';
-    fields += '<small class="hmi-field-help">حالت ۱ ثانیه، تاریخچه را مکرراً درخواست نمی‌کند؛ نمودار از WebSocket داده زنده می‌گیرد و ۶۰ ثانیه اخیر را پیوسته نمایش می‌دهد. برای نمونه جدید در هر ثانیه، Poll خود PLC را روی ۱ s یا ارسال Edge را روی ۱ ثانیه تنظیم کن.</small>';
+    fields += chartPropertiesMarkup(component);
+    fields += '<small class="hmi-field-help">در بازه‌ی ۱ ثانیه، نمودار از WebSocket مقدار زنده می‌گیرد و ۶۰ ثانیه‌ی اخیر را پیوسته نمایش می‌دهد. نرخ نمونه‌گیری PLC یا Edge باید با نرخ موردنظر هماهنگ باشد.</small>';
   }
   if (component.type === "media") fields += mediaPropertiesMarkup(component);
   const warning = component.type === "write"
@@ -278,9 +293,10 @@ function layoutPropertiesMarkup() {
     selectMarkup("پوسته این باکس", "theme", HMI_COMPONENT_THEME_OPTIONS, normalizeHmiWidgetTheme(component.theme)) +
     typographyPropertiesMarkup(component) +
     (component.type === "chart"
-      ? fieldMarkup("ضخامت خط نمودار", "line_width", normalizeHmiChartLineWidth(component.line_width), "number", {
+      ? '<div class="hmi-layout-properties-group-title">ضخامت خط (پیکسل)</div>' +
+        fieldMarkup("ضخامت خط", "line_width", normalizeHmiChartLineWidth(component.line_width), "number", {
           min: HMI_CHART_LINE_WIDTH_MIN, max: HMI_CHART_LINE_WIDTH_MAX, step: 0.5,
-        })
+        }) + chartPropertiesMarkup(component)
       : "") +
     (component.type === "media" ? mediaPropertiesMarkup(component) : "") +
     '<div class="hmi-layout-properties-group-title">موقعیت آزاد روی بوم (پیکسل)</div><div class="hmi-layout-properties-fields">' +
@@ -418,6 +434,7 @@ function validateDraftLayout() {
         throw new Error("ضخامت خط نمودار باید بین ۰٫۵ تا ۱۰ باشد.");
       }
       component.line_width = normalizeHmiChartLineWidth(lineWidth);
+      Object.assign(component, normalizeHmiChartAppearance(component));
     }
   }
 }
@@ -542,7 +559,7 @@ export function handleHmiDesignerInput(event) {
   if (!property) return true;
   const component = selectedWidget();
   if (!component) return true;
-  const numeric = target.type === "number" || ["min", "max", "history_seconds", "line_width", "number_font_size", "text_font_size"].includes(property);
+  const numeric = target.type === "number" || ["min", "max", "history_seconds", "line_width", "number_font_size", "text_font_size", "chart_smoothing", "chart_fill_opacity"].includes(property);
   component[property] = target.type === "checkbox"
     ? target.checked
     : numeric ? (target.value === "" ? "" : Number(target.value)) : target.value;

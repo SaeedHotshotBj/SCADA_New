@@ -2,6 +2,7 @@ import { escapeHtml } from "../../core/format.js";
 
 let widgetSequence = 0;
 let tankRenderSequence = 0;
+let chartRenderSequence = 0;
 const liveChartSamples = new Map();
 const LIVE_CHART_WINDOW_MS = 60000;
 const LIVE_CHART_MAX_SAMPLES = 90;
@@ -87,14 +88,73 @@ export function normalizeHmiWidgetTypography(component = {}) {
 
 function hmiWidgetTypographyStyle(component) {
   const typography = normalizeHmiWidgetTypography(component);
-  return "--hmi-font-family:" + HMI_FONT_FAMILY_CSS[typography.font_family] +
+  let style = "--hmi-font-family:" + HMI_FONT_FAMILY_CSS[typography.font_family] +
     ";--hmi-number-scale:" + (typography.number_font_size / HMI_NUMBER_FONT_SIZE_DEFAULT).toFixed(3) +
     ";--hmi-text-scale:" + (typography.text_font_size / 12).toFixed(3) + ";";
+  if (component.type === "chart") {
+    const appearance = normalizeHmiChartAppearance(component);
+    style += "--hmi-chart-line:" + HMI_CHART_COLORS[appearance.chart_color] + ";" +
+      "--hmi-chart-glow:" + HMI_CHART_COLORS[appearance.chart_color] + ";" +
+      "--hmi-chart-fill-opacity:" + (appearance.chart_fill_opacity / 100).toFixed(2) + ";" +
+      "--hmi-chart-smoothing:" + (appearance.chart_smoothing / 100).toFixed(2) + ";";
+  }
+  return style;
 }
 
 export const HMI_CHART_LINE_WIDTH_MIN = 0.5;
 export const HMI_CHART_LINE_WIDTH_MAX = 10;
 export const HMI_CHART_LINE_WIDTH_DEFAULT = 2.5;
+export const HMI_CHART_COLOR_OPTIONS = [
+  { value: "blue", label: "آبی" },
+  { value: "purple", label: "بنفش" },
+  { value: "green", label: "سبز" },
+  { value: "cyan", label: "فیروزه‌ای" },
+  { value: "amber", label: "کهربایی" },
+];
+export const HMI_CHART_SURFACE_OPTIONS = [
+  { value: "midnight", label: "شب تیره" },
+  { value: "navy", label: "سرمه‌ای" },
+  { value: "graphite", label: "گرافیتی" },
+];
+export const HMI_CHART_SMOOTHNESS_MIN = 0;
+export const HMI_CHART_SMOOTHNESS_MAX = 100;
+export const HMI_CHART_SMOOTHNESS_DEFAULT = 58;
+export const HMI_CHART_FILL_OPACITY_MIN = 0;
+export const HMI_CHART_FILL_OPACITY_MAX = 60;
+export const HMI_CHART_FILL_OPACITY_DEFAULT = 24;
+
+const HMI_CHART_COLORS = {
+  blue: "#168ce8",
+  purple: "#9565ff",
+  green: "#2dbd83",
+  cyan: "#26c5d4",
+  amber: "#f2a33a",
+};
+
+export function normalizeHmiChartColor(value) {
+  return Object.prototype.hasOwnProperty.call(HMI_CHART_COLORS, value) ? value : "blue";
+}
+
+export function normalizeHmiChartSurface(value) {
+  return HMI_CHART_SURFACE_OPTIONS.some(option => option.value === value) ? value : "midnight";
+}
+
+function normalizeChartInteger(value, fallback, minimum, maximum) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(minimum, Math.min(maximum, Math.round(number)));
+}
+
+export function normalizeHmiChartAppearance(component = {}) {
+  return {
+    chart_color: normalizeHmiChartColor(component.chart_color),
+    chart_surface: normalizeHmiChartSurface(component.chart_surface),
+    chart_smoothing: normalizeChartInteger(component.chart_smoothing, HMI_CHART_SMOOTHNESS_DEFAULT, HMI_CHART_SMOOTHNESS_MIN, HMI_CHART_SMOOTHNESS_MAX),
+    chart_fill_opacity: normalizeChartInteger(component.chart_fill_opacity, HMI_CHART_FILL_OPACITY_DEFAULT, HMI_CHART_FILL_OPACITY_MIN, HMI_CHART_FILL_OPACITY_MAX),
+    chart_show_axes: component.chart_show_axes === true,
+  };
+}
+
 
 export function normalizeHmiChartLineWidth(value) {
   const number = Number(value);
@@ -193,6 +253,7 @@ export function createHmiWidget(type) {
     widget.chart_kind = "line";
     widget.history_seconds = 3600;
     widget.line_width = HMI_CHART_LINE_WIDTH_DEFAULT;
+    Object.assign(widget, normalizeHmiChartAppearance({}));
   }
   if (type === "media") {
     widget.media_fit = "contain";
@@ -449,7 +510,10 @@ function componentFrame(component, body, quality, preview, extraClass = "") {
   const tone = qualityTone(quality);
   const selectedClass = extraClass ? " " + extraClass : "";
   const theme = normalizeHmiWidgetTheme(component.theme);
-  return '<article class="hmi-widget hmi-widget--' + escapeHtml(component.type) + (preview ? " is-preview" : "") + selectedClass + '" data-hmi-theme="' + theme + '" style="' + escapeHtml(hmiWidgetTypographyStyle(component)) + '">' +
+  const chartSurface = component.type === "chart"
+    ? ' data-hmi-chart-surface="' + normalizeHmiChartSurface(component.chart_surface) + '"'
+    : "";
+  return '<article class="hmi-widget hmi-widget--' + escapeHtml(component.type) + (preview ? " is-preview" : "") + selectedClass + '" data-hmi-theme="' + theme + '"' + chartSurface + ' style="' + escapeHtml(hmiWidgetTypographyStyle(component)) + '">' +
     '<header class="hmi-widget-header"><b>' + label + '</b><span class="hmi-quality hmi-quality--' + tone + '">' + escapeHtml(quality) + '</span></header>' +
     '<div class="hmi-widget-body">' + body + '</div></article>';
 }
@@ -532,6 +596,36 @@ function renderThermometer(component, tag, preview) {
   return componentFrame(component, body, quality, preview);
 }
 
+function smoothHmiChartPath(points, smoothing) {
+  if (!points.length) return "";
+  const first = points[0];
+  let path = "M" + first.x.toFixed(2) + " " + first.y.toFixed(2);
+  const tension = Math.max(0, Math.min(1, smoothing));
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const current = points[index];
+    const next = points[index + 1];
+    if (!tension) {
+      path += " L" + next.x.toFixed(2) + " " + next.y.toFixed(2);
+      continue;
+    }
+    const previous = points[Math.max(0, index - 1)];
+    const after = points[Math.min(points.length - 1, index + 2)];
+    const dx = next.x - current.x;
+    const previousSpan = Math.max(1, next.x - previous.x);
+    const nextSpan = Math.max(1, after.x - current.x);
+    const slopeStart = (next.y - previous.y) / previousSpan;
+    const slopeEnd = (after.y - current.y) / nextSpan;
+    const low = Math.min(current.y, next.y);
+    const high = Math.max(current.y, next.y);
+    const control1Y = Math.max(low, Math.min(high, current.y + slopeStart * dx * tension / 3));
+    const control2Y = Math.max(low, Math.min(high, next.y - slopeEnd * dx * tension / 3));
+    path += " C" + (current.x + dx / 3).toFixed(2) + " " + control1Y.toFixed(2) +
+      " " + (next.x - dx / 3).toFixed(2) + " " + control2Y.toFixed(2) +
+      " " + next.x.toFixed(2) + " " + next.y.toFixed(2);
+  }
+  return path;
+}
+
 function renderChart(component, tag, preview, history, historyState) {
   const quality = qualityOf(tag);
   const sampleItems = (Array.isArray(history) ? history : [])
@@ -543,8 +637,7 @@ function renderChart(component, tag, preview, history, historyState) {
       value: Number(item.value),
       time: item?.sampled_at ? Date.parse(item.sampled_at) : NaN,
     }));
-  const hasTimeAxis = sampleItems.length > 0 &&
-    sampleItems.every(item => Number.isFinite(item.time));
+  const hasTimeAxis = sampleItems.length > 0 && sampleItems.every(item => Number.isFinite(item.time));
   if (hasTimeAxis) sampleItems.sort((a, b) => a.time - b.time);
 
   const samples = sampleItems.map(item => item.value);
@@ -552,18 +645,35 @@ function renderChart(component, tag, preview, history, historyState) {
   const isLive = rangeSeconds === 1;
   const displayWindowSeconds = isLive ? 60 : Math.max(1, rangeSeconds);
   const rangeLabel = HMI_CHART_RANGES.find(item => item.value === rangeSeconds)?.label || "بازه انتخاب‌شده";
+  const appearance = normalizeHmiChartAppearance(component);
   const lineWidth = normalizeHmiChartLineWidth(component.line_width);
   const latestSample = sampleItems.length ? sampleItems[sampleItems.length - 1].value : null;
   const latestTagValue = tag && quality !== "UNSAMPLED" && Number.isFinite(Number(tag.value))
     ? Number(tag.value) : null;
   const displayedValue = latestSample !== null ? latestSample : latestTagValue;
-  const displayValue = displayedValue === null
-    ? "—"
-    : displayedValue.toLocaleString("fa-IR", { maximumFractionDigits: 3 });
-  const valueLabel = latestSample !== null ? "آخرین مقدار نمودار" : latestTagValue !== null ? "آخرین مقدار زنده" : "مقدار";
-  const valueBox = '<div class="hmi-chart-value-box hmi-chart-latest">' +
-    '<span>' + valueLabel + '</span><strong>' + escapeHtml(displayValue) + '</strong>' +
-    '<small>' + escapeHtml(tag?.unit || "") + '</small></div>';
+  const displayValue = displayedValue === null ? "—" :
+    displayedValue.toLocaleString("fa-IR", { maximumFractionDigits: 3 });
+  const unit = String(tag?.unit || "");
+  const title = String(component.label || "روند");
+  const tagName = String(tag?.name || "تگ انتخاب‌نشده");
+  const tone = qualityTone(quality);
+  const liveLabel = isLive
+    ? '<span class="hmi-chart-live-label"><i></i> LIVE</span>'
+    : '<span class="hmi-chart-range-label">' + escapeHtml(rangeLabel) + '</span>';
+  const heading =
+    '<div class="hmi-chart-topbar">' +
+      '<div class="hmi-chart-heading">' +
+        '<b class="hmi-chart-title">' + escapeHtml(title) + '</b>' +
+        '<small class="hmi-chart-subtitle">' + escapeHtml(tagName) +
+          (unit ? " · " + escapeHtml(unit) : "") + '</small>' +
+        '<div class="hmi-chart-status-row">' +
+          '<span class="hmi-chart-quality hmi-chart-quality--' + tone + '"><i></i>' + escapeHtml(quality) + '</span>' +
+          liveLabel +
+        '</div>' +
+      '</div>' +
+      '<div class="hmi-chart-value-box hmi-chart-reading"><strong>' + escapeHtml(displayValue) + '</strong>' +
+        (unit ? '<small>' + escapeHtml(unit) + '</small>' : '') + '</div>' +
+    '</div>';
 
   let visual = "";
   if (samples.length) {
@@ -587,10 +697,11 @@ function renderChart(component, tag, preview, history, historyState) {
       yTicks.push(Number(value.toPrecision(12)));
     }
 
-    const left = 48;
-    const right = 350;
+    const showAxes = appearance.chart_show_axes;
+    const left = showAxes ? 48 : 14;
+    const right = 348;
     const top = 12;
-    const bottom = 132;
+    const bottom = showAxes ? 140 : 164;
     const plotWidth = right - left;
     const plotHeight = bottom - top;
     let timeStart = hasTimeAxis ? sampleItems[0].time : NaN;
@@ -604,47 +715,48 @@ function renderChart(component, tag, preview, history, historyState) {
       if (hasTimeAxis && timeEnd > timeStart) {
         return left + ((item.time - timeStart) / (timeEnd - timeStart)) * plotWidth;
       }
-      return samples.length > 1
-        ? left + (index / (samples.length - 1)) * plotWidth
-        : left + plotWidth / 2;
+      return samples.length > 1 ? left + (index / (samples.length - 1)) * plotWidth : left + plotWidth / 2;
     };
     const yFor = value => bottom - ((value - axisMin) / (axisMax - axisMin)) * plotHeight;
-    const formatAxisValue = value => Number(value.toFixed(6)).toLocaleString("fa-IR", {
-      maximumFractionDigits: 2,
-    });
+    const formatAxisValue = value => Number(value.toFixed(6)).toLocaleString("fa-IR", { maximumFractionDigits: 2 });
     const formatAxisTime = time => {
       if (!Number.isFinite(time)) return "—";
       const date = new Date(time);
       const options = displayWindowSeconds >= 86400
         ? { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }
-        : {
-            hour: "2-digit",
-            minute: "2-digit",
-            ...(displayWindowSeconds <= 60 ? { second: "2-digit" } : {}),
-          };
+        : { hour: "2-digit", minute: "2-digit", ...(displayWindowSeconds <= 60 ? { second: "2-digit" } : {}) };
       return date.toLocaleString("fa-IR", options);
     };
 
-    const yAxisMarkup = yTicks.map(value => {
-      const y = yFor(value);
-      return '<path d="M' + left + ' ' + y.toFixed(2) + ' H' + right +
-        '" class="hmi-chart-grid-line"/><text class="hmi-chart-y-tick" x="' + (left - 7) +
-        '" y="' + (y + 3).toFixed(2) + '" text-anchor="end">' + escapeHtml(formatAxisValue(value)) + '</text>';
-    }).join("");
+    const gridLevels = showAxes
+      ? yTicks.map(value => ({ y: yFor(value), label: formatAxisValue(value) }))
+      : [0, 1 / 3, 2 / 3, 1].map(ratio => ({ y: top + ratio * plotHeight, label: "" }));
+    const yAxisMarkup = gridLevels.map(tick =>
+      '<path d="M' + left + " " + tick.y.toFixed(2) + " H" + right + '" class="hmi-chart-grid-line"/>' +
+      (showAxes
+        ? '<text class="hmi-chart-y-tick" x="' + (left - 8) + '" y="' + (tick.y + 3).toFixed(2) +
+          '" text-anchor="end">' + escapeHtml(tick.label) + '</text>'
+        : "")
+    ).join("");
 
-    const xTickRatios = [0, 0.5, 1];
-    const xAxisMarkup = xTickRatios.map((ratio, index) => {
-      const x = left + ratio * plotWidth;
-      const time = hasTimeAxis ? timeStart + ratio * (timeEnd - timeStart) : NaN;
-      const sampleIndex = Math.round(ratio * (sampleItems.length - 1));
-      const fallbackTime = !hasTimeAxis && Number.isFinite(sampleItems[sampleIndex]?.time)
-        ? sampleItems[sampleIndex].time : NaN;
-      const label = formatAxisTime(hasTimeAxis ? time : fallbackTime);
-      const anchor = index === 0 ? "start" : index === 2 ? "end" : "middle";
-      return '<path d="M' + x.toFixed(2) + ' ' + bottom + ' v4" class="hmi-chart-axis-tick"/>' +
-        '<text class="hmi-chart-x-tick" x="' + x.toFixed(2) + '" y="149" text-anchor="' + anchor +
-        '">' + escapeHtml(label) + '</text>';
-    }).join("");
+    let xAxisMarkup = "";
+    let axisTitles = "";
+    if (showAxes) {
+      xAxisMarkup = [0, 0.5, 1].map((ratio, index) => {
+        const x = left + ratio * plotWidth;
+        const time = hasTimeAxis ? timeStart + ratio * (timeEnd - timeStart) : NaN;
+        const sampleIndex = Math.round(ratio * (sampleItems.length - 1));
+        const fallbackTime = !hasTimeAxis && Number.isFinite(sampleItems[sampleIndex]?.time)
+          ? sampleItems[sampleIndex].time : NaN;
+        const anchor = index === 0 ? "start" : index === 2 ? "end" : "middle";
+        return '<text class="hmi-chart-x-tick" x="' + x.toFixed(2) + '" y="158" text-anchor="' + anchor +
+          '">' + escapeHtml(formatAxisTime(hasTimeAxis ? time : fallbackTime)) + '</text>';
+      }).join("");
+      axisTitles =
+        '<text class="hmi-chart-axis-title hmi-chart-axis-title--y" x="10" y="74" text-anchor="middle" transform="rotate(-90 10 74)">مقدار</text>' +
+        '<text class="hmi-chart-axis-title hmi-chart-axis-title--x" x="' + ((left + right) / 2) +
+        '" y="177" text-anchor="middle">زمان</text>';
+    }
 
     let dataMarkup = "";
     if (component.chart_kind === "bar") {
@@ -655,27 +767,39 @@ function renderChart(component, tag, preview, history, historyState) {
         const height = Math.max(1, bottom - y);
         return '<rect class="hmi-chart-bar" x="' + (x - barWidth / 2).toFixed(2) +
           '" y="' + y.toFixed(2) + '" width="' + barWidth.toFixed(2) +
-          '" height="' + height.toFixed(2) + '" rx="2" fill="var(--hmi-chart-bar, #2b9dba)"/>';
+          '" height="' + height.toFixed(2) + '" rx="2"/>';
       }).join("");
-    } else if (sampleItems.length === 1) {
-      dataMarkup = '<circle class="hmi-chart-single-point" cx="' + xFor(sampleItems[0], 0).toFixed(2) +
-        '" cy="' + yFor(sampleItems[0].value).toFixed(2) + '" r="4.5"/>';
     } else {
-      const points = sampleItems.map((item, index) =>
-        xFor(item, index).toFixed(2) + "," + yFor(item.value).toFixed(2)
-      );
-      dataMarkup = '<polyline class="hmi-chart-line" points="' + points.join(" ") +
-        '" fill="none" stroke="var(--hmi-chart-line, #218fbd)" stroke-width="' + lineWidth +
-        '" stroke-linecap="round" stroke-linejoin="round"/>';
+      const points = sampleItems.map((item, index) => ({ x: xFor(item, index), y: yFor(item.value) }));
+      if (points.length === 1) {
+        const point = points[0];
+        dataMarkup =
+          '<circle class="hmi-chart-dot-halo" cx="' + point.x.toFixed(2) + '" cy="' + point.y.toFixed(2) + '" r="7"/>' +
+          '<circle class="hmi-chart-single-point" cx="' + point.x.toFixed(2) + '" cy="' + point.y.toFixed(2) + '" r="3.5"/>';
+      } else {
+        const linePath = smoothHmiChartPath(points, appearance.chart_smoothing / 100);
+        const first = points[0];
+        const last = points[points.length - 1];
+        const fillId = "hmi-chart-area-" + (++chartRenderSequence);
+        const pointData = points.map(point => point.x.toFixed(2) + "," + point.y.toFixed(2)).join("|");
+        const areaPath = linePath + " L" + last.x.toFixed(2) + " " + bottom +
+          " L" + first.x.toFixed(2) + " " + bottom + " Z";
+        dataMarkup =
+          '<defs><linearGradient id="' + fillId + '" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0%" stop-color="var(--hmi-chart-line)" stop-opacity="' + (appearance.chart_fill_opacity / 100).toFixed(2) + '"/>' +
+            '<stop offset="100%" stop-color="var(--hmi-chart-line)" stop-opacity="0"/>' +
+          '</linearGradient></defs>' +
+          '<path class="hmi-chart-area" d="' + areaPath + '" fill="url(#' + fillId + ')"/>' +
+          '<path class="hmi-chart-line" d="' + linePath + '" data-point-count="' + points.length +
+            '" data-points="' + pointData + '" fill="none" stroke="var(--hmi-chart-line)" stroke-width="' + lineWidth +
+            '" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<circle class="hmi-chart-dot-halo" cx="' + last.x.toFixed(2) + '" cy="' + last.y.toFixed(2) + '" r="7"/>' +
+          '<circle class="hmi-chart-last-point" cx="' + last.x.toFixed(2) + '" cy="' + last.y.toFixed(2) + '" r="3.5"/>';
+      }
     }
 
-    visual = '<svg class="hmi-chart-svg" viewBox="0 0 360 190" preserveAspectRatio="xMidYMid meet" role="img" aria-label="نمودار مقدار برحسب زمان">' +
-      '<g class="hmi-chart-grid">' + yAxisMarkup + '</g>' +
-      '<path d="M' + left + ' ' + top + ' V' + bottom + ' H' + right +
-      '" class="hmi-chart-axis-line"/>' + xAxisMarkup + dataMarkup +
-      '<text class="hmi-chart-axis-title hmi-chart-axis-title--y" x="10" y="72" text-anchor="middle" transform="rotate(-90 10 72)">مقدار</text>' +
-      '<text class="hmi-chart-axis-title hmi-chart-axis-title--x" x="' + ((left + right) / 2) +
-      '" y="184" text-anchor="middle">زمان</text></svg>';
+    visual = '<svg class="hmi-chart-svg" viewBox="0 0 360 180" preserveAspectRatio="none" role="img" aria-label="نمودار روند مقدار برحسب زمان">' +
+      '<g class="hmi-chart-grid">' + yAxisMarkup + '</g>' + dataMarkup + axisTitles + xAxisMarkup + '</svg>';
   } else {
     let message = "برای دریافت تاریخچه، پیش‌نمایش شناور را باز کن.";
     if (historyState?.status === "loading") message = "در حال دریافت تاریخچه از Backend…";
@@ -689,19 +813,12 @@ function renderChart(component, tag, preview, history, historyState) {
     } else if (!tag) {
       message = "ابتدا تگ عددی نمودار را در ویژگی‌های جزء انتخاب کن.";
     }
-    visual = '<div class="hmi-chart-empty hmi-chart-empty--detail"><span>' +
-      escapeHtml(message) + '</span></div>';
+    visual = '<div class="hmi-chart-empty"><span>' + escapeHtml(message) + '</span></div>';
   }
 
-  const liveLabel = isLive
-    ? '<div class="hmi-chart-live-label"><span>● LIVE</span><small>پنجره‌ی لغزان ۶۰ ثانیه‌ای · دریافت از جریان زنده</small></div>'
-    : "";
-  const meta = '<div class="hmi-value-meta hmi-chart-meta"><span>' + escapeHtml(tag?.unit || "") +
-    '</span><small>' + escapeHtml(tag?.name || "تگ انتخاب نشده") + " · " +
-    String(samples.length).toLocaleString("fa-IR") + " نمونه</small></div>";
-  const body = '<div class="hmi-chart-layout">' + valueBox +
-    '<div class="hmi-chart-plot">' + visual + '</div>' + liveLabel + meta + '</div>';
-  return componentFrame(component, body, quality, preview, isLive ? "hmi-widget--chart-live" : "");
+  return componentFrame(component,
+    '<div class="hmi-chart-layout">' + heading + '<div class="hmi-chart-plot">' + visual + '</div></div>',
+    quality, preview, isLive ? "hmi-widget--chart-live" : "");
 }
 
 function renderMachine(component, tags, preview, type) {

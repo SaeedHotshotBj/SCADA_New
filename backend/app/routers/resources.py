@@ -32,6 +32,12 @@ HMI_WIDGET_FONT_SIZES = {
     "number_font_size": (10, 48),
     "text_font_size": (8, 24),
 }
+HMI_CHART_COLORS = {"blue", "purple", "green", "cyan", "amber"}
+HMI_CHART_SURFACES = {"midnight", "navy", "graphite"}
+HMI_CHART_STYLE_NUMBERS = {
+    "chart_smoothing": (0, 100, True),
+    "chart_fill_opacity": (0, 60, True),
+}
 ENUMS = {
     "plcs.protocol": {"modbus-tcp", "modbus-rtu", "s7", "simulator"},
     "tags.type": TAG_TYPES,
@@ -467,6 +473,24 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                 if component_type == "chart":
                     if component.get("chart_kind", "line") not in {"line", "bar"}:
                         raise HTTPException(status_code=422, detail=f"نوع نمودار جزء شماره {number_in_layout} معتبر نیست.")
+                    if component.get("chart_color", "blue") not in HMI_CHART_COLORS:
+                        raise HTTPException(status_code=422, detail=f"رنگ نمودار جزء شماره {number_in_layout} معتبر نیست.")
+                    if component.get("chart_surface", "midnight") not in HMI_CHART_SURFACES:
+                        raise HTTPException(status_code=422, detail=f"پس‌زمینه نمودار جزء شماره {number_in_layout} معتبر نیست.")
+                    if "chart_show_axes" in component and not isinstance(component["chart_show_axes"], bool):
+                        raise HTTPException(status_code=422, detail=f"نمایش محورهای نمودار جزء شماره {number_in_layout} باید بولی باشد.")
+                    if "line_width" in component:
+                        line_width = _finite_number(component.get("line_width"))
+                        if line_width is None or not 0.5 <= line_width <= 10 or not float(line_width * 2).is_integer():
+                            raise HTTPException(status_code=422, detail=f"ضخامت خط نمودار جزء شماره {number_in_layout} باید بین ۰٫۵ تا ۱۰ و با گام نیم‌پیکسل باشد.")
+                    for style_field, (minimum, maximum, integer_only) in HMI_CHART_STYLE_NUMBERS.items():
+                        if style_field in component:
+                            style_value = _finite_number(component.get(style_field))
+                            if style_value is None or not minimum <= style_value <= maximum or (integer_only and not float(style_value).is_integer()):
+                                raise HTTPException(
+                                    status_code=422,
+                                    detail=f"تنظیم {style_field} در نمودار شماره {number_in_layout} معتبر نیست.",
+                                )
                     if "history_seconds" in component:
                         history_seconds = component.get("history_seconds")
                         if type(history_seconds) is not int or history_seconds not in HMI_CHART_RANGE_SECONDS:
