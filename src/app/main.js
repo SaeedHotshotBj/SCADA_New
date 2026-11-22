@@ -108,18 +108,20 @@ document.addEventListener("click", event => {
   });
 });
 
-document.addEventListener("pointerdown", event => {
+// Capture pointer events at the window level so a card can keep tracking
+// movement even when the pointer leaves its original drag handle or card.
+window.addEventListener("pointerdown", event => {
   handleHmiDesignerPointerDown(event);
-});
-document.addEventListener("pointermove", event => {
+}, true);
+window.addEventListener("pointermove", event => {
   handleHmiDesignerPointerMove(event);
-});
-document.addEventListener("pointerup", event => {
+}, true);
+window.addEventListener("pointerup", event => {
   handleHmiDesignerPointerUp(event);
-});
-document.addEventListener("pointercancel", event => {
+}, true);
+window.addEventListener("pointercancel", event => {
   handleHmiDesignerPointerUp(event);
-});
+}, true);
 
 document.addEventListener("input", event => {
   try {
