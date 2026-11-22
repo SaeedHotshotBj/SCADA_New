@@ -206,18 +206,27 @@ if (!oneSecondEmptyChart.includes("فاصله ذخیره تاریخچه PLC/Edge
 }
 const designerSource = await readFile("src/features/live/hmi-designer.js", "utf8");
 const mainSource = await readFile("src/app/main.js", "utf8");
-if (!mainSource.includes('document.addEventListener("mousedown"') ||
-    !mainSource.includes('document.addEventListener("mousemove"') ||
-    !mainSource.includes('document.addEventListener("mouseup"')) {
-  throw new Error("HMI layout gestures must be wired to document-level mouse down, move and up events.");
+if (!mainSource.includes('document.addEventListener("pointerdown"') ||
+    !mainSource.includes('document.addEventListener("pointermove"') ||
+    !mainSource.includes('document.addEventListener("pointerup"') ||
+    !mainSource.includes('document.addEventListener("pointercancel"')) {
+  throw new Error("HMI gestures must use captured document-level pointer down, move, up and cancel events.");
 }
-if (!designerSource.includes('data-hmi-layout-gesture="move"') ||
+if (!designerSource.includes('data-hmi-layout-card data-hmi-layout-gesture="move"') ||
     !designerSource.includes('class="hmi-layout-resize" data-hmi-layout-gesture="resize"') ||
-    designerSource.includes('draggable="true"')) {
-  throw new Error("HMI movement and resize handles must use direct mouse gestures, not native HTML drag-and-drop.");
+    designerSource.includes('draggable="true"') ||
+    !designerSource.includes('handle.setPointerCapture?.(event.pointerId)')) {
+  throw new Error("The full HMI card must be movable, the corner must be resizable, and native drag must be disabled.");
 }
-if (mainSource.includes('handleHmiDesignerPointerUp') || mainSource.includes('document.addEventListener("dragstart"')) {
-  throw new Error("HMI designer must not retain obsolete pointer-up or native drag handlers.");
+if (!mainSource.includes('document.addEventListener("dragstart"') ||
+    !mainSource.includes('event.preventDefault()')) {
+  throw new Error("Native browser drag must be blocked inside the HMI preview to prevent the not-allowed cursor.");
+}
+if (!designerSource.includes('data-hmi-layout-prop="x"') ||
+    !designerSource.includes('data-hmi-layout-prop="y"') ||
+    !designerSource.includes('data-hmi-layout-prop="width"') ||
+    !designerSource.includes('data-hmi-layout-prop="height"')) {
+  throw new Error("HMI layout properties must expose unrestricted pixel positions and dimensions.");
 }
 if (designerSource.includes('hmi-layout-preview-backdrop" data-action="hmi-close-layout-preview"')) {
   throw new Error("Clicking or dragging on the HMI preview backdrop must not close the layout editor.");
