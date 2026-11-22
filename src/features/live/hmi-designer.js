@@ -1,7 +1,7 @@
 import { api } from "../../services/api-client.js";
 import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
-import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_WIDGET_LIBRARY, HMI_LAYOUT_CANVAS_WIDTH, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetFreeformFromPointer, hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, normalizeHmiWidgetFreeformGeometry, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
+import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_WIDGET_LIBRARY, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_LAYOUT_CANVAS_WIDTH, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetFreeformFromPointer, hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, normalizeHmiWidgetFreeformGeometry, normalizeHmiPageTheme, normalizeHmiWidgetTheme, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
 
 let activePageKey = null;
 let draft = null;
@@ -9,8 +9,8 @@ let selectedWidgetId = null;
 let jsonError = "";
 let layoutPreviewOpen = false;
 let layoutGesture = null;
-let designerChartRefreshInFlight = false;
 const chartHistory = new Map();
+const chartHistoryRequests = new Map();
 const chartHistoryStatus = new Map();
 
 function clone(value) {
@@ -27,11 +27,14 @@ function initializeDraft(pageId) {
     machine: "",
     description: "",
     status: "فعال",
+    theme: "light",
     layout: [],
   };
+  draft.theme = normalizeHmiPageTheme(draft.theme);
   if (!Array.isArray(draft.layout)) draft.layout = [];
   draft.layout = draft.layout.map((item, index) => normalizeHmiWidgetFreeformGeometry({
     ...item,
+    theme: normalizeHmiWidgetTheme(item.theme),
     widget_id: item.widget_id || ("hmi-existing-" + index + "-" + String(item.type || "widget")),
   }, index));
   selectedWidgetId = draft.layout[0]?.widget_id || null;
@@ -100,6 +103,7 @@ function propertiesMarkup() {
   const definition = HMI_WIDGET_LIBRARY.find(item => item.type === component.type);
   const bindings = HMI_BINDINGS[component.type] || [];
   let fields = fieldMarkup("عنوان نمایشی", "label", component.label || "");
+  fields += selectMarkup("پوسته این باکس", "theme", HMI_COMPONENT_THEME_OPTIONS, normalizeHmiWidgetTheme(component.theme));
   fields += bindings.map(binding => bindingMarkup(binding, component)).join("");
   if (["gauge", "needle", "thermometer", "tank"].includes(component.type)) {
     fields += fieldMarkup("حداقل مقیاس", "min", component.min ?? 0, "number");
@@ -213,6 +217,7 @@ function layoutPropertiesMarkup() {
   }
   return '<section class="hmi-layout-properties"><div class="hmi-layout-properties-title"><b>چیدمان آزاد کارت</b><small>' +
     escapeHtml(component.label || component.type) + '</small></div>' +
+    selectMarkup("پوسته این باکس", "theme", HMI_COMPONENT_THEME_OPTIONS, normalizeHmiWidgetTheme(component.theme)) +
     '<div class="hmi-layout-properties-group-title">موقعیت آزاد روی بوم (پیکسل)</div><div class="hmi-layout-properties-fields">' +
     '<label class="field"><span>موقعیت افقی X</span><input type="number" inputmode="numeric" min="0" max="1200" step="1" aria-label="موقعیت افقی کارت" data-hmi-layout-prop="x" value="' + component.x + '"></label>' +
     '<label class="field"><span>موقعیت عمودی Y</span><input type="number" inputmode="numeric" min="0" max="100000" step="1" aria-label="موقعیت عمودی کارت" data-hmi-layout-prop="y" value="' + component.y + '"></label>' +
@@ -246,7 +251,7 @@ function layoutPreviewMarkup() {
     '<div class="hmi-layout-preview-header-actions"><button type="button" class="btn btn-primary btn-sm" data-action="hmi-layout-single-column">یک کارت در هر ردیف</button>' +
     '<button type="button" class="btn btn-light btn-sm" data-action="hmi-close-layout-preview">بستن پیش‌نمایش</button></div></header>' +
     '<div class="hmi-layout-preview-body"><main class="hmi-layout-preview-main"><div class="hmi-layout-stage-scroll">' +
-    '<div id="hmi-layout-preview-canvas" class="hmi-layout-preview-canvas" style="width:' + HMI_LAYOUT_CANVAS_WIDTH + 'px;height:' + hmiWidgetCanvasHeight(draft.layout) + 'px">' +
+    '<div id="hmi-layout-preview-canvas" class="hmi-layout-preview-canvas" data-hmi-page-theme="' + normalizeHmiPageTheme(draft.theme) + '" style="width:' + HMI_LAYOUT_CANVAS_WIDTH + 'px;height:' + hmiWidgetCanvasHeight(draft.layout) + 'px">' +
     (cards || '<div class="hmi-layout-preview-empty">ابتدا از کتابخانه، جزءهای موردنیاز را به صفحه اضافه کن.</div>') +
     '</div></div><p class="hmi-layout-preview-hint">بوم آزاد ۱۲۰۰ پیکسلی؛ کارت‌ها را بدون محدودیت شبکه جابه‌جا و بزرگ یا کوچک کن. این پیش‌نمایش هیچ فرمانی به PLC ارسال نمی‌کند.</p></main>' +
     '<aside id="hmi-layout-preview-properties">' + layoutPropertiesMarkup() + '</aside></div></section></div>';
@@ -261,7 +266,10 @@ function pageSettingsMarkup() {
     '<label class="field"><span>ماشین</span><select name="machine" data-hmi-page-field="machine" required>' +
     machineOptions.map(option => '<option value="' + escapeHtml(option.value) + '" ' + (String(option.value) === String(draft.machine || "") ? "selected" : "") + '>' + escapeHtml(option.label) + '</option>').join("") +
     '</select></label>' +
-    '<label class="field"><span>وضعیت</span><select name="status" data-hmi-page-field="status"><option value="فعال" ' + (draft.status !== "غیرفعال" ? "selected" : "") + '>فعال</option><option value="غیرفعال" ' + (draft.status === "غیرفعال" ? "selected" : "") + '>غیرفعال</option></select></label>' +
+    '<label class="field"><span>وضعیت</span><select name="status" data-hmi-page-field="status"><option value="فعال" ' + (draft.status !== "غیرفعال" ? "selected" : "") + '>فعال</option><option value="غیرفعال" ' + (draft.status === "غیرفعال" ? "selected" : "") + '>غیرفعال</select></label>' +
+    '<label class="field"><span>پوسته صفحه HMI</span><select name="theme" data-hmi-page-field="theme">' +
+    HMI_THEME_OPTIONS.map(option => '<option value="' + option.value + '" ' + (option.value === normalizeHmiPageTheme(draft.theme) ? "selected" : "") + '>' + escapeHtml(option.label) + '</option>').join("") +
+    '</select></label>' +
     '<label class="field hmi-designer-description"><span>توضیحات</span><input name="description" data-hmi-page-field="description" value="' + escapeHtml(draft.description || "") + '" placeholder="شرح کوتاه صفحه مانیتورینگ" /></label>' +
     '</div>' + (machines.length ? "" : '<p class="hmi-designer-warning">هنوز ماشینی تعریف نشده است. پیش از ذخیره صفحه، یک ماشین در بخش مدیریت ماشین‌ها بساز.</p>') +
     '</section>';
@@ -284,7 +292,7 @@ export function renderHmiDesigner(pageId = null) {
     '<div class="hmi-designer-workspace">' + libraryMarkup() +
     '<section class="hmi-designer-side-panel hmi-canvas-panel"><div class="hmi-designer-side-heading"><b>محیط طراحی</b><small>' +
     draft.layout.length.toLocaleString("fa-IR") + ' جزء · پیش‌نمایش بدون ارسال فرمان</small></div>' +
-    '<div id="hmi-designer-canvas" class="hmi-designer-canvas">' + canvasMarkup() + '</div></section>' +
+    '<div id="hmi-designer-canvas" class="hmi-designer-canvas" data-hmi-page-theme="' + normalizeHmiPageTheme(draft.theme) + '">' + canvasMarkup() + '</div></section>' +
     '<div id="hmi-designer-properties">' + propertiesMarkup() + '</div>' +
     '</div>' +
     '<div id="hmi-layout-preview-root" hidden></div>' +
@@ -347,6 +355,7 @@ export async function handleHmiDesignerSubmit(form) {
   draft.machine = String(form.querySelector('[data-hmi-page-field="machine"]')?.value || "").trim();
   draft.status = String(form.querySelector('[data-hmi-page-field="status"]')?.value || "فعال");
   draft.description = String(form.querySelector('[data-hmi-page-field="description"]')?.value || "").trim();
+  draft.theme = normalizeHmiPageTheme(form.querySelector('[data-hmi-page-field="theme"]')?.value || draft.theme);
   if (!draft.name) throw new Error("نام صفحه الزامی است.");
   if (!draft.machine) throw new Error("یک ماشین برای صفحه انتخاب کن.");
   if (!store.list("machines").some(machine => machine.name === draft.machine)) {
@@ -356,6 +365,7 @@ export async function handleHmiDesignerSubmit(form) {
   const normalizedLayout = clone(draft.layout).map((component, index) => {
     const normalized = normalizeHmiWidgetFreeformGeometry({
       ...component,
+      theme: normalizeHmiWidgetTheme(component.theme),
       ...(component.min !== undefined ? { min: Number(component.min) } : {}),
       ...(component.max !== undefined ? { max: Number(component.max) } : {}),
     }, index);
@@ -374,6 +384,7 @@ export async function handleHmiDesignerSubmit(form) {
     machine: draft.machine,
     description: draft.description,
     status: draft.status,
+    theme: normalizeHmiPageTheme(draft.theme),
     layout: normalizedLayout,
   };
   const saved = form.dataset.pageId
@@ -422,7 +433,11 @@ export function handleHmiDesignerInput(event) {
   }
   const pageField = target.dataset.hmiPageField;
   if (pageField) {
-    draft[pageField] = target.value;
+    draft[pageField] = pageField === "theme" ? normalizeHmiPageTheme(target.value) : target.value;
+    if (pageField === "theme") {
+      const theme = normalizeHmiPageTheme(draft.theme);
+      document.querySelectorAll("[data-hmi-page-theme]").forEach(node => node.setAttribute("data-hmi-page-theme", theme));
+    }
     return true;
   }
   const layoutProperty = target.dataset.hmiLayoutProp;
