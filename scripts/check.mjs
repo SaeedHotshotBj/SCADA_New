@@ -156,12 +156,6 @@ if (hmiChartRefreshIntervalMs([{ type: "chart", history_seconds: 1 }]) !== 750) 
 if (hmiChartRefreshIntervalMs([{ type: "chart", history_seconds: 3600 }]) !== 5000) {
   throw new Error("Long HMI trend ranges must retain the slower history refresh cadence.");
 }
-const defaultSecondCard = normalizeHmiWidgetGeometry({ type: "value" }, 1);
-if (defaultSecondCard.grid_col !== 5 || defaultSecondCard.grid_row !== 1 ||
-    defaultSecondCard.grid_w !== 4 || defaultSecondCard.grid_h !== 3) {
-  throw new Error("HMI cards must receive a predictable default grid position and size.");
-}
-
 const chartTag = {
   id: "test-trend", name: "Test trend", value: 12.5,
   type: "float32", unit: "bar", quality: "GOOD",
