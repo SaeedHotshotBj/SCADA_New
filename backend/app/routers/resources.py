@@ -473,9 +473,11 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                 if component_type == "chart":
                     if component.get("chart_kind", "line") not in {"line", "bar"}:
                         raise HTTPException(status_code=422, detail=f"نوع نمودار جزء شماره {number_in_layout} معتبر نیست.")
-                    if component.get("chart_color", "blue") not in HMI_CHART_COLORS:
+                    chart_color = component.get("chart_color", "blue")
+                    if not isinstance(chart_color, str) or chart_color not in HMI_CHART_COLORS:
                         raise HTTPException(status_code=422, detail=f"رنگ نمودار جزء شماره {number_in_layout} معتبر نیست.")
-                    if component.get("chart_surface", "midnight") not in HMI_CHART_SURFACES:
+                    chart_surface = component.get("chart_surface", "midnight")
+                    if not isinstance(chart_surface, str) or chart_surface not in HMI_CHART_SURFACES:
                         raise HTTPException(status_code=422, detail=f"پس‌زمینه نمودار جزء شماره {number_in_layout} معتبر نیست.")
                     if "chart_show_axes" in component and not isinstance(component["chart_show_axes"], bool):
                         raise HTTPException(status_code=422, detail=f"نمایش محورهای نمودار جزء شماره {number_in_layout} باید بولی باشد.")

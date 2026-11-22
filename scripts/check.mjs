@@ -306,10 +306,10 @@ const emptyHistoryChart = renderHmiWidget({
   history: [],
   historyState: { status: "empty", sampleCount: 0 },
 });
-if (!emptyHistoryChart.includes("hmi-chart-latest") ||
-    !emptyHistoryChart.includes("آخرین مقدار زنده") ||
+if (!emptyHistoryChart.includes("hmi-chart-reading") ||
+    !emptyHistoryChart.includes("۱۲٫۵") ||
     !emptyHistoryChart.includes("bar")) {
-  throw new Error("HMI trend with no stored samples must show a separate latest live value and unit.");
+  throw new Error("HMI trend with no stored history must show the latest live value and unit in its chart header.");
 }
 const failedHistoryChart = renderHmiWidget({
   type: "chart", tag_id: "test-trend", history_seconds: 60,
