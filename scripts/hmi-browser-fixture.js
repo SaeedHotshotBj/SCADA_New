@@ -5,6 +5,8 @@ import {
   handleHmiDesignerInput,
   handleHmiDesignerSubmit,
   refreshHmiDesignerLivePreview,
+  recordHmiDesignerLiveChartData,
+  handleHmiDesignerMediaUpload,
 } from "../src/features/live/hmi-designer.js";
 import { bindHmiDesignerGestureEvents } from "../src/features/live/hmi-designer-events.js";
 import { renderLive } from "../src/features/live/index.js";
@@ -52,6 +54,10 @@ bindHmiDesignerGestureEvents(document);
 
 document.addEventListener("input", handleHmiDesignerInput);
 document.addEventListener("change", event => {
+  if (event.target.matches(".hmi-designer-page [data-hmi-media-input]")) {
+    window.__mediaUpload = handleHmiDesignerMediaUpload(event.target);
+    return;
+  }
   if (event.target.matches(".hmi-designer-page select")) handleHmiDesignerInput(event);
 });
 window.addEventListener("scada:hmi-chart-updated", refreshHmiDesignerLivePreview);
@@ -70,6 +76,16 @@ chooseWidgetTag();
 document.querySelector('[data-action="hmi-add-widget"][data-widget-type="chart"]')?.click();
 chooseWidgetTag();
 
+document.querySelector('[data-action="hmi-add-widget"][data-widget-type="chart"]')?.click();
+chooseWidgetTag();
+const liveRange = document.querySelector('#hmi-designer-properties [data-hmi-prop="history_seconds"]');
+if (!liveRange) throw new Error("The one-second chart range selector was not rendered.");
+liveRange.value = "1";
+liveRange.dispatchEvent(new Event("change", { bubbles: true }));
+
+document.querySelector('[data-action="hmi-add-widget"][data-widget-type="media"]')?.click();
+window.__feedHmiLive = sample => recordHmiDesignerLiveChartData([sample]);
+
 const pageTheme = document.querySelector('[data-hmi-page-field="theme"]');
 pageTheme.value = "dark";
 pageTheme.dispatchEvent(new Event("change", { bubbles: true }));
@@ -83,7 +99,7 @@ window.__saveHmiDraft = async () => {
   form.querySelector('[data-hmi-page-field="name"]').value = "Browser test HMI";
   form.querySelector('[data-hmi-page-field="machine"]').value = "Machine Test";
   form.querySelector('[data-hmi-page-field="status"]').value = "فعال";
-  form.querySelector('[data-hmi-page-field="description"]').value = "Theme and trend browser regression";
+  form.querySelector('[data-hmi-page-field="description"]').value = "Live trend, theme and imported media browser regression";
   store.add = async (collection, payload) => {
     window.__savedHmiPage = { collection, ...payload };
     return { ...payload, id: "saved-hmi-test" };

@@ -34,6 +34,31 @@ try {
   });
 
   const historyRequests = [];
+  const mediaId = "c".repeat(32);
+  const mediaSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><rect width="24" height="24" fill="#267fc3"/><circle cx="12" cy="12" r="7" fill="#fff"/></svg>';
+  await page.route("http://127.0.0.1:8000/api/hmi/media", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: mediaId,
+        url: "/api/hmi/media/" + mediaId,
+        filename: "plant-diagram.svg",
+        content_type: "image/svg+xml",
+        media_type: "image",
+        size_bytes: Buffer.byteLength(mediaSvg),
+      }),
+    });
+  });
+  await page.route("http://127.0.0.1:8000/api/hmi/media/*", async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: "image/svg+xml",
+      headers: { "X-Content-Type-Options": "nosniff" },
+      body: mediaSvg,
+    });
+  });
   await page.route(/\/api\/telemetry\/history\?/, async route => {
     const url = new URL(route.request().url());
     historyRequests.push({
@@ -66,9 +91,50 @@ try {
   if (!chartMarkup.polyline || chartMarkup.polyline.trim().split(/\s+/).length !== 3) {
     throw new Error("HMI trend history did not render three ordered line points: " + JSON.stringify(chartMarkup));
   }
-  if (!historyRequests.some(item => item.tagId === "tag-test" && item.seconds === "3600")) {
-    throw new Error("HMI chart did not request the selected tag's configured 3600-second history window: " + JSON.stringify(historyRequests));
+  if (!historyRequests.some(item => item.tagId === "tag-test" && item.seconds === "3600") ||
+      historyRequests.some(item => item.seconds === "1")) {
+    throw new Error("The historical chart must load its 3600-second history while the one-second chart must not poll the history API: " + JSON.stringify(historyRequests));
   }
+
+  // Feed two distinct real-time snapshots through the same function used by the WebSocket listener.
+  const liveChartCard = page.locator("[data-hmi-layout-card]").filter({ has: page.locator(".hmi-widget--chart-live") }).first();
+  await page.evaluate(() => window.__feedHmiLive({
+    id: "tag-test", value: 31.25, quality: "GOOD",
+    sampled_at: new Date(Date.now() - 1000).toISOString(),
+  }));
+  await page.evaluate(() => window.__feedHmiLive({
+    id: "tag-test", value: 38.5, quality: "GOOD",
+    sampled_at: new Date().toISOString(),
+  }));
+  await liveChartCard.locator(".hmi-chart-svg polyline").waitFor({ state: "visible", timeout: 5000 });
+  const livePolyline = await liveChartCard.locator(".hmi-chart-svg polyline").getAttribute("points");
+  if (!livePolyline || livePolyline.trim().split(/\s+/).length !== 2 ||
+      !(await liveChartCard.locator(".hmi-chart-live-label").count())) {
+    throw new Error("The one-second trend did not draw a continuous line from two incoming live samples: " + livePolyline);
+  }
+
+  // Import an SVG asset through the real designer upload flow; only the API transport is mocked.
+  const mediaCard = page.locator("[data-hmi-layout-card]").filter({ has: page.locator(".hmi-widget--media") }).first();
+  await mediaCard.locator(".hmi-layout-card-toolbar").click();
+  const mediaInput = page.locator("#hmi-layout-preview-properties [data-hmi-media-input]");
+  await mediaInput.setInputFiles({
+    name: "plant-diagram.svg",
+    mimeType: "image/svg+xml",
+    buffer: Buffer.from(mediaSvg),
+  });
+  await page.evaluate(async () => { await window.__mediaUpload; });
+  await mediaCard.locator(".hmi-media-element").waitFor({ state: "visible", timeout: 5000 });
+  const importedImage = await mediaCard.locator(".hmi-media-element").evaluate(image => ({
+    src: image.getAttribute("src"),
+    width: image.naturalWidth,
+    height: image.naturalHeight,
+  }));
+  if (!importedImage.src?.includes(mediaId) || importedImage.width !== 24 || importedImage.height !== 24) {
+    throw new Error("The uploaded SVG was not persisted and rendered in the HMI card: " + JSON.stringify(importedImage));
+  }
+
+  // Select the history chart itself before changing its theme.
+  await chartCard.locator(".hmi-layout-card-toolbar").click();
 
   // Apply a per-widget theme and verify it overrides the selected page theme.
   const chartTheme = page.locator("#hmi-layout-preview-properties [data-hmi-prop=\"theme\"]");
@@ -151,7 +217,11 @@ try {
   const layout = JSON.parse(saved);
   const valueLayout = layout.find(item => item.type === "value");
   const chartLayout = layout.find(item => item.type === "chart");
-  if (layout.length !== 2 ||
+  const liveLayout = layout.filter(item => item.type === "chart")[1];
+  const mediaLayout = layout.find(item => item.type === "media");
+  if (layout.length !== 4 ||
+      liveLayout?.history_seconds !== 1 ||
+      mediaLayout?.media_id !== mediaId ||
       valueLayout?.x !== moved.left ||
       valueLayout?.y !== moved.top ||
       valueLayout?.width !== resized.width ||
@@ -163,7 +233,8 @@ try {
   await page.evaluate(() => window.__saveHmiDraft());
   const savedPage = await page.evaluate(() => window.__savedHmiPage);
   if (savedPage?.theme !== "dark" ||
-      savedPage?.layout?.find(item => item.type === "chart")?.theme !== "blue") {
+      savedPage?.layout?.find(item => item.type === "chart")?.theme !== "blue" ||
+      savedPage?.layout?.find(item => item.type === "media")?.media_id !== mediaId) {
     throw new Error("HMI page and widget themes were not included in the saved resource: " + JSON.stringify(savedPage));
   }
 
@@ -175,19 +246,28 @@ try {
   const runtimeWidgetTheme = await runtimeChart.locator(".hmi-widget").getAttribute("data-hmi-theme");
   const runtimeWidgetBackground = await runtimeChart.locator(".hmi-widget").evaluate(element => getComputedStyle(element).backgroundColor);
   const runtimePageBackground = await runtimeCanvas.evaluate(element => getComputedStyle(element).backgroundColor);
+  const runtimeBackgroundImage = await runtimeCanvas.evaluate(element => getComputedStyle(element).backgroundImage);
+  const designerBackgroundImage = await page.locator("#hmi-layout-preview-canvas").evaluate(element => getComputedStyle(element).backgroundImage);
+  const runtimeImage = runtimeCanvas.locator(".hmi-media-element");
+  await runtimeImage.waitFor({ state: "visible" });
+  const runtimeImageSrc = await runtimeImage.getAttribute("src");
   if (runtimePageTheme !== "dark" || runtimeWidgetTheme !== "blue" ||
-      runtimeWidgetBackground !== "rgb(248, 251, 255)" || runtimePageBackground !== "rgb(24, 35, 46)") {
+      runtimeWidgetBackground !== "rgb(248, 251, 255)" || runtimePageBackground !== "rgb(24, 35, 46)" ||
+      runtimeBackgroundImage !== "none" || designerBackgroundImage === "none" ||
+      !runtimeImageSrc?.includes(mediaId)) {
     throw new Error("Saved HMI runtime page did not apply the page/widget themes: " + JSON.stringify({
       runtimePageTheme, runtimeWidgetTheme, runtimeWidgetBackground, runtimePageBackground,
     }));
   }
   if (pageErrors.length) throw new Error("Browser console errors: " + pageErrors.join("\\n"));
 
-  console.log("HMI Chromium E2E passed: toolbar/body drag, resize, trend-history SVG, page/widget theme cascade in preview and runtime, JSON and saved theme fields.");
+  console.log("HMI Chromium E2E passed: drag/resize, historical and one-second live trend SVG, zero history polling for live mode, media upload/render, page/widget themes, runtime grid removal and persistent video/image DOM.");
   console.log(JSON.stringify({
     initial, moved, resized, pageTheme, widgetTheme, widgetBackground, pageBackground,
-    runtimePageTheme, runtimeWidgetTheme, runtimeWidgetBackground, runtimePageBackground,
-    historyRequests, browserEvents: await page.evaluate(() => window.__hmiBrowserEvents.length),
+    livePolyline, importedImage, runtimePageTheme, runtimeWidgetTheme,
+    runtimeWidgetBackground, runtimePageBackground, runtimeBackgroundImage,
+    designerBackgroundImage, runtimeImageSrc, historyRequests,
+    browserEvents: await page.evaluate(() => window.__hmiBrowserEvents.length),
   }));
 } catch (error) {
   if (page) {
