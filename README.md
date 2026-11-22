@@ -96,7 +96,7 @@ This repository is an application/backend integration project, **not a commissio
 - Production quantity/scrap entries and QC measurements are application records entered through the UI; they are not automatically derived from machine counters or laboratory instruments.
 - Per-hopper weighment rows are manual DEMO entries until a commissioned weighing adapter provides actual measurements.
 - Actual OEE, production, energy and scrap KPIs are not calculated until their source tags and calculation rules are configured.
-- HMI page layout is currently configured as a validated JSON component list, not a drag-and-drop editor.
+- HMI Designer provides a freeform 1200-pixel layout canvas: cards can be moved by dragging anywhere on the card and resized from the lower-right handle. Pixel positions and sizes are validated by the backend and shared by preview and runtime; overlapping cards are allowed. Existing grid layouts are migrated when opened.
 - Automatic report scheduling and PDF/XLSX export are not included; report execution returns a server-side JSON snapshot.
 - Do not expose the development server to the public internet. Use HTTPS, a long secret key, restricted firewall rules, backups and a hardened deployment before any operational use.
 
