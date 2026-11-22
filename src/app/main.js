@@ -6,6 +6,7 @@ import { store } from "../services/demo-store.js";
 import {
   handleHmiDesignerInput,
   loadHmiPageChartData,
+  loadHmiDesignerChartData,
   refreshHmiDesignerLivePreview,
   handleHmiDesignerPointerDown,
   handleHmiDesignerPointerMove,
@@ -19,6 +20,9 @@ let liveSocket = null;
 let loadedHmiChartPageId = null;
 let hmiChartRefreshTimer = null;
 let hmiChartRefreshInFlight = false;
+let loadedHmiDesignerChartPath = null;
+let hmiDesignerChartRefreshTimer = null;
+let hmiDesignerChartRefreshInFlight = false;
 
 function render() {
   const path = currentPath();
@@ -164,7 +168,35 @@ document.addEventListener("submit", async event => {
 
 function syncLiveConnection() {
   const path = currentPath();
-  if (!path.startsWith("/live/hmi-designer/")) closeHmiDesignerPreview();
+  const isHmiDesignerPath = path.startsWith("/live/hmi-designer/");
+  if (!isHmiDesignerPath) closeHmiDesignerPreview();
+  if (isHmiDesignerPath && store.isConnected()) {
+    if (loadedHmiDesignerChartPath !== path) {
+      loadedHmiDesignerChartPath = path;
+      window.requestAnimationFrame(() => {
+        if (currentPath() !== path || !store.isConnected() || hmiDesignerChartRefreshInFlight) return;
+        hmiDesignerChartRefreshInFlight = true;
+        loadHmiDesignerChartData()
+          .catch(error => console.error("HMI designer chart history load failed", error))
+          .finally(() => { hmiDesignerChartRefreshInFlight = false; });
+      });
+    }
+    if (!hmiDesignerChartRefreshTimer) {
+      hmiDesignerChartRefreshTimer = window.setInterval(() => {
+        if (!currentPath().startsWith("/live/hmi-designer/") ||
+            !store.isConnected() || hmiDesignerChartRefreshInFlight) return;
+        hmiDesignerChartRefreshInFlight = true;
+        loadHmiDesignerChartData()
+          .catch(error => console.error("HMI designer chart history refresh failed", error))
+          .finally(() => { hmiDesignerChartRefreshInFlight = false; });
+      }, 5000);
+    }
+  } else {
+    loadedHmiDesignerChartPath = null;
+    if (hmiDesignerChartRefreshTimer) window.clearInterval(hmiDesignerChartRefreshTimer);
+    hmiDesignerChartRefreshTimer = null;
+    hmiDesignerChartRefreshInFlight = false;
+  }
   const hmiRuntimeMatch = path.match(/^\/live\/hmi\/([^/]+)$/);
   if (hmiRuntimeMatch && store.isConnected()) {
     if (loadedHmiChartPageId !== hmiRuntimeMatch[1]) {
