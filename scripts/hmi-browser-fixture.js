@@ -7,6 +7,7 @@ import {
   refreshHmiDesignerLivePreview,
 } from "../src/features/live/hmi-designer.js";
 import { bindHmiDesignerGestureEvents } from "../src/features/live/hmi-designer-events.js";
+import { renderLive } from "../src/features/live/index.js";
 
 // Use the real HMI designer module and real application stylesheet. Only the
 // authenticated history endpoint and the final resource save are isolated.
@@ -87,7 +88,11 @@ window.__saveHmiDraft = async () => {
     window.__savedHmiPage = { collection, ...payload };
     return { ...payload, id: "saved-hmi-test" };
   };
-  return handleHmiDesignerSubmit(form);
+  const saved = await handleHmiDesignerSubmit(form);
+  const runtimePage = { id: saved.id, ...window.__savedHmiPage };
+  store.replaceCollection("hmiPages", [runtimePage]);
+  document.getElementById("app").innerHTML = renderLive("/live/hmi/" + runtimePage.id);
+  return saved;
 };
 
 window.__hmiBrowserReady = true;
