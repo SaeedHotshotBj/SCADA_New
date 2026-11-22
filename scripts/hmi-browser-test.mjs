@@ -108,36 +108,37 @@ try {
     id: "tag-test", value: 38.5, quality: "GOOD",
     sampled_at: new Date().toISOString(),
   }));
-  await liveChartCard.locator(".hmi-chart-svg polyline").waitFor({ state: "visible", timeout: 5000 });
-  const livePolyline = await liveChartCard.locator(".hmi-chart-svg polyline").getAttribute("points");
-  if (!livePolyline || livePolyline.trim().split(/\s+/).length !== 2 ||
-      !(await liveChartCard.locator(".hmi-chart-live-label").count())) {
-    throw new Error("The one-second trend did not draw a continuous line from two incoming live samples: " + livePolyline);
+  const liveLine = liveChartCard.locator(".hmi-chart-svg .hmi-chart-line");
+  await liveLine.waitFor({ state: "visible", timeout: 5000 });
+  const livePointCount = await liveLine.getAttribute("data-point-count");
+  if (livePointCount !== "2" || !(await liveChartCard.locator(".hmi-chart-live-label").count())) {
+    throw new Error("The one-second trend did not draw a continuous SVG curve from two incoming live samples: " + livePointCount);
   }
 
   
-  // Verify both axes, the latest-value tile and configurable line thickness.
+  // Default appearance follows the reference: dark surface, subtle grid and a smooth filled curve.
   const renderedChart = await chartCard.locator(".hmi-chart-svg").evaluate(svg => ({
-    xTitle: svg.querySelector(".hmi-chart-axis-title--x")?.textContent || "",
-    yTitle: svg.querySelector(".hmi-chart-axis-title--y")?.textContent || "",
-    xTicks: [...svg.querySelectorAll(".hmi-chart-x-tick")].map(node => node.textContent),
-    yTicks: [...svg.querySelectorAll(".hmi-chart-y-tick")].map(node => node.textContent),
-    strokeWidth: svg.querySelector(".hmi-chart-line")?.getAttribute("stroke-width") || "",
+    line: svg.querySelector(".hmi-chart-line")?.getAttribute("d") || "",
+    pointCount: Number(svg.querySelector(".hmi-chart-line")?.getAttribute("data-point-count") || 0),
+    gridLines: svg.querySelectorAll(".hmi-chart-grid-line").length,
+    xTicks: svg.querySelectorAll(".hmi-chart-x-tick").length,
+    yTicks: svg.querySelectorAll(".hmi-chart-y-tick").length,
+    area: Boolean(svg.querySelector(".hmi-chart-area")),
   }));
   const latestValueBox = chartCard.locator(".hmi-chart-value-box");
   await latestValueBox.waitFor({ state: "visible" });
   const latestDisplayedValue = (await latestValueBox.locator("strong").textContent())?.trim();
-  const chartPreserveRatio = await chartCard.locator(".hmi-chart-svg").getAttribute("preserveAspectRatio");
-  const chartViewBox = await chartCard.locator(".hmi-chart-svg").getAttribute("viewBox");
-  if (renderedChart.xTitle !== "زمان" || renderedChart.yTitle !== "مقدار" ||
-      renderedChart.xTicks.length !== 3 || renderedChart.xTicks.some(label => !label || label === "—") ||
-      renderedChart.yTicks.length < 3 || !latestDisplayedValue ||
-      chartPreserveRatio !== "xMidYMid meet" || chartViewBox !== "0 0 360 190") {
-    throw new Error("HMI trend must render timestamp X ticks, numeric Y ticks and an in-card latest-value box: " +
-      JSON.stringify({ renderedChart, latestDisplayedValue }));
+  const chartSurface = await chartCard.locator(".hmi-widget").getAttribute("data-hmi-chart-surface");
+  const chartBackgroundImage = await chartCard.locator(".hmi-widget").evaluate(element => getComputedStyle(element).backgroundImage);
+  if (!renderedChart.line.includes(" C") || renderedChart.pointCount < 2 ||
+      renderedChart.gridLines !== 4 || renderedChart.xTicks !== 0 || renderedChart.yTicks !== 0 ||
+      !renderedChart.area || chartSurface !== "midnight" ||
+      !chartBackgroundImage.includes("linear-gradient") || !latestDisplayedValue) {
+    throw new Error("HMI default appearance does not match the dark smooth-area reference: " +
+      JSON.stringify({ renderedChart, latestDisplayedValue, chartSurface, chartBackgroundImage }));
   }
 
-  // Import an SVG asset through the real designer upload flow; only the API transport is mocked.
+  
   const mediaCard = page.locator("[data-hmi-layout-card]").filter({ has: page.locator(".hmi-widget--media") }).first();
   await mediaCard.locator(".hmi-layout-card-toolbar").click();
   const mediaInput = page.locator("#hmi-layout-preview-properties [data-hmi-media-input]");
@@ -161,7 +162,7 @@ try {
   await chartCard.locator(".hmi-layout-card-toolbar").click();
 
   // Apply a per-widget theme and verify it overrides the selected page theme.
-  const chartTheme = page.locator("#hmi-layout-preview-properties [data-hmi-prop=\"theme\"]");
+  const chartTheme = page.locator('#hmi-layout-preview-properties [data-hmi-prop="theme"]');
   await chartTheme.selectOption("blue");
   const fontFamily = page.locator('#hmi-layout-preview-properties [data-hmi-prop="font_family"]');
   await fontFamily.selectOption("Verdana");
@@ -171,22 +172,33 @@ try {
   await textFontSize.fill("14");
   const lineWidthInput = page.locator('#hmi-layout-preview-properties [data-hmi-prop="line_width"]');
   await lineWidthInput.fill("4");
+  await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_color"]').selectOption("purple");
+  await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_surface"]').selectOption("graphite");
+  await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_smoothing"]').fill("72");
+  await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_fill_opacity"]').fill("35");
+  await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_show_axes"]').check();
   await page.waitForTimeout(50);
   const configuredStrokeWidth = await chartCard.locator(".hmi-chart-svg .hmi-chart-line").getAttribute("stroke-width");
   const chartTypographyStyle = await chartCard.locator(".hmi-widget").getAttribute("style");
+  const chartSurfaceSetting = await chartCard.locator(".hmi-widget").getAttribute("data-hmi-chart-surface");
+  const enabledAxisTicks = await chartCard.locator(".hmi-chart-svg .hmi-chart-y-tick").count();
   if (configuredStrokeWidth !== "4" ||
       !chartTypographyStyle?.includes('--hmi-font-family:Verdana, sans-serif') ||
       !chartTypographyStyle.includes("--hmi-number-scale:1.333") ||
-      !chartTypographyStyle.includes("--hmi-text-scale:1.167")) {
-    throw new Error("HMI chart typography and line width were not applied live: " + JSON.stringify({ configuredStrokeWidth, chartTypographyStyle }));
+      !chartTypographyStyle.includes("--hmi-text-scale:1.167") ||
+      !chartTypographyStyle.includes("--hmi-chart-fill-opacity:0.35") ||
+      !chartTypographyStyle.includes("--hmi-chart-line:#9565ff") ||
+      chartSurfaceSetting !== "graphite" || enabledAxisTicks < 3) {
+    throw new Error("Chart appearance and typography controls were not applied live: " +
+      JSON.stringify({ configuredStrokeWidth, chartTypographyStyle, chartSurfaceSetting, enabledAxisTicks }));
   }
-  const pageTheme = await page.locator("#hmi-layout-preview-canvas").getAttribute("data-hmi-page-theme");
+  
   const widgetTheme = await chartCard.locator(".hmi-widget").getAttribute("data-hmi-theme");
-  const widgetBackground = await chartCard.locator(".hmi-widget").evaluate(element => getComputedStyle(element).backgroundColor);
+  const widgetBackground = await chartCard.locator(".hmi-widget").evaluate(element => getComputedStyle(element).backgroundImage);
   const pageBackground = await page.locator("#hmi-layout-preview-canvas").evaluate(element => getComputedStyle(element).backgroundColor);
   if (pageTheme !== "dark" || widgetTheme !== "blue" ||
-      widgetBackground !== "rgb(248, 251, 255)" || pageBackground !== "rgb(24, 35, 46)") {
-    throw new Error("HMI page/widget theme cascade failed: " + JSON.stringify({ pageTheme, widgetTheme, widgetBackground, pageBackground }));
+      !widgetBackground.includes("linear-gradient") || pageBackground !== "rgb(24, 35, 46)") {
+    throw new Error("HMI chart surface/page theme cascade failed: " + JSON.stringify({ pageTheme, widgetTheme, widgetBackground, pageBackground }));
   }
   const designerBackgroundImage = await page.locator("#hmi-layout-preview-canvas").evaluate(element => getComputedStyle(element).backgroundImage);
   if (designerBackgroundImage === "none") {
@@ -274,7 +286,12 @@ try {
       chartLayout?.line_width !== 4 ||
       chartLayout?.font_family !== "Verdana" ||
       chartLayout?.number_font_size !== 32 ||
-      chartLayout?.text_font_size !== 14) {
+      chartLayout?.text_font_size !== 14 ||
+       chartLayout?.chart_color !== "purple" ||
+       chartLayout?.chart_surface !== "graphite" ||
+       chartLayout?.chart_smoothing !== 72 ||
+       chartLayout?.chart_fill_opacity !== 35 ||
+       chartLayout?.chart_show_axes !== true) {
     throw new Error(`HMI JSON did not persist final geometry and per-widget theme. JSON=${saved}`);
   }
 
@@ -295,7 +312,7 @@ try {
   const runtimeChart = runtimeCanvas.locator(".hmi-runtime-item").filter({ has: page.locator(".hmi-widget--chart") }).first();
   const runtimePageTheme = await runtimeCanvas.getAttribute("data-hmi-page-theme");
   const runtimeWidgetTheme = await runtimeChart.locator(".hmi-widget").getAttribute("data-hmi-theme");
-  const runtimeWidgetBackground = await runtimeChart.locator(".hmi-widget").evaluate(element => getComputedStyle(element).backgroundColor);
+  const runtimeWidgetBackground = await runtimeChart.locator(".hmi-widget").evaluate(element => getComputedStyle(element).backgroundImage);
   const runtimePageBackground = await runtimeCanvas.evaluate(element => getComputedStyle(element).backgroundColor);
   const runtimeBackgroundImage = await runtimeCanvas.evaluate(element => getComputedStyle(element).backgroundImage);
   const runtimeImage = runtimeCanvas.locator(".hmi-media-element");
@@ -307,13 +324,17 @@ try {
   }
   const runtimeStrokeWidth = await runtimeChart.locator(".hmi-chart-svg .hmi-chart-line").getAttribute("stroke-width");
   const runtimeTypography = await runtimeChart.locator(".hmi-widget").getAttribute("style");
+  const runtimeChartSurface = await runtimeChart.locator(".hmi-widget").getAttribute("data-hmi-chart-surface");
+  const runtimeChartArea = await runtimeChart.locator(".hmi-chart-svg .hmi-chart-area").count();
   if (runtimeStrokeWidth !== "4" ||
       !runtimeTypography?.includes('--hmi-font-family:Verdana, sans-serif') ||
-      !runtimeTypography.includes("--hmi-number-scale:1.333")) {
+      !runtimeTypography.includes("--hmi-number-scale:1.333") ||
+      runtimeChartSurface !== "graphite" || runtimeChartArea !== 1 ||
+      await runtimeChart.locator(".hmi-chart-svg .hmi-chart-y-tick").count() < 3) {
     throw new Error("The saved chart line thickness was not applied in HMI runtime: " + runtimeStrokeWidth);
   }
   if (runtimePageTheme !== "dark" || runtimeWidgetTheme !== "blue" ||
-      runtimeWidgetBackground !== "rgb(248, 251, 255)" || runtimePageBackground !== "rgb(24, 35, 46)" ||
+      !runtimeWidgetBackground.includes("linear-gradient") || runtimePageBackground !== "rgb(24, 35, 46)" ||
       runtimeBackgroundImage !== "none" || designerBackgroundImage === "none" ||
       !runtimeImageSrc?.includes(mediaId)) {
     throw new Error("Saved HMI runtime page did not apply the page/widget themes: " + JSON.stringify({
@@ -434,7 +455,7 @@ try {
 
   if (pageErrors.length) throw new Error("Browser console errors: " + pageErrors.join("\\n"));
 
-  console.log("HMI Chromium E2E passed: proportional charts, configurable typography, edit geometry, visible media upload, live/history trends, drag/resize, themes and responsive fit.");
+  console.log("HMI Chromium E2E passed: dark smooth-area charts, palette/surface/axes/fill/smoothing, typography, edit geometry, media upload, live/history, drag/resize and responsive fit.");
   console.log(JSON.stringify({
     initial, moved, resized, pageTheme, widgetTheme, widgetBackground, pageBackground,
     livePolyline, importedImage, runtimePageTheme, runtimeWidgetTheme,
