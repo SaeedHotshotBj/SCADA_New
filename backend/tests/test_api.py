@@ -1129,7 +1129,10 @@ def test_hmi_media_upload_and_secure_retrieval():
 
     media_id = None
     media_path = None
+    video_id = None
+    video_path = None
     png_bytes = b"\x89PNG\r\n\x1a\n" + b"test-image-bytes"
+    mp4_bytes = b"\x00\x00\x00\x18ftypisom" + b"test-video-bytes"
     with TestClient(app) as client:
         login = client.post("/api/auth/login", json={
             "email": "admin@demo-cable.local",
@@ -1150,6 +1153,22 @@ def test_hmi_media_upload_and_secure_retrieval():
         assert asset["content_type"] == "image/png"
         assert asset["filename"] == "operator-panel.png"
         assert media_path.is_file()
+
+        video_upload = client.post(
+            "/api/hmi/media",
+            files={"file": ("machine-cycle.mp4", mp4_bytes, "video/mp4")},
+        )
+        assert video_upload.status_code == 200, video_upload.text
+        video_asset = video_upload.json()
+        video_id = video_asset["id"]
+        video_path = MEDIA_DIR / (video_id + ".mp4")
+        assert video_asset["media_type"] == "video"
+        assert video_asset["content_type"] == "video/mp4"
+        assert video_path.is_file()
+        video_retrieved = client.get(video_asset["url"])
+        assert video_retrieved.status_code == 200
+        assert video_retrieved.headers["content-type"].startswith("video/mp4")
+        assert video_retrieved.content == mp4_bytes
 
         retrieved = client.get(asset["url"])
         assert retrieved.status_code == 200
@@ -1206,6 +1225,11 @@ def test_hmi_media_upload_and_secure_retrieval():
             db.execute("DELETE FROM hmi_media WHERE id=?", (media_id,))
     if media_path:
         media_path.unlink(missing_ok=True)
+    if video_id:
+        with connect() as db:
+            db.execute("DELETE FROM hmi_media WHERE id=?", (video_id,))
+    if video_path:
+        video_path.unlink(missing_ok=True)
 
 
 def test_live_telemetry_websocket_supports_one_second_snapshots():

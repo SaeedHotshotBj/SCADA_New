@@ -254,6 +254,10 @@ try {
   const runtimeImage = runtimeCanvas.locator(".hmi-media-element");
   await runtimeImage.waitFor({ state: "visible" });
   const runtimeImageSrc = await runtimeImage.getAttribute("src");
+  const runtimeRefresh = await page.evaluate(() => window.__refreshRuntimeLiveValues());
+  if (!runtimeRefresh.refreshed || !runtimeRefresh.mediaWidgetPreserved || !runtimeRefresh.mediaElementPreserved) {
+    throw new Error("Live runtime telemetry refresh must update data widgets without replacing the imported media element: " + JSON.stringify(runtimeRefresh));
+  }
   if (runtimePageTheme !== "dark" || runtimeWidgetTheme !== "blue" ||
       runtimeWidgetBackground !== "rgb(248, 251, 255)" || runtimePageBackground !== "rgb(24, 35, 46)" ||
       runtimeBackgroundImage !== "none" || designerBackgroundImage === "none" ||
@@ -269,7 +273,7 @@ try {
     initial, moved, resized, pageTheme, widgetTheme, widgetBackground, pageBackground,
     livePolyline, importedImage, runtimePageTheme, runtimeWidgetTheme,
     runtimeWidgetBackground, runtimePageBackground, runtimeBackgroundImage,
-    designerBackgroundImage, runtimeImageSrc, historyRequests,
+    designerBackgroundImage, runtimeImageSrc, runtimeRefresh, historyRequests,
     browserEvents: await page.evaluate(() => window.__hmiBrowserEvents.length),
   }));
 } catch (error) {

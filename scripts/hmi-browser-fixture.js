@@ -9,7 +9,7 @@ import {
   handleHmiDesignerMediaUpload,
 } from "../src/features/live/hmi-designer.js";
 import { bindHmiDesignerGestureEvents } from "../src/features/live/hmi-designer-events.js";
-import { renderLive } from "../src/features/live/index.js";
+import { renderLive, refreshHmiRuntimeLiveValues } from "../src/features/live/index.js";
 
 // Use the real HMI designer module and real application stylesheet. Only the
 // authenticated history endpoint and the final resource save are isolated.
@@ -108,6 +108,21 @@ window.__saveHmiDraft = async () => {
   const runtimePage = { id: saved.id, ...window.__savedHmiPage };
   store.replaceCollection("hmiPages", [runtimePage]);
   document.getElementById("app").innerHTML = renderLive("/live/hmi/" + runtimePage.id);
+  window.__refreshRuntimeLiveValues = () => {
+    const previousWidget = document.querySelector(".hmi-runtime-grid .hmi-widget--media");
+    const previousMedia = previousWidget?.querySelector(".hmi-media-element");
+    const nextTags = store.list("tags").map(tag => ({
+      ...tag, value: Number(tag.value) + 1,
+      sampled_at: new Date().toISOString(),
+    }));
+    store.replaceCollection("tags", nextTags);
+    const refreshed = refreshHmiRuntimeLiveValues(runtimePage.id);
+    return {
+      refreshed,
+      mediaWidgetPreserved: previousWidget === document.querySelector(".hmi-runtime-grid .hmi-widget--media"),
+      mediaElementPreserved: previousMedia === document.querySelector(".hmi-runtime-grid .hmi-media-element"),
+    };
+  };
   return saved;
 };
 
