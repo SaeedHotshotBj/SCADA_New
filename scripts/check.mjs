@@ -280,7 +280,7 @@ const liveTrend = renderHmiWidget(liveComponent, [{
   id: "test-live-buffer", name: "Live tag", value: 20, type: "float32", quality: "GOOD",
 }], { history: liveSamples, historyState: { status: "live" } });
 if (liveSamples.length !== 2 || !liveTrend.includes("hmi-chart-live-label") ||
-    (liveTrend.match(/<polyline points=/g) || []).length !== 1) {
+    (liveTrend.match(/<polyline[^>]*points=/g) || []).length !== 1) {
   throw new Error("One-second HMI trends must render a continuous line from distinct live samples.");
 }
 const imageMedia = renderHmiWidget({
