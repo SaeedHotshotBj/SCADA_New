@@ -25,6 +25,8 @@ ROLES = {"Organization Admin", "Factory Admin", "Engineer", "Operator",
 ADMIN_ROLES = {"Organization Admin", "Factory Admin"}
 TAG_TYPES = {"bool", "int16", "uint16", "int32", "uint32", "float32", "string"}
 HMI_CHART_RANGE_SECONDS = {1, 5, 10, 30, 60, 300, 600, 900, 1800, 3600, 21600, 43200, 86400}
+HMI_PAGE_THEMES = {"light", "dark", "blue", "industrial"}
+HMI_WIDGET_THEMES = HMI_PAGE_THEMES | {"inherit"}
 ENUMS = {
     "plcs.protocol": {"modbus-tcp", "modbus-rtu", "s7", "simulator"},
     "tags.type": TAG_TYPES,
@@ -283,6 +285,8 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
         if tag is None or (scope_factory and tag["factory_id"] not in {None, scope_factory}):
             raise HTTPException(status_code=422, detail="تگ انتخاب‌شده برای آلارم در سامانه ثبت نشده است.")
     if collection == "hmiPages":
+        if "theme" in payload and payload["theme"] not in HMI_PAGE_THEMES:
+            raise HTTPException(status_code=422, detail="پوسته صفحه HMI معتبر نیست.")
         if "layout" not in payload:
             raise HTTPException(status_code=422, detail="چیدمان صفحه HMI الزامی است.")
         if payload.get("machine"):
@@ -325,6 +329,9 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                 if not isinstance(component, dict) or component.get("type") not in supported:
                     raise HTTPException(status_code=422, detail=f"نوع جزء شماره {number_in_layout} پشتیبانی نمی‌شود.")
                 component_type = component["type"]
+                component_theme = component.get("theme", "inherit")
+                if component_theme not in HMI_WIDGET_THEMES:
+                    raise HTTPException(status_code=422, detail=f"پوسته جزء شماره {number_in_layout} معتبر نیست.")
                 fields = set(required_bindings[component_type])
                 if component_type in {"motor", "pump", "fan", "conveyor", "valve"}:
                     fields.update({"fault_tag_id"})
