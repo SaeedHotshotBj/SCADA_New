@@ -635,3 +635,91 @@ tbody tr:last-child td { border-bottom: 0; }
 @media (max-width: 480px) {
   .hmi-runtime-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
 }
+
+/* Freeform HMI canvas: fixed logical pixel surface shared by designer and runtime. */
+.hmi-layout-preview-canvas {
+  position: relative;
+  display: block;
+  width: 1200px;
+  min-width: 1200px;
+  min-height: 800px;
+  grid-template-columns: none;
+  grid-auto-rows: auto;
+  align-content: initial;
+  padding: 0;
+  background-size: 20px 20px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hmi-layout-card {
+  position: absolute;
+  box-sizing: border-box;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hmi-layout-card.is-selected {
+  z-index: 20;
+}
+.hmi-layout-card[data-hmi-layout-gesture="move"] {
+  cursor: move;
+}
+.hmi-layout-card-toolbar {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hmi-layout-card-content,
+.hmi-layout-card-content * {
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+.hmi-layout-card .hmi-layout-resize {
+  z-index: 30;
+  cursor: nwse-resize !important;
+  touch-action: none;
+  user-select: none;
+}
+.hmi-layout-dragging,
+.hmi-layout-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  touch-action: none !important;
+}
+.hmi-layout-dragging .hmi-layout-resize {
+  cursor: nwse-resize !important;
+}
+.hmi-layout-preview-empty {
+  position: absolute;
+  inset: 0;
+}
+.hmi-runtime-stage-scroll {
+  max-width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #dce5ec;
+  border-radius: 8px;
+  background: #f4f7f9;
+}
+.hmi-runtime-grid {
+  position: relative !important;
+  display: block !important;
+  width: 1200px;
+  min-height: 800px;
+  margin: 0;
+}
+.hmi-runtime-grid > .hmi-runtime-item {
+  position: absolute !important;
+  display: block;
+  min-width: 0;
+  min-height: 0 !important;
+  height: auto;
+  grid-column: auto !important;
+  grid-row: auto !important;
+  overflow: hidden;
+}
