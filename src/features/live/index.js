@@ -47,7 +47,7 @@ function hmiRuntimePage(pageId) {
     const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, historySeconds) : [];
     const historyState = component.type === "chart" ? getHmiChartHistoryState(component.tag_id, historySeconds) : null;
     const widget = renderHmiWidget(component, tags, { active, history, historyState, mediaBase: api.base });
-    return '<div class="hmi-runtime-item" style="' + hmiWidgetFreeformStyle(component, index) + '">' + widget + '</div>';
+    return '<div class="hmi-runtime-item" data-hmi-runtime-index="' + index + '" style="' + hmiWidgetFreeformStyle(component, index) + '">' + widget + '</div>';
   }).join("");
   return `<div class="hmi-runtime">
     ${pageHeader(page.name, `${page.description || ""} · ${page.machine || "بدون ماشین"}`, `${button("به‌روزرسانی نمودارها", "hmi-refresh-charts", { variant: "light", attrs: "data-page-id=\"" + pageId + "\"" })}<a class="btn btn-light" href="#/live/hmi-pages">بازگشت به صفحات HMI</a>`)}
@@ -55,6 +55,28 @@ function hmiRuntimePage(pageId) {
     ${layout.length ? `<div class="hmi-runtime-stage-scroll"><div class="hmi-runtime-grid" data-hmi-page-theme="${normalizeHmiPageTheme(page.theme)}" style="width:${HMI_LAYOUT_CANVAS_WIDTH}px;height:${hmiWidgetCanvasHeight(layout)}px">${components}</div></div>` : emptyState("برای این صفحه هنوز جزء صنعتی تعریف نشده است. صفحه را در طراح HMI ویرایش کنید و اجزا را به تگ‌ها متصل کنید.")}
     <p class="muted-note">کیفیت GOOD از Edge احراز‌شده می‌آید؛ DEMO از شبیه‌ساز داخلی است. برای فرمان فیزیکی، درایور و نقشه آدرس PLC هنوز تأیید و راه‌اندازی نشده است.</p>
   </div>`;
+}
+
+export function refreshHmiRuntimeLiveValues(pageId) {
+  const page = store.list("hmiPages").find(item => item.id === pageId);
+  const canvas = document.querySelector(".hmi-runtime-grid[data-hmi-page-theme]");
+  if (!page || !canvas) return false;
+  const layout = Array.isArray(page.layout) ? page.layout : [];
+  const wrappers = Array.from(canvas.children).filter(item => item.classList.contains("hmi-runtime-item"));
+  if (wrappers.length !== layout.length) return false;
+  const tags = store.list("tags");
+  const active = page.status !== "غیرفعال";
+  layout.forEach((component, index) => {
+    // Keep media DOM nodes alive so animated images and playing videos are not restarted on each telemetry tick.
+    if (component.type === "media") return;
+    const historySeconds = component.history_seconds ?? Number(component.history_hours || 1) * 3600;
+    const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, historySeconds) : [];
+    const historyState = component.type === "chart" ? getHmiChartHistoryState(component.tag_id, historySeconds) : null;
+    wrappers[index].innerHTML = renderHmiWidget(component, tags, {
+      active, history, historyState, mediaBase: api.base,
+    });
+  });
+  return true;
 }
 
 function classicHmiPage() {

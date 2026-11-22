@@ -19,6 +19,7 @@ import {
   handleHmiDesignerMediaUpload,
 } from "../features/live/hmi-designer.js";
 import { bindHmiDesignerGestureEvents } from "../features/live/hmi-designer-events.js";
+import { refreshHmiRuntimeLiveValues } from "../features/live/index.js";
 
 const root = document.getElementById("app");
 let renderQueued = false;
@@ -64,6 +65,8 @@ function scheduleRender() {
   renderQueued = true;
   requestAnimationFrame(() => {
     renderQueued = false;
+    const liveHmiMatch = currentPath().match(/^\/live\/hmi\/([^/]+)$/);
+    if (liveHmiMatch && refreshHmiRuntimeLiveValues(liveHmiMatch[1])) return;
     if (currentPath().startsWith("/live/hmi-designer/")) {
       refreshHmiDesignerLivePreview();
       return;
