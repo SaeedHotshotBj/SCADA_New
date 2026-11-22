@@ -127,17 +127,29 @@ try {
     yTicks: svg.querySelectorAll(".hmi-chart-y-tick").length,
     area: Boolean(svg.querySelector(".hmi-chart-area")),
   }));
-  const latestValueBox = chartCard.locator(".hmi-chart-value-box");
-  await latestValueBox.waitFor({ state: "visible" });
-  const latestDisplayedValue = (await latestValueBox.locator("strong").textContent())?.trim();
+  const endpointLabel = chartCard.locator(".hmi-chart-svg .hmi-chart-endpoint-label");
+  await endpointLabel.waitFor({ state: "visible" });
+  const endpointGeometry = await endpointLabel.evaluate(element => ({
+    value: element.getAttribute("data-value"),
+    x: Number(element.getAttribute("x")),
+    y: Number(element.getAttribute("y")),
+    pointX: Number(element.getAttribute("data-point-x")),
+    pointY: Number(element.getAttribute("data-point-y")),
+    text: element.textContent,
+  }));
+  const valueBoxes = await chartCard.locator(".hmi-chart-value-box").count();
   const chartSurface = await chartCard.locator(".hmi-widget").getAttribute("data-hmi-chart-surface");
   const chartBackgroundImage = await chartCard.locator(".hmi-widget").evaluate(element => getComputedStyle(element).backgroundImage);
+  const chartBackgroundColor = await chartCard.locator(".hmi-widget").evaluate(element => getComputedStyle(element).backgroundColor);
   if (!renderedChart.line.includes(" C") || renderedChart.pointCount < 2 ||
       renderedChart.gridLines !== 4 || renderedChart.xTicks !== 0 || renderedChart.yTicks !== 0 ||
       !renderedChart.area || chartSurface !== "midnight" ||
-      !chartBackgroundImage.includes("linear-gradient") || !latestDisplayedValue) {
-    throw new Error("HMI default appearance does not match the dark smooth-area reference: " +
-      JSON.stringify({ renderedChart, latestDisplayedValue, chartSurface, chartBackgroundImage }));
+      !chartBackgroundImage.includes("radial-gradient") || chartBackgroundColor === "rgb(0, 0, 0)" ||
+      valueBoxes !== 0 || !endpointGeometry.value ||
+      Math.abs(endpointGeometry.x - endpointGeometry.pointX) > 16 ||
+      Math.abs(endpointGeometry.y - endpointGeometry.pointY) > 30) {
+    throw new Error("HMI trend must show a colored surface and latest value next to the curve endpoint: " +
+      JSON.stringify({ renderedChart, endpointGeometry, chartSurface, chartBackgroundImage, chartBackgroundColor, valueBoxes }));
   }
 
   
@@ -178,21 +190,38 @@ try {
   await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_surface"]').selectOption("graphite");
   await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_smoothing"]').fill("72");
   await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_fill_opacity"]').fill("35");
+  await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_surface_intensity"]').fill("88");
+  await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_line_glow"]').fill("12");
+  await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_grid_opacity"]').fill("30");
+  await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_grid_lines"]').fill("5");
+  await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_value_color"]').selectOption("white");
+  await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_value_font_size"]').fill("24");
+  await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_value_decimals"]').fill("2");
+  await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_show_value"]').check();
   await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_show_axes"]').check();
   await page.waitForTimeout(50);
   const configuredStrokeWidth = await chartCard.locator(".hmi-chart-svg .hmi-chart-line").getAttribute("stroke-width");
   const chartTypographyStyle = await chartCard.locator(".hmi-widget").getAttribute("style");
   const chartSurfaceSetting = await chartCard.locator(".hmi-widget").getAttribute("data-hmi-chart-surface");
+  const endpoint = chartCard.locator(".hmi-chart-svg .hmi-chart-endpoint-label");
+  const endpointFontSize = await endpoint.evaluate(element => getComputedStyle(element).fontSize);
+  const endpointColor = await endpoint.evaluate(element => getComputedStyle(element).fill);
   const enabledAxisTicks = await chartCard.locator(".hmi-chart-svg .hmi-chart-y-tick").count();
+  const gridLineCount = await chartCard.locator(".hmi-chart-svg .hmi-chart-grid-line").count();
   if (configuredStrokeWidth !== "4" ||
       !chartTypographyStyle?.includes('--hmi-font-family:Verdana, sans-serif') ||
       !chartTypographyStyle.includes("--hmi-number-scale:1.333") ||
       !chartTypographyStyle.includes("--hmi-text-scale:1.167") ||
       !chartTypographyStyle.includes("--hmi-chart-fill-opacity:0.35") ||
-      !chartTypographyStyle.includes("--hmi-chart-line:#9565ff") ||
-      chartSurfaceSetting !== "graphite" || enabledAxisTicks < 3) {
-    throw new Error("Chart appearance and typography controls were not applied live: " +
-      JSON.stringify({ configuredStrokeWidth, chartTypographyStyle, chartSurfaceSetting, enabledAxisTicks }));
+      !chartTypographyStyle.includes("--hmi-chart-value-color:#f5fbff") ||
+      !chartTypographyStyle.includes("--hmi-chart-value-size:24px") ||
+      !chartTypographyStyle.includes("--hmi-chart-grid-opacity:0.30") ||
+      !chartTypographyStyle.includes("--hmi-chart-surface-opacity:0.95") ||
+      !chartTypographyStyle.includes("--hmi-chart-line-glow:12px") ||
+      chartSurfaceSetting !== "graphite" || enabledAxisTicks < 3 ||
+      gridLineCount < 3 || endpointFontSize !== "24px" || endpointColor !== "rgb(245, 251, 255)") {
+    throw new Error("Chart appearance and endpoint value controls were not applied live: " +
+      JSON.stringify({ configuredStrokeWidth, chartTypographyStyle, chartSurfaceSetting, enabledAxisTicks, gridLineCount, endpointFontSize, endpointColor }));
   }
   
   const pageTheme = await page.locator("#hmi-layout-preview-canvas").getAttribute("data-hmi-page-theme");
@@ -294,7 +323,15 @@ try {
        chartLayout?.chart_surface !== "graphite" ||
        chartLayout?.chart_smoothing !== 72 ||
        chartLayout?.chart_fill_opacity !== 35 ||
-       chartLayout?.chart_show_axes !== true) {
+       chartLayout?.chart_show_axes !== true ||
+       chartLayout?.chart_show_value !== true ||
+       chartLayout?.chart_value_color !== "white" ||
+       chartLayout?.chart_value_font_size !== 24 ||
+       chartLayout?.chart_value_decimals !== 2 ||
+       chartLayout?.chart_surface_intensity !== 88 ||
+       chartLayout?.chart_line_glow !== 12 ||
+       chartLayout?.chart_grid_opacity !== 30 ||
+       chartLayout?.chart_grid_lines !== 5) {
     throw new Error(`HMI JSON did not persist final geometry and per-widget theme. JSON=${saved}`);
   }
 
@@ -310,6 +347,14 @@ try {
       savedPage?.layout?.find(item => item.type === "chart")?.chart_smoothing !== 72 ||
       savedPage?.layout?.find(item => item.type === "chart")?.chart_fill_opacity !== 35 ||
       savedPage?.layout?.find(item => item.type === "chart")?.chart_show_axes !== true ||
+      savedPage?.layout?.find(item => item.type === "chart")?.chart_show_value !== true ||
+      savedPage?.layout?.find(item => item.type === "chart")?.chart_value_color !== "white" ||
+      savedPage?.layout?.find(item => item.type === "chart")?.chart_value_font_size !== 24 ||
+      savedPage?.layout?.find(item => item.type === "chart")?.chart_value_decimals !== 2 ||
+      savedPage?.layout?.find(item => item.type === "chart")?.chart_surface_intensity !== 88 ||
+      savedPage?.layout?.find(item => item.type === "chart")?.chart_line_glow !== 12 ||
+      savedPage?.layout?.find(item => item.type === "chart")?.chart_grid_opacity !== 30 ||
+      savedPage?.layout?.find(item => item.type === "chart")?.chart_grid_lines !== 5 ||
       savedPage?.layout?.find(item => item.type === "media")?.media_id !== mediaId) {
     throw new Error("HMI page and widget themes were not included in the saved resource: " + JSON.stringify(savedPage));
   }
@@ -334,10 +379,15 @@ try {
   const runtimeTypography = await runtimeChart.locator(".hmi-widget").getAttribute("style");
   const runtimeChartSurface = await runtimeChart.locator(".hmi-widget").getAttribute("data-hmi-chart-surface");
   const runtimeChartArea = await runtimeChart.locator(".hmi-chart-svg .hmi-chart-area").count();
+  const runtimeEndpoint = runtimeChart.locator(".hmi-chart-svg .hmi-chart-endpoint-label");
+  const runtimeEndpointFontSize = await runtimeEndpoint.evaluate(element => getComputedStyle(element).fontSize);
+  const runtimeEndpointColor = await runtimeEndpoint.evaluate(element => getComputedStyle(element).fill);
   if (runtimeStrokeWidth !== "4" ||
       !runtimeTypography?.includes('--hmi-font-family:Verdana, sans-serif') ||
       !runtimeTypography.includes("--hmi-number-scale:1.333") ||
+      !runtimeTypography.includes("--hmi-chart-value-size:24px") ||
       runtimeChartSurface !== "graphite" || runtimeChartArea !== 1 ||
+      runtimeEndpointFontSize !== "24px" || runtimeEndpointColor !== "rgb(245, 251, 255)" ||
       await runtimeChart.locator(".hmi-chart-svg .hmi-chart-y-tick").count() < 3) {
     throw new Error("The saved chart line thickness was not applied in HMI runtime: " + runtimeStrokeWidth);
   }

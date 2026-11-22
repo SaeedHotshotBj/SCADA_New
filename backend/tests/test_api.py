@@ -1094,7 +1094,7 @@ def test_hmi_page_and_widget_theme_presets_are_validated_and_persisted():
             "theme": "dark",
             "layout": [
                 {"type": "value", "tag_id": "t3", "theme": "blue", "font_family": "Verdana", "number_font_size": 32, "text_font_size": 14},
-                {"type": "chart", "tag_id": "t6", "theme": "inherit", "history_seconds": 3600, "font_family": "Tahoma", "number_font_size": 21, "text_font_size": 11, "chart_color": "purple", "chart_surface": "navy", "line_width": 3.5, "chart_smoothing": 72, "chart_fill_opacity": 35, "chart_show_axes": True},
+                {"type": "chart", "tag_id": "t6", "theme": "inherit", "history_seconds": 3600, "font_family": "Tahoma", "number_font_size": 21, "text_font_size": 11, "chart_color": "purple", "chart_surface": "navy", "line_width": 3.5, "chart_smoothing": 72, "chart_fill_opacity": 35, "chart_show_axes": True, "chart_show_value": True, "chart_value_color": "white", "chart_value_font_size": 24, "chart_value_decimals": 2, "chart_surface_intensity": 90, "chart_line_glow": 12, "chart_grid_opacity": 30, "chart_grid_lines": 5},
             ],
             "status": "فعال",
         })
@@ -1112,6 +1112,14 @@ def test_hmi_page_and_widget_theme_presets_are_validated_and_persisted():
         assert created.json()["layout"][1]["chart_smoothing"] == 72
         assert created.json()["layout"][1]["chart_fill_opacity"] == 35
         assert created.json()["layout"][1]["chart_show_axes"] is True
+        assert created.json()["layout"][1]["chart_show_value"] is True
+        assert created.json()["layout"][1]["chart_value_color"] == "white"
+        assert created.json()["layout"][1]["chart_value_font_size"] == 24
+        assert created.json()["layout"][1]["chart_value_decimals"] == 2
+        assert created.json()["layout"][1]["chart_surface_intensity"] == 90
+        assert created.json()["layout"][1]["chart_line_glow"] == 12
+        assert created.json()["layout"][1]["chart_grid_opacity"] == 30
+        assert created.json()["layout"][1]["chart_grid_lines"] == 5
 
         invalid_page_theme = client.post("/api/resources/hmiPages", json={
             "name": "Invalid page theme",
@@ -1172,6 +1180,26 @@ def test_hmi_page_and_widget_theme_presets_are_validated_and_persisted():
             "status": "فعال",
         })
         assert invalid_chart_fill.status_code == 422
+
+        invalid_endpoint_color = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid endpoint color",
+            "machine": "بانچر",
+            "description": "Reject unsupported endpoint value colors",
+            "theme": "light",
+            "layout": [{"type": "chart", "tag_id": "t6", "chart_value_color": "url(javascript:alert(1))"}],
+            "status": "فعال",
+        })
+        assert invalid_endpoint_color.status_code == 422
+
+        invalid_endpoint_size = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid endpoint size",
+            "machine": "بانچر",
+            "description": "Reject oversized endpoint values",
+            "theme": "light",
+            "layout": [{"type": "chart", "tag_id": "t6", "chart_value_font_size": 99}],
+            "status": "فعال",
+        })
+        assert invalid_endpoint_size.status_code == 422
 
 def test_hmi_media_upload_and_secure_retrieval():
     from app.database import connect

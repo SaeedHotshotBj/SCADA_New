@@ -63,35 +63,53 @@ const {
   createHmiWidget, renderHmiWidget, normalizeHmiPageTheme, normalizeHmiWidgetTheme,
   HMI_CHART_LINE_WIDTH_MIN, HMI_CHART_LINE_WIDTH_MAX, HMI_CHART_LINE_WIDTH_DEFAULT, normalizeHmiChartLineWidth,
   HMI_FONT_OPTIONS, normalizeHmiWidgetTypography,
-  HMI_CHART_COLOR_OPTIONS, HMI_CHART_SURFACE_OPTIONS, normalizeHmiChartAppearance,
+  HMI_CHART_COLOR_OPTIONS, HMI_CHART_SURFACE_OPTIONS, HMI_CHART_VALUE_COLOR_OPTIONS, normalizeHmiChartAppearance,
   appendHmiLiveChartSamples, getHmiLiveChartSamples, hmiChartLiveIntervalMs,
 } = await import("../src/features/live/hmi-widgets.js");
 const chart = createHmiWidget("chart");
 if (chart.history_seconds !== 3600 || chart.line_width !== 2.5 ||
     chart.chart_color !== "blue" || chart.chart_surface !== "midnight" ||
     chart.chart_smoothing !== 58 || chart.chart_fill_opacity !== 24 ||
-    chart.chart_show_axes !== false) {
-  throw new Error("New HMI trend charts must default to the modern dark smooth-area presentation.");
+    chart.chart_show_axes !== false || chart.chart_show_value !== true ||
+    chart.chart_value_color !== "line" || chart.chart_value_font_size !== 18 ||
+    chart.chart_value_decimals !== 1 || chart.chart_surface_intensity !== 100 ||
+    chart.chart_line_glow !== 8 || chart.chart_grid_opacity !== 22 ||
+    chart.chart_grid_lines !== 4) {
+  throw new Error("New HMI trend charts must default to a colored surface and endpoint value annotation.");
 }
 const normalizedChartAppearance = normalizeHmiChartAppearance({
   chart_color: "purple", chart_surface: "navy", chart_smoothing: 120,
-  chart_fill_opacity: -5, chart_show_axes: true,
+  chart_fill_opacity: -5, chart_show_axes: true, chart_show_value: true,
+  chart_value_color: "white", chart_value_font_size: 40, chart_value_decimals: -1,
+  chart_surface_intensity: 110, chart_line_glow: -2, chart_grid_opacity: 80, chart_grid_lines: 1,
 });
 const unsafeChartAppearance = normalizeHmiChartAppearance({
   chart_color: "url(javascript:alert(1))", chart_surface: "unsafe",
   chart_smoothing: "bad", chart_fill_opacity: 999, chart_show_axes: "true",
+  chart_show_value: "true", chart_value_color: "expression(alert(1))",
 });
 if (HMI_CHART_COLOR_OPTIONS.length !== 5 || HMI_CHART_SURFACE_OPTIONS.length !== 3 ||
+    HMI_CHART_VALUE_COLOR_OPTIONS.length !== 5 ||
     normalizedChartAppearance.chart_color !== "purple" ||
     normalizedChartAppearance.chart_surface !== "navy" ||
     normalizedChartAppearance.chart_smoothing !== 100 ||
     normalizedChartAppearance.chart_fill_opacity !== 0 ||
     normalizedChartAppearance.chart_show_axes !== true ||
+    normalizedChartAppearance.chart_show_value !== true ||
+    normalizedChartAppearance.chart_value_color !== "white" ||
+    normalizedChartAppearance.chart_value_font_size !== 36 ||
+    normalizedChartAppearance.chart_value_decimals !== 0 ||
+    normalizedChartAppearance.chart_surface_intensity !== 100 ||
+    normalizedChartAppearance.chart_line_glow !== 0 ||
+    normalizedChartAppearance.chart_grid_opacity !== 60 ||
+    normalizedChartAppearance.chart_grid_lines !== 2 ||
     unsafeChartAppearance.chart_color !== "blue" ||
     unsafeChartAppearance.chart_surface !== "midnight" ||
     unsafeChartAppearance.chart_smoothing !== 58 ||
     unsafeChartAppearance.chart_fill_opacity !== 60 ||
-    unsafeChartAppearance.chart_show_axes !== false) {
+    unsafeChartAppearance.chart_show_axes !== false ||
+    unsafeChartAppearance.chart_show_value !== true ||
+    unsafeChartAppearance.chart_value_color !== "line") {
   throw new Error("HMI chart appearance settings must be allow-listed and bounded.");
 }
 const requiredRanges = [1, 5, 10, 30, 60, 300, 600, 900, 1800, 3600, 21600, 43200, 86400];
@@ -155,7 +173,9 @@ if (!themedWidget.includes('data-hmi-theme="blue"')) {
 const orderedTrend = renderHmiWidget({
   type: "chart", tag_id: "test-trend", history_seconds: 60, line_width: 4,
   chart_color: "purple", chart_surface: "navy", chart_smoothing: 72,
-  chart_fill_opacity: 35, chart_show_axes: true,
+  chart_fill_opacity: 35, chart_show_axes: true, chart_show_value: true,
+  chart_value_color: "white", chart_value_font_size: 20, chart_value_decimals: 2,
+  chart_surface_intensity: 92, chart_line_glow: 10, chart_grid_opacity: 30, chart_grid_lines: 5,
 }, [{
   id: "test-trend", name: "Test trend", value: 12.5,
   type: "float32", unit: "bar", quality: "GOOD",
@@ -174,13 +194,17 @@ if (trendPoints !== "48.00,140.00|198.00,12.00|348.00,76.00" ||
     !trendLine.includes(" C") || !trendLine.includes("348.00 76.00")) {
   throw new Error("HMI trend must use chronological points and a smooth curve: " + JSON.stringify({ trendPoints, trendLine }));
 }
+const chartEndpoint = orderedTrend.match(/<text class="hmi-chart-endpoint-label"[^>]*data-value="([^"]+)"[^>]*>/);
 const chartRenderChecks = {
   viewBox: orderedTrend.includes('viewBox="0 0 360 180"'),
   aspect: orderedTrend.includes('preserveAspectRatio="none"'),
   surface: orderedTrend.includes('data-hmi-chart-surface="navy"'),
   area: orderedTrend.includes('class="hmi-chart-area"'),
   topbar: orderedTrend.includes('class="hmi-chart-topbar"'),
-  reading: orderedTrend.includes("hmi-chart-reading"),
+  noValueBox: !orderedTrend.includes("hmi-chart-value-box"),
+  endpoint: Boolean(chartEndpoint),
+  endpointValue: chartEndpoint?.[1] || "",
+  endpointUnit: orderedTrend.includes('class="hmi-chart-endpoint-unit"'),
   lineWidth: orderedTrend.includes('stroke-width="4"'),
   fillOpacity: orderedTrend.includes('stop-opacity="0.35"'),
   yTitle: orderedTrend.includes('class="hmi-chart-axis-title hmi-chart-axis-title--y"'),
@@ -189,11 +213,15 @@ const chartRenderChecks = {
   xTicks: (orderedTrend.match(/class="hmi-chart-x-tick"/g) || []).length,
 };
 if (!chartRenderChecks.viewBox || !chartRenderChecks.aspect || !chartRenderChecks.surface ||
-    !chartRenderChecks.area || !chartRenderChecks.topbar || !chartRenderChecks.reading ||
-    !chartRenderChecks.lineWidth || !chartRenderChecks.fillOpacity ||
+    !chartRenderChecks.area || !chartRenderChecks.topbar || !chartRenderChecks.noValueBox ||
+    !chartRenderChecks.endpoint || chartRenderChecks.endpointValue !== "15" ||
+    !chartRenderChecks.endpointUnit || !chartRenderChecks.lineWidth || !chartRenderChecks.fillOpacity ||
     !chartRenderChecks.yTitle || !chartRenderChecks.xTitle ||
-    chartRenderChecks.yTicks < 3 || chartRenderChecks.xTicks !== 3) {
-  throw new Error("HMI chart render details mismatch: " + JSON.stringify(chartRenderChecks));
+    chartRenderChecks.yTicks < 3 || chartRenderChecks.xTicks !== 3 ||
+    !orderedTrend.includes('--hmi-chart-value-color:#f5fbff') ||
+    !orderedTrend.includes('--hmi-chart-value-size:20px') ||
+    !orderedTrend.includes('--hmi-chart-grid-opacity:0.30')) {
+  throw new Error("HMI chart endpoint annotation or appearance mismatch: " + JSON.stringify(chartRenderChecks));
 }
 const cleanDefaultChart = renderHmiWidget({
   type: "chart", tag_id: "test-trend", history_seconds: 60,
@@ -209,9 +237,11 @@ const cleanDefaultChart = renderHmiWidget({
 });
 if (!cleanDefaultChart.includes('data-hmi-chart-surface="midnight"') ||
     !cleanDefaultChart.includes('class="hmi-chart-area"') ||
+    !cleanDefaultChart.includes('class="hmi-chart-endpoint-label"') ||
+    cleanDefaultChart.includes("hmi-chart-value-box") ||
     cleanDefaultChart.includes('class="hmi-chart-y-tick"') ||
     cleanDefaultChart.includes('class="hmi-chart-x-tick"')) {
-  throw new Error("Default HMI chart must use the dark smooth area style and hide axis labels.");
+  throw new Error("Default HMI chart must show its latest value at the curve endpoint without a separate box.");
 }
 console.log("HMI chart range and needle numeric readout checks passed.");
 
@@ -303,9 +333,11 @@ const singleSampleChart = renderHmiWidget({
   historyState: { status: "ready", sampleCount: 1 },
 });
 if (!singleSampleChart.includes("hmi-chart-single-point") ||
-    !singleSampleChart.includes("hmi-chart-value-box") ||
-    !singleSampleChart.includes("۱۲")) {
-  throw new Error("HMI trend must render its single sample and numeric value tile when history contains one sample.");
+    !singleSampleChart.includes('class="hmi-chart-endpoint-label"') ||
+    !singleSampleChart.includes('data-value="12.5"') ||
+    singleSampleChart.includes("hmi-chart-value-box") ||
+    !singleSampleChart.includes("۱۲٫۵")) {
+  throw new Error("HMI trend must place the single-sample value beside its marker without a value box.");
 }
 const emptyHistoryChart = renderHmiWidget({
   type: "chart", tag_id: "test-trend", history_seconds: 60,
@@ -313,10 +345,11 @@ const emptyHistoryChart = renderHmiWidget({
   history: [],
   historyState: { status: "empty", sampleCount: 0 },
 });
-if (!emptyHistoryChart.includes("hmi-chart-reading") ||
+if (!emptyHistoryChart.includes("hmi-chart-empty-reading") ||
     !emptyHistoryChart.includes("۱۲٫۵") ||
+    emptyHistoryChart.includes("hmi-chart-value-box") ||
     !emptyHistoryChart.includes("bar")) {
-  throw new Error("HMI trend with no stored history must show the latest live value and unit in its chart header.");
+  throw new Error("HMI trend without stored history must show the latest live value in the plot without a value box.");
 }
 const failedHistoryChart = renderHmiWidget({
   type: "chart", tag_id: "test-trend", history_seconds: 60,
@@ -424,7 +457,7 @@ if (designerSource.includes('hmi-layout-preview-backdrop" data-action="hmi-close
 if (!designerSource.includes('data-action="hmi-layout-single-column"')) {
   throw new Error("The floating HMI preview must expose a one-card-per-row layout command.");
 }
-if (!cssSource.includes(".hmi-chart-value-box {") ||
+if (!cssSource.includes(".hmi-chart-endpoint-label") ||
     !cssSource.includes(".hmi-chart-axis-title") ||
     !cssSource.includes(".hmi-chart-x-tick") ||
     !cssSource.includes(".hmi-chart-y-tick") ||
@@ -432,6 +465,7 @@ if (!cssSource.includes(".hmi-chart-value-box {") ||
     !cssSource.includes(".hmi-chart-topbar") ||
     !cssSource.includes(".hmi-chart-area") ||
     !cssSource.includes(".hmi-chart-line") ||
+    !cssSource.includes(".hmi-chart-empty-reading") ||
     !cssSource.includes(".hmi-chart-axes-toggle") ||
     !cssSource.includes(".hmi-designer-canvas-scroll") ||
     !cssSource.includes(".hmi-media-file-input") ||
