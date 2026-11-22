@@ -200,9 +200,15 @@ if (!oneSecondEmptyChart.includes("فاصله ذخیره تاریخچه PLC/Edge
 }
 const designerSource = await readFile("src/features/live/hmi-designer.js", "utf8");
 const mainSource = await readFile("src/app/main.js", "utf8");
-if (!mainSource.includes('window.addEventListener("pointermove"') ||
-    !mainSource.includes('window.addEventListener("pointerup"')) {
-  throw new Error("HMI layout gestures must receive pointer movement and release at window capture level.");
+if (!mainSource.includes('document.addEventListener("dragstart"') ||
+    !mainSource.includes('document.addEventListener("dragover"') ||
+    !mainSource.includes('document.addEventListener("drop"') ||
+    !mainSource.includes('document.addEventListener("dragend"')) {
+  throw new Error("HMI layout gestures must use native browser dragstart, dragover, drop and dragend events.");
+}
+if (!designerSource.includes('draggable="true" data-hmi-layout-gesture="move"') ||
+    !designerSource.includes('draggable="true" class="hmi-layout-resize"')) {
+  throw new Error("Both HMI card movement and resizing handles must be native draggable elements.");
 }
 if (designerSource.includes('hmi-layout-preview-backdrop" data-action="hmi-close-layout-preview"')) {
   throw new Error("Clicking or dragging on the HMI preview backdrop must not close the layout editor.");
