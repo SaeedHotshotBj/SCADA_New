@@ -385,7 +385,7 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                         )
                 grid_limits = {
                     "grid_col": (1, 12),
-                    "grid_row": (1, 200),
+                    "grid_row": (1, 1000),
                     "grid_w": (1, 12),
                     "grid_h": (1, 12),
                 }
