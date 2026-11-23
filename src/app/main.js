@@ -98,6 +98,18 @@ document.addEventListener("click", event => {
     }
     return;
   }
+
+  // The backdrop itself has no delegated data-action. Close only when it is
+  // the exact click target, never when a click bubbles from a dialog field.
+  const modalBackdrop = event.target.closest(".modal-backdrop");
+  if (modalBackdrop && event.target === modalBackdrop) {
+    Promise.resolve(handleAction("close-modal", modalBackdrop)).catch(error => {
+      console.error(error);
+      showToast(error.message || "بستن پنجره انجام نشد.", "error");
+    });
+    return;
+  }
+
   const actionElement = resolveActionElementFromClick(event.target);
   if (!actionElement) return;
   const action = actionElement.dataset.action;
