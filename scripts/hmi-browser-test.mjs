@@ -658,52 +658,81 @@ try {
 
   const hmiBrowserEvents = await page.evaluate(() => window.__hmiBrowserEvents.length);
 
-  // Verify the shared application modal event path in real Chromium.
+  // Exercise the exact real application flow: equipment page -> edit row ->
+  // openModal("new-tag") -> address input. This uses src/app/main.js, not a
+  // test-only click handler or a directly invoked handleAction().
   await page.goto(`${baseUrl}/scripts/modal-browser-fixture.html`, { waitUntil: "networkidle" });
   await page.waitForFunction(() => window.__modalBrowserReady === true);
   const modalLocator = page.locator("#modal-root .modal");
+  if (await modalLocator.count() !== 0) {
+    throw new Error("The tag edit page must start with no dialog open.");
+  }
+  const editTagButton = page.locator('#app [data-collection-name="tags"] [data-action="edit-record"]').first();
+  await editTagButton.click();
   await modalLocator.waitFor({ state: "visible" });
 
-  // The X button must bubble to the application-level delegated action handler.
+  const addressField = page.locator("#modal-root input[name='address']");
+  const initialAddress = await addressField.inputValue();
+  const addressHitTest = await addressField.evaluate(input => ({
+    tagName: input.tagName,
+    insideDialog: Boolean(input.closest(".modal")),
+    enclosingFieldLabel: Boolean(input.closest("label.field")),
+    enclosingBackdropAction: input.closest(".modal-backdrop")?.dataset.action || null,
+  }));
+  if (initialAddress !== "40001" || !addressHitTest.insideDialog || !addressHitTest.enclosingFieldLabel ||
+      addressHitTest.enclosingBackdropAction !== "close-modal") {
+    throw new Error("The real tag edit dialog did not render the expected address field: " +
+      JSON.stringify({ initialAddress, addressHitTest }));
+  }
+
+  // Click the address input itself, then actually type. The edit dialog must
+  // remain connected and preserve the edited value after each interaction.
+  await addressField.click();
+  if (await modalLocator.count() !== 1) {
+    throw new Error("Clicking the address field in the real Edit Tag dialog closed the modal.");
+  }
+  await addressField.fill("40017");
+  if (await modalLocator.count() !== 1 || await addressField.inputValue() !== "40017") {
+    throw new Error("Typing in the address field in the real Edit Tag dialog closed the modal.");
+  }
+
+  // Exercise all remaining field types present in the real Edit Tag schema.
+  const tagNameField = page.locator("#modal-root input[name='name']");
+  await tagNameField.click();
+  await tagNameField.fill("TEST.ADDRESS.EDITED");
+  const plcField = page.locator("#modal-root select[name='plc']");
+  await plcField.click();
+  await plcField.selectOption("plc-modal-test");
+  const typeField = page.locator("#modal-root select[name='type']");
+  await typeField.click();
+  await typeField.selectOption("int16");
+  const accessField = page.locator("#modal-root select[name='access']");
+  await accessField.click();
+  await accessField.selectOption("read_write");
+  const unitField = page.locator("#modal-root input[name='unit']");
+  await unitField.click();
+  await unitField.fill("bar");
+  if (await modalLocator.count() !== 1 ||
+      await addressField.inputValue() !== "40017" ||
+      await tagNameField.inputValue() !== "TEST.ADDRESS.EDITED" ||
+      await plcField.inputValue() !== "plc-modal-test" ||
+      await typeField.inputValue() !== "int16" ||
+      await accessField.inputValue() !== "read_write" ||
+      await unitField.inputValue() !== "bar") {
+    throw new Error("A field interaction in the real Edit Tag dialog unexpectedly closed the modal or lost its value.");
+  }
+
+  // The close and cancel controls must still work through the application's
+  // real delegated event listener.
   await page.locator("#modal-root .modal-header [data-action='close-modal']").click();
   await modalLocator.waitFor({ state: "detached" });
-
-  // The cancel button must close a form modal without submitting it.
-  await page.evaluate(() => window.__openTestModal("new-user"));
+  await editTagButton.click();
   await modalLocator.waitFor({ state: "visible" });
   await page.locator("#modal-root .modal-footer [data-action='close-modal']").click();
   await modalLocator.waitFor({ state: "detached" });
 
-  // Form controls must not inherit an action from an enclosing wrapper.
-  // Use the HMI-page dialog because it includes text, select and textarea fields.
-  await page.evaluate(() => window.__openTestModal("new-hmi-page"));
-  await modalLocator.waitFor({ state: "visible" });
-  if (!(await page.evaluate(() => window.__wrapModalFieldWithAction("layout")))) {
-    throw new Error("Could not install the action-wrapper field regression fixture.");
-  }
-  const layoutField = page.locator("#modal-root textarea[name='layout']");
-  await layoutField.click();
-  if (await modalLocator.count() !== 1) {
-    throw new Error("Clicking a textarea inside an action-marked form wrapper closed the modal.");
-  }
-  await layoutField.fill('[{"type":"value","tag_id":"t1"}]');
-  const nameField = page.locator("#modal-root input[name='name']");
-  await nameField.click();
-  await nameField.fill("Modal remains open");
-  const statusField = page.locator("#modal-root select[name='status']");
-  await statusField.click();
-  await statusField.selectOption("غیرفعال");
-  if (await modalLocator.count() !== 1 ||
-      await layoutField.inputValue() !== '[{"type":"value","tag_id":"t1"}]' ||
-      await nameField.inputValue() !== "Modal remains open" ||
-      await statusField.inputValue() !== "غیرفعال") {
-    throw new Error("Clicking or editing a modal input, select or textarea unexpectedly closed the dialog.");
-  }
-  await page.locator("#modal-root .modal-header [data-action='close-modal']").click();
-  await modalLocator.waitFor({ state: "detached" });
-
-  // Specialized password dialogs must also keep their fields interactive.
-  await page.evaluate(() => window.__openTestModal("change-password"));
+  // The dedicated password modal also uses the same application click path.
+  await page.locator('#app [data-action="change-password"]').click();
   await modalLocator.waitFor({ state: "visible" });
   const passwordField = page.locator("#modal-root input[name='old_password']");
   await passwordField.click();
@@ -714,24 +743,24 @@ try {
   await page.locator("#modal-root .modal-footer [data-action='close-modal']").click();
   await modalLocator.waitFor({ state: "detached" });
 
-  // Clicking the backdrop outside the dialog remains a supported close gesture.
-  await page.evaluate(() => window.__openTestModal("new-user"));
+  // Direct backdrop clicks still close a dialog; clicks within its form do not.
+  await page.locator('#app [data-action="new-tag"]').click();
   await modalLocator.waitFor({ state: "visible" });
   await page.locator("#modal-root .modal-backdrop").click({ position: { x: 3, y: 3 } });
   await modalLocator.waitFor({ state: "detached" });
   if (await page.evaluate(() => window.__modalBrowserError || null)) {
-    throw new Error("Modal action handler failed: " + await page.evaluate(() => window.__modalBrowserError));
+    throw new Error("Real application modal event handling failed: " + await page.evaluate(() => window.__modalBrowserError));
   }
 
   if (pageErrors.length) throw new Error("Browser console errors: " + pageErrors.join("\\n"));
 
-  console.log("Chromium E2E passed: HMI visual/layout regressions plus modal X/cancel, nested action-safe text/select/textarea/password fields and backdrop close.");
+  console.log("Chromium E2E passed: HMI visual/layout regressions plus the real application Edit Tag/address form, all tag field types, password form, X/cancel and backdrop close.");
   console.log(JSON.stringify({
     initial, moved, resized, pageTheme, widgetTheme, widgetBackground, pageBackground,
     livePointCount, importedImage, runtimePageTheme, runtimeWidgetTheme,
     runtimeWidgetBackground, runtimePageBackground, runtimeBackgroundImage,
     designerBackgroundImage, runtimeImageSrc, runtimeRefresh, historyRequests,
-    browserEvents: hmiBrowserEvents, modalBrowserPassed: true, fitReport,
+    browserEvents: hmiBrowserEvents, modalBrowserPassed: true, editTagAddressPassed: true, addressHitTest, fitReport,
   }));
 } catch (error) {
   if (page) {
