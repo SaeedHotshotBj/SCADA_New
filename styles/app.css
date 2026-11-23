@@ -1764,13 +1764,16 @@ tbody tr:last-child td { border-bottom: 0; }
 
 /* HMI trend refinement: visibly tinted surfaces and an inline endpoint reading. */
 .hmi-widget.hmi-widget--chart {
-  background-color: #152221 !important;
+  /* The card's custom color must drive the visible gradient, not only a hidden base color.
+     This selector intentionally matches the specificity of the chart theme overrides. */
+  background-color: var(--hmi-chart-background-color, #1a4537) !important;
   background-image:
-    radial-gradient(135% 125% at 0% 0%, rgba(var(--hmi-chart-surface-accent-rgb, 48, 128, 91), .38), transparent 68%),
+    radial-gradient(135% 125% at 0% 0%,
+      rgba(var(--hmi-chart-background-rgb, 26, 69, 55), .38), transparent 68%),
     linear-gradient(150deg,
-      rgba(var(--hmi-chart-surface-top-rgb, 13, 43, 35), var(--hmi-chart-surface-opacity, 1)),
-      rgba(var(--hmi-chart-surface-bottom-rgb, 26, 68, 53), var(--hmi-chart-surface-opacity, 1))) !important;
-  border-color: var(--hmi-chart-surface-border, #3e705a) !important;
+      rgba(var(--hmi-chart-background-rgb, 26, 69, 55), var(--hmi-chart-surface-opacity, 1)),
+      rgba(var(--hmi-chart-background-rgb, 26, 69, 55), .82)) !important;
+  border-color: color-mix(in srgb, var(--hmi-chart-background-color, #1a4537) 65%, white) !important;
   box-shadow: 0 12px 26px rgba(3, 10, 9, .3), inset 0 1px 0 rgba(232, 250, 239, .09);
 }
 .hmi-widget.hmi-widget--chart[data-hmi-chart-surface="midnight"] {
@@ -1939,14 +1942,5 @@ tbody tr:last-child td { border-bottom: 0; }
   border-radius: 6px;
   background: #fff;
   cursor: pointer;
-}
-.hmi-widget--chart {
-  background-color: var(--hmi-chart-background-color, #1a4537) !important;
-  background-image:
-    radial-gradient(130% 130% at 0% 0%, rgba(var(--hmi-chart-background-rgb, 26, 69, 55), .55), transparent 72%),
-    linear-gradient(150deg,
-      color-mix(in srgb, var(--hmi-chart-background-color, #1a4537) 72%, white),
-      color-mix(in srgb, var(--hmi-chart-background-color, #1a4537) 78%, black)) !important;
-  border-color: color-mix(in srgb, var(--hmi-chart-background-color, #1a4537) 65%, white) !important;
 }
 

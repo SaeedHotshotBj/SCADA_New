@@ -198,10 +198,31 @@ try {
     input.value = value;
     input.dispatchEvent(new Event("input", { bubbles: true }));
   }, "#ff4c29");
-  await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_background_color"]').evaluate((input, value) => {
-    input.value = value;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  }, "#174ea6");
+  const chartBackgroundInput = page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_background_color"]');
+  const setAndVerifyChartBackground = async hex => {
+    await chartBackgroundInput.evaluate((input, value) => {
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }, hex);
+    const rgb = hex.match(/[0-9a-f]{2}/gi).map(part => Number.parseInt(part, 16)).join(", ");
+    const expectedColor = "rgb(" + rgb + ")";
+    for (const selector of [
+      "#hmi-layout-preview-canvas .hmi-widget--chart",
+      "#hmi-designer-canvas .hmi-widget--chart",
+    ]) {
+      const actual = await page.locator(selector).first().evaluate(element => {
+        const computed = getComputedStyle(element);
+        return { backgroundColor: computed.backgroundColor, backgroundImage: computed.backgroundImage };
+      });
+      if (actual.backgroundColor !== expectedColor || !actual.backgroundImage.includes(rgb)) {
+        throw new Error("Selected trend background color did not reach the visible CSS gradient in " +
+          selector + ": " + JSON.stringify({ expectedColor, rgb, actual }));
+      }
+    }
+  };
+  await setAndVerifyChartBackground("#174ea6");
+  await setAndVerifyChartBackground("#ff8a00");
+  await setAndVerifyChartBackground("#174ea6");
   await page.locator('#hmi-layout-preview-properties [data-hmi-prop="show_title"]').uncheck();
   await page.locator('#hmi-layout-preview-properties [data-hmi-prop="show_border"]').uncheck();
   await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_smoothing"]').fill("72");
@@ -396,7 +417,12 @@ try {
   const runtimeChart = runtimeCanvas.locator(".hmi-runtime-item").filter({ has: page.locator(".hmi-widget--chart") }).first();
   const runtimePageTheme = await runtimeCanvas.getAttribute("data-hmi-page-theme");
   const runtimeWidgetTheme = await runtimeChart.locator(".hmi-widget").getAttribute("data-hmi-theme");
-  const runtimeWidgetBackground = await runtimeChart.locator(".hmi-widget").evaluate(element => getComputedStyle(element).backgroundImage);
+  const runtimeWidgetSurface = await runtimeChart.locator(".hmi-widget").evaluate(element => {
+    const computed = getComputedStyle(element);
+    return { backgroundColor: computed.backgroundColor, backgroundImage: computed.backgroundImage };
+  });
+  const runtimeWidgetBackground = runtimeWidgetSurface.backgroundImage;
+  const runtimeWidgetBackgroundColor = runtimeWidgetSurface.backgroundColor;
   const runtimePageBackground = await runtimeCanvas.evaluate(element => getComputedStyle(element).backgroundColor);
   const runtimeBackgroundImage = await runtimeCanvas.evaluate(element => getComputedStyle(element).backgroundImage);
   const runtimeImage = runtimeCanvas.locator(".hmi-media-element");
@@ -431,11 +457,13 @@ try {
     throw new Error("The saved chart line thickness was not applied in HMI runtime: " + runtimeStrokeWidth);
   }
   if (runtimePageTheme !== "dark" || runtimeWidgetTheme !== "blue" ||
-      !runtimeWidgetBackground.includes("linear-gradient") || runtimePageBackground !== "rgb(24, 35, 46)" ||
+      runtimeWidgetBackgroundColor !== "rgb(23, 78, 166)" ||
+      !runtimeWidgetBackground.includes("23, 78, 166") ||
+      runtimePageBackground !== "rgb(24, 35, 46)" ||
       runtimeBackgroundImage !== "none" || designerBackgroundImage === "none" ||
       !runtimeImageSrc?.includes(mediaId)) {
-    throw new Error("Saved HMI runtime page did not apply the page/widget themes: " + JSON.stringify({
-      runtimePageTheme, runtimeWidgetTheme, runtimeWidgetBackground, runtimePageBackground,
+    throw new Error("Saved HMI runtime page did not apply the custom trend background color: " + JSON.stringify({
+      runtimePageTheme, runtimeWidgetTheme, runtimeWidgetSurface, runtimePageBackground,
     }));
   }
 
@@ -568,7 +596,7 @@ try {
 
   if (pageErrors.length) throw new Error("Browser console errors: " + pageErrors.join("\\n"));
 
-  console.log("HMI Chromium E2E passed: unrestricted hex chart colors, no-stretch SVG, fixed typography, per-card title/border visibility, live/history, media upload, drag/resize and responsive fit.");
+  console.log("HMI Chromium E2E passed: custom trend background colors update in both editor views and runtime, no-stretch SVG, fixed typography, per-card title/border visibility, live/history, media upload, drag/resize and responsive fit.");
   console.log(JSON.stringify({
     initial, moved, resized, pageTheme, widgetTheme, widgetBackground, pageBackground,
     livePointCount, importedImage, runtimePageTheme, runtimeWidgetTheme,
