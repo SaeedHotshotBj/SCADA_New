@@ -568,3 +568,19 @@ if (!applicationMainSource.includes("resolveActionElementFromClick(event.target)
   throw new Error("Modal form fields must not inherit wrapper actions, while explicit close/cancel controls and direct backdrop clicks remain supported.");
 }
 console.log("Modal form-field isolation, explicit close/cancel controls and direct backdrop routing passed.");
+
+const modalBrowserFixtureSource = await readFile("scripts/modal-browser-fixture.js", "utf8");
+const modalBrowserHtmlSource = await readFile("scripts/modal-browser-fixture.html", "utf8");
+const modalBrowserTestSource = await readFile("scripts/hmi-browser-test.mjs", "utf8");
+if (!modalBrowserFixtureSource.includes('await import("../src/app/main.js")') ||
+    !modalBrowserFixtureSource.includes('location.hash = "#/equipment/tags"') ||
+    !modalBrowserFixtureSource.includes('store.replaceCollection("tags"') ||
+    modalBrowserFixtureSource.includes('import { handleAction }') ||
+    modalBrowserFixtureSource.includes('addEventListener("click"') ||
+    !modalBrowserHtmlSource.includes('<div id="modal-root"></div>') ||
+    !modalBrowserTestSource.includes('#app [data-collection-name="tags"] [data-action="edit-record"]') ||
+    !modalBrowserTestSource.includes('#modal-root input[name="address"]') ||
+    !modalBrowserTestSource.includes('addressField.fill("40017")')) {
+  throw new Error("Modal browser regression must open the real Edit Tag form through the actual main.js delegated click path and exercise the address field.");
+}
+console.log("Real application Edit Tag/address modal browser regression wiring passed.");
