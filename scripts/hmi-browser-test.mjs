@@ -475,10 +475,10 @@ try {
   const fitReport = await page.evaluate(() => {
     const types = window.__hmiFitWidgetTypes || [];
     const sizes = [
-      { width: 120, height: 80 },
-      { width: 160, height: 96 },
-      { width: 320, height: 100 },
-      { width: 140, height: 220 },
+      { width: 200, height: 130 },
+      { width: 260, height: 160 },
+      { width: 480, height: 150 },
+      { width: 180, height: 260 },
     ];
     const stage = document.createElement("div");
     stage.id = "hmi-fit-regression-stage";
