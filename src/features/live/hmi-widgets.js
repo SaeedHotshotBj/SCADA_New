@@ -86,14 +86,32 @@ export function normalizeHmiWidgetTypography(component = {}) {
   };
 }
 
+export function normalizeHmiWidgetBackgroundColor(value) {
+  if (typeof value !== "string" || !/^#[0-9a-f]{6}$/i.test(value.trim())) return "";
+  return value.trim().toLowerCase();
+}
+
 function hmiWidgetTypographyStyle(component) {
   const typography = normalizeHmiWidgetTypography(component);
   let style = "--hmi-font-family:" + HMI_FONT_FAMILY_CSS[typography.font_family] +
     ";--hmi-number-scale:" + (typography.number_font_size / HMI_NUMBER_FONT_SIZE_DEFAULT).toFixed(3) +
     ";--hmi-text-scale:" + (typography.text_font_size / 12).toFixed(3) + ";";
+  const cardBackground = normalizeHmiWidgetBackgroundColor(component.card_background_color);
+  if (cardBackground) {
+    const channels = [1, 3, 5].map(offset => Number.parseInt(cardBackground.slice(offset, offset + 2), 16));
+    const luminance = (0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]) / 255;
+    const darkSurface = luminance < 0.52;
+    style += "--hmi-card-bg:" + cardBackground + ";" +
+      "--hmi-text:" + (darkSurface ? "#edf3f7" : "#263746") + ";" +
+      "--hmi-heading:" + (darkSurface ? "#f5f8fa" : "#263746") + ";" +
+      "--hmi-muted:" + (darkSurface ? "#c0cdd6" : "#65798a") + ";" +
+      "--hmi-border:" + (darkSurface ? "#657782" : "#d7e1e8") + ";" +
+      "--hmi-soft-bg:" + (darkSurface ? "#253640" : "#f1f5f8") + ";";
+  }
   if (component.type === "chart") {
     const appearance = normalizeHmiChartAppearance(component);
-    const backgroundRgb = hmiHexColorToRgb(appearance.chart_background_color);
+    const chartBackground = cardBackground || appearance.chart_background_color;
+    const backgroundRgb = hmiHexColorToRgb(chartBackground);
     const valueColor = appearance.chart_value_color === "line"
       ? appearance.chart_color
       : HMI_CHART_VALUE_COLORS[appearance.chart_value_color];
@@ -107,7 +125,7 @@ function hmiWidgetTypographyStyle(component) {
       "--hmi-chart-grid-opacity:" + (appearance.chart_grid_opacity / 100).toFixed(2) + ";" +
       "--hmi-chart-line-glow:" + appearance.chart_line_glow + "px;" +
       "--hmi-chart-surface-opacity:" + surfaceOpacity.toFixed(2) + ";" +
-      "--hmi-chart-background-color:" + appearance.chart_background_color + ";" +
+      "--hmi-chart-background-color:" + chartBackground + ";" +
       "--hmi-chart-background-rgb:" + backgroundRgb + ";";
   }
   return style;

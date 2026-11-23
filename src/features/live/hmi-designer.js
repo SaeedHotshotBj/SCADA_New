@@ -1,7 +1,7 @@
 import { api } from "../../services/api-client.js";
 import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
-import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_CHART_LINE_WIDTH_MIN, HMI_CHART_LINE_WIDTH_MAX, HMI_CHART_LINE_WIDTH_DEFAULT, normalizeHmiChartLineWidth, HMI_CHART_COLOR_OPTIONS, HMI_CHART_SURFACE_OPTIONS, HMI_CHART_SMOOTHNESS_MIN, HMI_CHART_SMOOTHNESS_MAX, HMI_CHART_FILL_OPACITY_MIN, HMI_CHART_FILL_OPACITY_MAX, HMI_CHART_VALUE_COLOR_OPTIONS, normalizeHmiWidgetFrameOptions, HMI_CHART_GRID_OPACITY_MIN, HMI_CHART_GRID_OPACITY_MAX, HMI_CHART_GRID_LINES_MIN, HMI_CHART_GRID_LINES_MAX, HMI_CHART_SURFACE_INTENSITY_MIN, HMI_CHART_SURFACE_INTENSITY_MAX, HMI_CHART_LINE_GLOW_MIN, HMI_CHART_LINE_GLOW_MAX, HMI_CHART_VALUE_FONT_SIZE_MIN, HMI_CHART_VALUE_FONT_SIZE_MAX, HMI_CHART_VALUE_DECIMALS_MIN, HMI_CHART_VALUE_DECIMALS_MAX, normalizeHmiChartAppearance, HMI_FONT_OPTIONS, HMI_TEXT_FONT_SIZE_MIN, HMI_TEXT_FONT_SIZE_MAX, HMI_NUMBER_FONT_SIZE_MIN, HMI_NUMBER_FONT_SIZE_MAX, normalizeHmiWidgetTypography, HMI_WIDGET_LIBRARY, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_LAYOUT_CANVAS_WIDTH, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetFreeformFromPointer, hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, normalizeHmiWidgetFreeformGeometry, normalizeHmiPageTheme, normalizeHmiWidgetTheme, hmiChartLiveIntervalMs, appendHmiLiveChartSamples, getHmiLiveChartSamples, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
+import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_CHART_LINE_WIDTH_MIN, HMI_CHART_LINE_WIDTH_MAX, HMI_CHART_LINE_WIDTH_DEFAULT, normalizeHmiChartLineWidth, HMI_CHART_COLOR_OPTIONS, HMI_CHART_SURFACE_OPTIONS, HMI_CHART_SMOOTHNESS_MIN, HMI_CHART_SMOOTHNESS_MAX, HMI_CHART_FILL_OPACITY_MIN, HMI_CHART_FILL_OPACITY_MAX, HMI_CHART_VALUE_COLOR_OPTIONS, normalizeHmiWidgetFrameOptions, normalizeHmiWidgetBackgroundColor, HMI_CHART_GRID_OPACITY_MIN, HMI_CHART_GRID_OPACITY_MAX, HMI_CHART_GRID_LINES_MIN, HMI_CHART_GRID_LINES_MAX, HMI_CHART_SURFACE_INTENSITY_MIN, HMI_CHART_SURFACE_INTENSITY_MAX, HMI_CHART_LINE_GLOW_MIN, HMI_CHART_LINE_GLOW_MAX, HMI_CHART_VALUE_FONT_SIZE_MIN, HMI_CHART_VALUE_FONT_SIZE_MAX, HMI_CHART_VALUE_DECIMALS_MIN, HMI_CHART_VALUE_DECIMALS_MAX, normalizeHmiChartAppearance, HMI_FONT_OPTIONS, HMI_TEXT_FONT_SIZE_MIN, HMI_TEXT_FONT_SIZE_MAX, HMI_NUMBER_FONT_SIZE_MIN, HMI_NUMBER_FONT_SIZE_MAX, normalizeHmiWidgetTypography, HMI_WIDGET_LIBRARY, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_LAYOUT_CANVAS_WIDTH, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetFreeformFromPointer, hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, normalizeHmiWidgetFreeformGeometry, normalizeHmiPageTheme, normalizeHmiWidgetTheme, hmiChartLiveIntervalMs, appendHmiLiveChartSamples, getHmiLiveChartSamples, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
 
 let activePageKey = null;
 let draft = null;
@@ -136,11 +136,31 @@ function typographyPropertiesMarkup(component) {
     '<small class="hmi-field-help">تنظیمات فونت و اندازه برای همین کارت ذخیره می‌شوند.</small></div>';
 }
 
+function cardBackgroundPropertiesMarkup(component) {
+  const savedColor = normalizeHmiWidgetBackgroundColor(component.card_background_color);
+  const effectiveTheme = normalizeHmiWidgetTheme(component.theme) === "inherit"
+    ? normalizeHmiPageTheme(draft?.theme)
+    : normalizeHmiPageTheme(component.theme);
+  const themeDefaults = {
+    light: "#ffffff",
+    dark: "#202e3a",
+    blue: "#f8fbff",
+    industrial: "#2b3939",
+  };
+  const chartDefault = component.type === "chart"
+    ? normalizeHmiChartAppearance(component).chart_background_color
+    : "";
+  const pickerColor = savedColor || chartDefault || themeDefaults[effectiveTheme] || "#ffffff";
+  return '<div class="hmi-card-appearance-properties">' +
+    '<div class="hmi-layout-properties-group-title">رنگ پس‌زمینه کارت</div>' +
+    fieldMarkup("رنگ دلخواه پس‌زمینه", "card_background_color", pickerColor, "color") +
+    '<small class="hmi-field-help">این رنگ فقط برای همین کارت ذخیره می‌شود و در طراحی و نمایش زنده یکسان است.</small></div>';
+}
+
 function chartPropertiesMarkup(component) {
   const appearance = normalizeHmiChartAppearance(component);
   return '<div class="hmi-chart-properties"><div class="hmi-layout-properties-group-title">ظاهر و خوانایی نمودار</div>' +
     fieldMarkup("رنگ دلخواه خط نمودار", "chart_color", appearance.chart_color, "color") +
-    fieldMarkup("رنگ دلخواه پس‌زمینه نمودار", "chart_background_color", appearance.chart_background_color, "color") +
     fieldMarkup("شدت رنگ پس‌زمینه (%)", "chart_surface_intensity", appearance.chart_surface_intensity, "number", {
       min: HMI_CHART_SURFACE_INTENSITY_MIN, max: HMI_CHART_SURFACE_INTENSITY_MAX, step: 5,
     }) +
@@ -198,6 +218,7 @@ function propertiesMarkup() {
   const bindings = HMI_BINDINGS[component.type] || [];
   let fields = fieldMarkup("عنوان نمایشی", "label", component.label || "");
   fields += selectMarkup("پوسته این باکس", "theme", HMI_COMPONENT_THEME_OPTIONS, normalizeHmiWidgetTheme(component.theme));
+  fields += cardBackgroundPropertiesMarkup(component);
   fields += typographyPropertiesMarkup(component);
   fields += cardFramePropertiesMarkup(component);
   fields += bindings.map(binding => bindingMarkup(binding, component)).join("");
@@ -326,6 +347,7 @@ function layoutPropertiesMarkup() {
   return '<section class="hmi-layout-properties"><div class="hmi-layout-properties-title"><b>چیدمان آزاد کارت</b><small>' +
     escapeHtml(component.label || component.type) + '</small></div>' +
     selectMarkup("پوسته این باکس", "theme", HMI_COMPONENT_THEME_OPTIONS, normalizeHmiWidgetTheme(component.theme)) +
+    cardBackgroundPropertiesMarkup(component) +
     typographyPropertiesMarkup(component) +
     cardFramePropertiesMarkup(component) +
     (component.type === "chart" ? chartPropertiesMarkup(component) : "") +
@@ -457,6 +479,12 @@ function validateDraftLayout() {
     Object.assign(component, normalizeHmiWidgetFreeformGeometry(component, index));
     Object.assign(component, normalizeHmiWidgetTypography(component));
     Object.assign(component, normalizeHmiWidgetFrameOptions(component));
+    const cardBackground = normalizeHmiWidgetBackgroundColor(component.card_background_color);
+    if (component.card_background_color && !cardBackground) {
+      throw new Error("رنگ پس‌زمینه کارت «" + (component.label || number) + "» معتبر نیست.");
+    }
+    if (cardBackground) component.card_background_color = cardBackground;
+    else delete component.card_background_color;
     if (component.type === "chart") {
       if (!HMI_CHART_RANGES.some(range => range.value === chartHistorySeconds(component))) {
         throw new Error("بازه زمانی انتخاب‌شده برای نمودار معتبر نیست.");

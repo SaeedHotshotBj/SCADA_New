@@ -198,7 +198,7 @@ try {
     input.value = value;
     input.dispatchEvent(new Event("input", { bubbles: true }));
   }, "#ff4c29");
-  const chartBackgroundInput = page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_background_color"]');
+  const chartBackgroundInput = page.locator('#hmi-layout-preview-properties [data-hmi-prop="card_background_color"]');
   const setAndVerifyChartBackground = async hex => {
     await chartBackgroundInput.evaluate((input, value) => {
       input.value = value;
@@ -223,6 +223,28 @@ try {
   await setAndVerifyChartBackground("#174ea6");
   await setAndVerifyChartBackground("#ff8a00");
   await setAndVerifyChartBackground("#174ea6");
+  const valueCard = page.locator("[data-hmi-layout-card]").filter({ has: page.locator(".hmi-widget--value") }).first();
+  await valueCard.locator(".hmi-layout-card-toolbar").click();
+  const valueBackgroundInput = page.locator('#hmi-layout-preview-properties [data-hmi-prop="card_background_color"]');
+  await valueBackgroundInput.evaluate((input, value) => {
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }, "#f0c000");
+  for (const selector of [
+    "#hmi-layout-preview-canvas .hmi-widget--value",
+    "#hmi-designer-canvas .hmi-widget--value",
+  ]) {
+    const actual = await page.locator(selector).first().evaluate(element => ({
+      backgroundColor: getComputedStyle(element).backgroundColor,
+      customColor: getComputedStyle(element).getPropertyValue("--hmi-card-bg").trim(),
+    }));
+    if (actual.backgroundColor !== "rgb(240, 192, 0)" || actual.customColor !== "#f0c000") {
+      throw new Error("Generic HMI card background color did not apply to the value card in " +
+        selector + ": " + JSON.stringify(actual));
+    }
+  }
+
+  await chartCard.locator(".hmi-layout-card-toolbar").click();
   await page.locator('#hmi-layout-preview-properties [data-hmi-prop="show_title"]').uncheck();
   await page.locator('#hmi-layout-preview-properties [data-hmi-prop="show_border"]').uncheck();
   await page.locator('#hmi-layout-preview-properties [data-hmi-prop="chart_smoothing"]').fill("72");
@@ -365,8 +387,9 @@ try {
       chartLayout?.font_family !== "Verdana" ||
       chartLayout?.number_font_size !== 32 ||
       chartLayout?.text_font_size !== 14 ||
+       valueLayout?.card_background_color !== "#f0c000" ||
        chartLayout?.chart_color !== "#ff4c29" ||
-       chartLayout?.chart_background_color !== "#174ea6" ||
+       chartLayout?.card_background_color !== "#174ea6" ||
        chartLayout?.show_title !== false ||
        chartLayout?.show_border !== false ||
        chartLayout?.chart_surface !== "midnight" ||
@@ -391,8 +414,9 @@ try {
       savedPage?.layout?.find(item => item.type === "chart")?.font_family !== "Verdana" ||
       savedPage?.layout?.find(item => item.type === "chart")?.number_font_size !== 32 ||
       savedPage?.layout?.find(item => item.type === "chart")?.text_font_size !== 14 ||
+      savedPage?.layout?.find(item => item.type === "value")?.card_background_color !== "#f0c000" ||
       savedPage?.layout?.find(item => item.type === "chart")?.chart_color !== "#ff4c29" ||
-      savedPage?.layout?.find(item => item.type === "chart")?.chart_background_color !== "#174ea6" ||
+      savedPage?.layout?.find(item => item.type === "chart")?.card_background_color !== "#174ea6" ||
       savedPage?.layout?.find(item => item.type === "chart")?.show_title !== false ||
       savedPage?.layout?.find(item => item.type === "chart")?.show_border !== false ||
       savedPage?.layout?.find(item => item.type === "chart")?.chart_surface !== "midnight" ||
@@ -417,6 +441,11 @@ try {
   const runtimeChart = runtimeCanvas.locator(".hmi-runtime-item").filter({ has: page.locator(".hmi-widget--chart") }).first();
   const runtimePageTheme = await runtimeCanvas.getAttribute("data-hmi-page-theme");
   const runtimeWidgetTheme = await runtimeChart.locator(".hmi-widget").getAttribute("data-hmi-theme");
+  const runtimeValue = runtimeCanvas.locator(".hmi-runtime-item").filter({ has: page.locator(".hmi-widget--value") }).first();
+  const runtimeValueSurface = await runtimeValue.locator(".hmi-widget").evaluate(element => ({
+    backgroundColor: getComputedStyle(element).backgroundColor,
+    customColor: getComputedStyle(element).getPropertyValue("--hmi-card-bg").trim(),
+  }));
   const runtimeWidgetSurface = await runtimeChart.locator(".hmi-widget").evaluate(element => {
     const computed = getComputedStyle(element);
     return { backgroundColor: computed.backgroundColor, backgroundImage: computed.backgroundImage };
@@ -457,6 +486,8 @@ try {
     throw new Error("The saved chart line thickness was not applied in HMI runtime: " + runtimeStrokeWidth);
   }
   if (runtimePageTheme !== "dark" || runtimeWidgetTheme !== "blue" ||
+      runtimeValueSurface.backgroundColor !== "rgb(240, 192, 0)" ||
+      runtimeValueSurface.customColor !== "#f0c000" ||
       runtimeWidgetBackgroundColor !== "rgb(23, 78, 166)" ||
       !runtimeWidgetBackground.includes("23, 78, 166") ||
       runtimePageBackground !== "rgb(24, 35, 46)" ||
@@ -480,7 +511,38 @@ try {
     throw new Error("HMI edit screen must preserve saved freeform geometry: " +
       JSON.stringify({ expectedEditLayout, editCardLayout }));
   }
+  const runtimeCardVisuals = await runtimeCanvas.locator(".hmi-runtime-item").evaluateAll(items =>
+    items.map(item => {
+      const widget = item.querySelector(".hmi-widget");
+      const style = getComputedStyle(widget);
+      const rect = widget.getBoundingClientRect();
+      return {
+        backgroundColor: style.backgroundColor,
+        backgroundImage: style.backgroundImage,
+        borderColor: style.borderColor,
+        borderWidth: style.borderWidth,
+        borderRadius: style.borderRadius,
+        boxShadow: style.boxShadow,
+        fontFamily: style.fontFamily,
+        width: Math.round(rect.width * 100) / 100,
+        height: Math.round(rect.height * 100) / 100,
+        headerDisplay: getComputedStyle(widget.querySelector(".hmi-widget-header")).display,
+        bodyPadding: getComputedStyle(widget.querySelector(".hmi-widget-body")).padding,
+      };
+    })
+  );
   const regularEdit = await page.evaluate(() => window.__renderHmiEditForMediaUpload());
+  const editorCardVisuals = regularEdit.widgetVisuals || [];
+  const visualProperties = ["backgroundColor", "backgroundImage", "borderColor", "borderWidth",
+    "borderRadius", "boxShadow", "fontFamily", "headerDisplay", "bodyPadding"];
+  if (editorCardVisuals.length !== runtimeCardVisuals.length ||
+      editorCardVisuals.some((editor, index) =>
+        visualProperties.some(property => editor[property] !== runtimeCardVisuals[index][property]) ||
+        Math.abs(editor.width - runtimeCardVisuals[index].width) > 1 ||
+        Math.abs(editor.height - runtimeCardVisuals[index].height) > 1)) {
+    throw new Error("Regular HMI edit view must render each saved card with the same visual styling and full dimensions as runtime: " +
+      JSON.stringify({ runtimeCardVisuals, editorCardVisuals }));
+  }
   const regularMediaInput = page.locator("#hmi-designer-properties [data-hmi-media-input]");
   if (!regularEdit.visible || !(await regularMediaInput.isVisible())) {
     throw new Error("Normal HMI edit properties must expose a visible media file field.");
@@ -596,7 +658,7 @@ try {
 
   if (pageErrors.length) throw new Error("Browser console errors: " + pageErrors.join("\\n"));
 
-  console.log("HMI Chromium E2E passed: custom trend background colors update in both editor views and runtime, no-stretch SVG, fixed typography, per-card title/border visibility, live/history, media upload, drag/resize and responsive fit.");
+  console.log("HMI Chromium E2E passed: arbitrary per-card backgrounds on all widget types, normal-edit/runtime visual parity, trend colors, no-stretch SVG, fixed typography, per-card title/border visibility, live/history, media upload, drag/resize and responsive fit.");
   console.log(JSON.stringify({
     initial, moved, resized, pageTheme, widgetTheme, widgetBackground, pageBackground,
     livePointCount, importedImage, runtimePageTheme, runtimeWidgetTheme,

@@ -512,7 +512,6 @@ tbody tr:last-child td { border-bottom: 0; }
 .hmi-runtime-item { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
 .hmi-runtime-item > .hmi-widget { width: 100%; height: 100%; }
 .hmi-widget { min-width: 0; height: 100%; overflow: hidden; border: 1px solid #dfe8ee; border-radius: 9px; background: #fff; box-shadow: 0 3px 12px rgba(25,55,78,.055); }
-.hmi-widget.is-preview { box-shadow: none; }
 .hmi-widget-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; padding: 7px 10px; border-bottom: 1px solid #edf1f4; }
 .hmi-widget-header b { overflow: hidden; color: #3b5c75; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .hmi-quality { flex: 0 0 auto; padding: 3px 6px; border-radius: 99px; background: #f0f3f5; color: #81919e; font-size: 8px; }
@@ -1425,7 +1424,7 @@ tbody tr:last-child td { border-bottom: 0; }
   overflow: hidden; pointer-events: none; user-select: none;
 }
 .hmi-designer-item-content > .hmi-widget {
-  width: 100%; height: 100%; border: 0; border-radius: 5px; box-shadow: none;
+  width: 100%; height: 100%; min-width: 0; min-height: 0;
 }
 .hmi-designer-item-content .hmi-widget-body { min-height: 0; flex: 1 1 0; overflow: hidden; }
 .hmi-designer-canvas-empty { position: absolute; inset: 0; pointer-events: none; }
@@ -1942,5 +1941,84 @@ tbody tr:last-child td { border-bottom: 0; }
   border-radius: 6px;
   background: #fff;
   cursor: pointer;
+}
+
+/* HMI edit canvas: the real widget occupies the complete saved card rectangle.
+   Selection and reorder controls float above it without changing runtime geometry. */
+.hmi-designer-item {
+  display: block !important;
+  box-sizing: border-box;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible;
+  container-type: size;
+}
+.hmi-designer-item.is-selected {
+  outline: 2px solid #268ac0;
+  outline-offset: 2px;
+  border: 0 !important;
+  box-shadow: none !important;
+  z-index: 2;
+}
+.hmi-designer-item-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+  container-type: size;
+}
+.hmi-designer-item-content > .hmi-widget {
+  display: flex;
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+.hmi-designer-item-content .hmi-widget-body {
+  min-height: 0;
+  flex: 1 1 0;
+  overflow: hidden;
+}
+.hmi-designer-item-toolbar {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  z-index: 4;
+  display: flex;
+  flex: none;
+  height: 25px;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: rgba(13, 31, 45, .82);
+  color: #fff;
+  opacity: 0;
+  pointer-events: auto;
+  transition: opacity .12s ease;
+}
+.hmi-designer-item:hover .hmi-designer-item-toolbar,
+.hmi-designer-item:focus-within .hmi-designer-item-toolbar {
+  opacity: 1;
+}
+.hmi-designer-item-toolbar small {
+  color: rgba(255,255,255,.88);
+  font-size: 8px;
+}
+.hmi-designer-item-toolbar button {
+  pointer-events: auto;
 }
 

@@ -65,6 +65,7 @@ const {
   HMI_FONT_OPTIONS, normalizeHmiWidgetTypography,
   HMI_CHART_COLOR_OPTIONS, HMI_CHART_SURFACE_OPTIONS, HMI_CHART_VALUE_COLOR_OPTIONS, normalizeHmiChartAppearance,
   normalizeHmiChartColor, normalizeHmiChartBackgroundColor, normalizeHmiWidgetFrameOptions,
+  normalizeHmiWidgetBackgroundColor,
   appendHmiLiveChartSamples, getHmiLiveChartSamples, hmiChartLiveIntervalMs,
 } = await import("../src/features/live/hmi-widgets.js");
 const chart = createHmiWidget("chart");
@@ -162,6 +163,38 @@ if (HMI_FONT_OPTIONS.length !== 5 ||
     !typographyWidget.includes("--hmi-number-scale:1.333") ||
     !typographyWidget.includes("--hmi-text-scale:1.167")) {
   throw new Error("All HMI cards must support safe font families and bounded number/text sizes.");
+}
+
+const customCardBackground = "#b34cd8";
+if (normalizeHmiWidgetBackgroundColor("#B34CD8") !== customCardBackground ||
+    normalizeHmiWidgetBackgroundColor("url(javascript:alert(1))") !== "") {
+  throw new Error("HMI card backgrounds must accept arbitrary six-digit hex colors and reject unsafe CSS values.");
+}
+const backgroundTags = [
+  { id: "test-pressure", name: "Pressure", value: 42.5, type: "float32", unit: "bar", quality: "GOOD" },
+  { id: "test-run", name: "Run", value: true, type: "bool", quality: "GOOD" },
+];
+const backgroundCoverage = HMI_WIDGET_LIBRARY.map(definition => {
+  const component = {
+    type: definition.type,
+    label: definition.label,
+    tag_id: "test-pressure",
+    run_tag_id: "test-run",
+    open_tag_id: "test-run",
+    level_tag_id: "test-pressure",
+    card_background_color: customCardBackground,
+    history_seconds: 60,
+  };
+  return { type: definition.type, html: renderHmiWidget(component, backgroundTags, {
+    preview: true,
+    history: [{ value: 10 }, { value: 20 }],
+    historyState: { status: "ready", sampleCount: 2 },
+  }) };
+});
+if (backgroundCoverage.length !== 15 || backgroundCoverage.some(item =>
+    !item.html.includes("--hmi-card-bg:" + customCardBackground))) {
+  throw new Error("Every one of the 15 HMI widget types must render the per-card custom background color: " +
+    JSON.stringify(backgroundCoverage.map(item => ({ type: item.type, hasColor: item.html.includes("--hmi-card-bg:" + customCardBackground) }))));
 }
 
 const needleHtml = renderHmiWidget({

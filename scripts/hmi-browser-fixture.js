@@ -170,7 +170,29 @@ window.__saveHmiDraft = async () => {
     if (!mediaCard) throw new Error("Saved media card is missing from the regular HMI edit screen.");
     mediaCard.click();
     const input = document.querySelector("#hmi-designer-properties [data-hmi-media-input]");
-    return { visible: Boolean(input && input.getClientRects().length), widgetId: mediaCard.dataset.widgetId };
+    const widgetVisuals = [...document.querySelectorAll("#hmi-designer-canvas .hmi-designer-item")].map(card => {
+      const widget = card.querySelector(".hmi-designer-item-content > .hmi-widget");
+      const style = getComputedStyle(widget);
+      const rect = widget.getBoundingClientRect();
+      return {
+        backgroundColor: style.backgroundColor,
+        backgroundImage: style.backgroundImage,
+        borderColor: style.borderColor,
+        borderWidth: style.borderWidth,
+        borderRadius: style.borderRadius,
+        boxShadow: style.boxShadow,
+        fontFamily: style.fontFamily,
+        width: Math.round(rect.width * 100) / 100,
+        height: Math.round(rect.height * 100) / 100,
+        headerDisplay: getComputedStyle(widget.querySelector(".hmi-widget-header")).display,
+        bodyPadding: getComputedStyle(widget.querySelector(".hmi-widget-body")).padding,
+      };
+    });
+    return {
+      visible: Boolean(input && input.getClientRects().length),
+      widgetId: mediaCard.dataset.widgetId,
+      widgetVisuals,
+    };
   };
   window.__returnToHmiRuntime = () => {
     document.getElementById("app").innerHTML = renderLive("/live/hmi/" + runtimePage.id);
