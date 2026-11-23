@@ -64,12 +64,10 @@ function openModal(action, record = null) {
     return `<label class="field"><span>${escapeHtml(label)}</span><input name="${name}" type="${type}" value="${escapeHtml(value)}" ${type === "number" ? "step=any" : ""} ${optional ? "" : "required"} /></label>`;
   }).join("");
   document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(schema.title)}"><header class="modal-header"><h2>${escapeHtml(record ? "ویرایش " + schema.title : schema.title)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="record-form" data-collection="${schema.collection}" data-edit-id="${record?.id ?? ""}" data-schema="${action}"><div class="modal-fields">${fields}</div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ذخیره</button></footer></form></section></div>`;
-  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
 }
 
 function openChangePasswordModal() {
   document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="تغییر رمز عبور"><header class="modal-header"><h2>تغییر رمز عبور</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="password-change-form"><div class="modal-fields"><label class="field"><span>رمز فعلی</span><input name="old_password" type="password" autocomplete="current-password" required></label><label class="field"><span>رمز جدید (حداقل ۸ نویسه)</span><input name="new_password" type="password" autocomplete="new-password" minlength="8" required></label><label class="field"><span>تکرار رمز جدید</span><input name="confirm_password" type="password" autocomplete="new-password" minlength="8" required></label></div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ثبت رمز جدید</button></footer></form></section></div>`;
-  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
 }
 
 function downloadCsv() {
@@ -112,7 +110,6 @@ function showRecord(collection, id) {
     return `<div class="storage-list"><div><span>${escapeHtml(key)}</span><b>${escapeHtml(display)}</b></div></div>`;
   }).join("");
   document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true"><header class="modal-header"><h2>جزئیات ${escapeHtml(collection)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><div class="modal-fields">${rows}</div><footer class="modal-footer"><button type="button" class="btn btn-primary" data-action="close-modal">بستن</button></footer></section></div>`;
-  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
 }
 
 function applyTableFilters(element) {
@@ -155,7 +152,6 @@ async function loadSelectedTrendHistory() {
 
 function openActionInfo(title, message) {
   document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true"><header class="modal-header"><h2>${escapeHtml(title || "اطلاعات")}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><div class="modal-fields"><p>${escapeHtml(message)}</p></div><footer class="modal-footer"><button type="button" class="btn btn-primary" data-action="close-modal">متوجه شدم</button></footer></section></div>`;
-  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
 }
 
 
@@ -164,7 +160,6 @@ function openProductionQuantityModal(runId) {
   if (!run) { toast("اجرای تولید پیدا نشد.", "warning"); return; }
   if (run.status !== "در حال تولید") { toast("ثبت مقدار فقط برای اجرای فعال مجاز است.", "warning"); return; }
   document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="ثبت مقدار تولید"><header class="modal-header"><h2>ثبت مقدار تولید · ${escapeHtml(run.order || run.product)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="production-quantity-form" data-id="${escapeHtml(runId)}"><div class="modal-fields"><label class="field"><span>مقدار تولید این ثبت (${escapeHtml(run.unit || "واحد")})</span><input name="quantity" type="number" min="0.001" step="any" required></label><label class="field"><span>ضایعات این ثبت (${escapeHtml(run.unit || "واحد")})</span><input name="scrap_quantity" type="number" min="0" step="any" value="0" required></label><label class="field"><span>یادداشت</span><input name="note" maxlength="1000"></label></div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ثبت مقدار</button></footer></form></section></div>`;
-  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
 }
 
 function batchConfigFor(batch) {
@@ -198,7 +193,6 @@ function openBatchWeighmentsModal(batchId) {
     '<label class="field"><span>یادداشت</span><input name="note" maxlength="1000"></label></div>' +
     '<p class="muted-note">این اعداد دستی و آزمایشی هستند و با کیفیت DEMO ذخیره می‌شوند؛ داده لودسل واقعی نیستند.</p>' +
     '<footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ذخیره وزن هاپرها</button></footer></form></section></div>';
-  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
 }
 
 function hopperEditorRow(index, bin, material, ratio, target) {
@@ -222,7 +216,6 @@ function openQcReviewModal(qcId) {
     <label class="field"><span>تصمیم در صورت قرارداشتن در محدوده</span><select name="decision"><option value="قبول">قبول</option><option value="مشروط">مشروط</option><option value="رد">رد</option></select></label>
     <label class="field"><span>توضیحات</span><input name="note" maxlength="1000"></label>
   </div><p class="muted-note">این اندازه‌گیری به‌صورت دستی توسط کاربر ثبت می‌شود؛ مقدار سنسور یا ابزار آزمایشگاهی به‌طور خودکار خوانده نمی‌شود. اگر مقدار خارج از حد باشد، تصمیم نهایی به‌صورت «رد» ثبت می‌شود.</p><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ثبت اندازه‌گیری و تصمیم</button></footer></form></section></div>`;
-  document.querySelector(".modal-backdrop .modal")?.addEventListener("click", event => event.stopPropagation());
 }
 
 export async function handleAction(action, element) {

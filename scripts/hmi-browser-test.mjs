@@ -656,9 +656,50 @@ try {
     throw new Error("HMI responsive-fit regression failed: " + JSON.stringify(fitReport.issues.slice(0, 20)));
   }
 
+  // Verify the shared application modal event path in real Chromium.
+  await page.goto(`${baseUrl}/scripts/modal-browser-fixture.html`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => window.__modalBrowserReady === true);
+  const modalLocator = page.locator("#modal-root .modal");
+  await modalLocator.waitFor({ state: "visible" });
+
+  // The X button must bubble to the application-level delegated action handler.
+  await page.locator("#modal-root .modal-header [data-action='close-modal']").click();
+  await modalLocator.waitFor({ state: "detached" });
+
+  // The cancel button must close a form modal without submitting it.
+  await page.evaluate(() => window.__openTestModal("new-user"));
+  await modalLocator.waitFor({ state: "visible" });
+  await page.locator("#modal-root .modal-footer [data-action='close-modal']").click();
+  await modalLocator.waitFor({ state: "detached" });
+
+  // Normal form interaction must not inherit the backdrop's close action.
+  await page.evaluate(() => window.__openTestModal("new-user"));
+  await modalLocator.waitFor({ state: "visible" });
+  await page.locator("#modal-root input[name='name']").fill("Modal remains open");
+  if (await modalLocator.count() !== 1 || await page.locator("#modal-root input[name='name']").inputValue() !== "Modal remains open") {
+    throw new Error("Clicking or typing in a modal field unexpectedly closed the modal.");
+  }
+  await page.locator("#modal-root .modal-header [data-action='close-modal']").click();
+  await modalLocator.waitFor({ state: "detached" });
+
+  // Specialized password dialogs must use the same working close/cancel path.
+  await page.evaluate(() => window.__openTestModal("change-password"));
+  await modalLocator.waitFor({ state: "visible" });
+  await page.locator("#modal-root .modal-footer [data-action='close-modal']").click();
+  await modalLocator.waitFor({ state: "detached" });
+
+  // Clicking the backdrop outside the dialog remains a supported close gesture.
+  await page.evaluate(() => window.__openTestModal("new-user"));
+  await modalLocator.waitFor({ state: "visible" });
+  await page.locator("#modal-root .modal-backdrop").click({ position: { x: 3, y: 3 } });
+  await modalLocator.waitFor({ state: "detached" });
+  if (await page.evaluate(() => window.__modalBrowserError || null)) {
+    throw new Error("Modal action handler failed: " + await page.evaluate(() => window.__modalBrowserError));
+  }
+
   if (pageErrors.length) throw new Error("Browser console errors: " + pageErrors.join("\\n"));
 
-  console.log("HMI Chromium E2E passed: arbitrary per-card backgrounds on all widget types, normal-edit/runtime visual parity, trend colors, no-stretch SVG, fixed typography, per-card title/border visibility, live/history, media upload, drag/resize and responsive fit.");
+  console.log("Chromium E2E passed: HMI visual/layout regressions plus modal X/cancel, safe form clicks and backdrop close.");
   console.log(JSON.stringify({
     initial, moved, resized, pageTheme, widgetTheme, widgetBackground, pageBackground,
     livePointCount, importedImage, runtimePageTheme, runtimeWidgetTheme,

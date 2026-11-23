@@ -1,4 +1,5 @@
 import { currentPath, renderRoute } from "./router.js";
+import { resolveActionElementFromClick } from "./action-events.js";
 import { handleAction, handleSubmit, showToast } from "./actions.js";
 import { bindShellEvents } from "../layouts/shell.js";
 import { api } from "../services/api-client.js";
@@ -97,7 +98,7 @@ document.addEventListener("click", event => {
     }
     return;
   }
-  const actionElement = event.target.closest("[data-action]");
+  const actionElement = resolveActionElementFromClick(event.target);
   if (!actionElement) return;
   const action = actionElement.dataset.action;
   if (action === "toggle-password") {

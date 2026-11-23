@@ -554,3 +554,15 @@ if (!mainSource.includes("/api/telemetry/ws/live?interval_ms=") ||
   throw new Error("HMI live WebSocket and media upload paths must be connected to the application.");
 }
 console.log("HMI floating layout, drag-safe preview, single-column arrangement, numeric card geometry, live trend, media and runtime grid checks passed.");
+
+
+const modalActionSource = await readFile("src/app/action-events.js", "utf8");
+const modalUiActionSource = await readFile("src/app/actions.js", "utf8");
+const applicationMainSource = await readFile("src/app/main.js", "utf8");
+if (!applicationMainSource.includes("resolveActionElementFromClick(event.target)") ||
+    !modalActionSource.includes('target.closest(".modal")') ||
+    !modalActionSource.includes('target.closest(".modal [data-action]")') ||
+    modalUiActionSource.includes("stopPropagation()")) {
+  throw new Error("Modal close/cancel actions must reach the shared click handler without closing on ordinary form clicks.");
+}
+console.log("Shared modal close/cancel event routing passed.");
