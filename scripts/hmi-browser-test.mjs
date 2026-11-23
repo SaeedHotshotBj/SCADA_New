@@ -674,19 +674,43 @@ try {
   await page.locator("#modal-root .modal-footer [data-action='close-modal']").click();
   await modalLocator.waitFor({ state: "detached" });
 
-  // Normal form interaction must not inherit the backdrop's close action.
-  await page.evaluate(() => window.__openTestModal("new-user"));
+  // Form controls must not inherit an action from an enclosing wrapper.
+  // Use the HMI-page dialog because it includes text, select and textarea fields.
+  await page.evaluate(() => window.__openTestModal("new-hmi-page"));
   await modalLocator.waitFor({ state: "visible" });
-  await page.locator("#modal-root input[name='name']").fill("Modal remains open");
-  if (await modalLocator.count() !== 1 || await page.locator("#modal-root input[name='name']").inputValue() !== "Modal remains open") {
-    throw new Error("Clicking or typing in a modal field unexpectedly closed the modal.");
+  if (!(await page.evaluate(() => window.__wrapModalFieldWithAction("layout")))) {
+    throw new Error("Could not install the action-wrapper field regression fixture.");
+  }
+  const layoutField = page.locator("#modal-root textarea[name='layout']");
+  await layoutField.click();
+  if (await modalLocator.count() !== 1) {
+    throw new Error("Clicking a textarea inside an action-marked form wrapper closed the modal.");
+  }
+  await layoutField.fill('[{"type":"value","tag_id":"t1"}]');
+  const nameField = page.locator("#modal-root input[name='name']");
+  await nameField.click();
+  await nameField.fill("Modal remains open");
+  const statusField = page.locator("#modal-root select[name='status']");
+  await statusField.click();
+  await statusField.selectOption("غیرفعال");
+  if (await modalLocator.count() !== 1 ||
+      await layoutField.inputValue() !== '[{"type":"value","tag_id":"t1"}]' ||
+      await nameField.inputValue() !== "Modal remains open" ||
+      await statusField.inputValue() !== "غیرفعال") {
+    throw new Error("Clicking or editing a modal input, select or textarea unexpectedly closed the dialog.");
   }
   await page.locator("#modal-root .modal-header [data-action='close-modal']").click();
   await modalLocator.waitFor({ state: "detached" });
 
-  // Specialized password dialogs must use the same working close/cancel path.
+  // Specialized password dialogs must also keep their fields interactive.
   await page.evaluate(() => window.__openTestModal("change-password"));
   await modalLocator.waitFor({ state: "visible" });
+  const passwordField = page.locator("#modal-root input[name='old_password']");
+  await passwordField.click();
+  await passwordField.fill("test-current-password");
+  if (await modalLocator.count() !== 1 || await passwordField.inputValue() !== "test-current-password") {
+    throw new Error("Clicking or typing in a password field unexpectedly closed the modal.");
+  }
   await page.locator("#modal-root .modal-footer [data-action='close-modal']").click();
   await modalLocator.waitFor({ state: "detached" });
 
@@ -701,7 +725,7 @@ try {
 
   if (pageErrors.length) throw new Error("Browser console errors: " + pageErrors.join("\\n"));
 
-  console.log("Chromium E2E passed: HMI visual/layout regressions plus modal X/cancel, safe form clicks and backdrop close.");
+  console.log("Chromium E2E passed: HMI visual/layout regressions plus modal X/cancel, nested action-safe text/select/textarea/password fields and backdrop close.");
   console.log(JSON.stringify({
     initial, moved, resized, pageTheme, widgetTheme, widgetBackground, pageBackground,
     livePointCount, importedImage, runtimePageTheme, runtimeWidgetTheme,
