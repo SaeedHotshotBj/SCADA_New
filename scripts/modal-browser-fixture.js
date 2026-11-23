@@ -1,28 +1,38 @@
-import { handleAction } from "../src/app/actions.js";
-import { resolveActionElementFromClick } from "../src/app/action-events.js";
+import { store } from "../src/services/demo-store.js";
 
-document.addEventListener("click", event => {
-  const actionElement = resolveActionElementFromClick(event.target);
-  if (!actionElement) return;
-  Promise.resolve(handleAction(actionElement.dataset.action, actionElement)).catch(error => {
-    window.__modalBrowserError = error?.stack || error?.message || String(error);
-  });
-});
+// Run the real application entry point and its real delegated click handler,
+// with deterministic in-memory resources and no backend/PLC connection.
+sessionStorage.setItem("scada-demo-auth", "1");
+location.hash = "#/equipment/tags";
 
-window.__openTestModal = action => handleAction(action || "new-user", null);
+store.replaceCollection("plcs", [{
+  id: "plc-modal-test",
+  name: "PLC آزمایشی پنجره",
+  protocol: "simulator",
+  address: "127.0.0.1:1502",
+  unit: "1",
+}]);
+store.replaceCollection("tags", [{
+  id: "tag-modal-test",
+  name: "TEST.ADDRESS",
+  plc: "plc-modal-test",
+  type: "uint16",
+  address: "40001",
+  access: "read",
+  unit: "rpm",
+}]);
 
-// Add a realistic action-marked wrapper around a field. A click on that field
-// must not inherit the wrapper's close action.
-window.__wrapModalFieldWithAction = name => {
-  const field = [...document.querySelectorAll("#modal-root [name]")].find(node => node.name === name);
-  if (!field || field.dataset.actionWrapperTest === "1") return false;
-  const wrapper = document.createElement("div");
-  wrapper.dataset.action = "close-modal";
-  field.dataset.actionWrapperTest = "1";
-  field.parentNode.insertBefore(wrapper, field);
-  wrapper.append(field);
-  return true;
-};
+// Keep startup deterministic. The application still renders the real route,
+// opens the real edit dialog, and processes clicks through src/app/main.js.
+store.initialize = async () => true;
+store.isConnected = () => false;
+store.currentUser = () => ({ name: "Browser Regression", role: "Engineer" });
 
-await window.__openTestModal("new-user");
-window.__modalBrowserReady = true;
+await import("../src/app/main.js");
+await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+window.__modalBrowserReady = Boolean(
+  document.querySelector('#app [data-collection-name="tags"] [data-action="edit-record"]')
+);
+if (!window.__modalBrowserReady) {
+  window.__modalBrowserError = "The real equipment/tags page did not render.";
+}
