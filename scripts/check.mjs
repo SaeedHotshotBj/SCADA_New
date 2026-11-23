@@ -560,14 +560,16 @@ const modalActionSource = await readFile("src/app/action-events.js", "utf8");
 const modalUiActionSource = await readFile("src/app/actions.js", "utf8");
 const applicationMainSource = await readFile("src/app/main.js", "utf8");
 if (!applicationMainSource.includes("resolveActionElementFromClick(event.target)") ||
+    !applicationMainSource.includes('event.target.closest(".modal-backdrop")') ||
+    !applicationMainSource.includes("event.target === modalBackdrop") ||
     !modalActionSource.includes('target.closest(".modal")') ||
     !modalActionSource.includes("input, select, textarea, option, label.field") ||
     !modalActionSource.includes("button[data-action]") ||
-    !modalActionSource.includes("target === backdrop") ||
+    modalUiActionSource.includes('modal-backdrop" data-action="close-modal"') ||
     modalUiActionSource.includes("stopPropagation()")) {
-  throw new Error("Modal form fields must not inherit wrapper actions, while explicit close/cancel controls and direct backdrop clicks remain supported.");
+  throw new Error("Modal fields must have no ancestor close action; only direct backdrop clicks and explicit close/cancel controls may close dialogs.");
 }
-console.log("Modal form-field isolation, explicit close/cancel controls and direct backdrop routing passed.");
+console.log("Modal no-ancestor-close-action invariant, explicit close/cancel controls and direct backdrop clicks passed.");
 
 const modalBrowserFixtureSource = await readFile("scripts/modal-browser-fixture.js", "utf8");
 const modalBrowserHtmlSource = await readFile("scripts/modal-browser-fixture.html", "utf8");
