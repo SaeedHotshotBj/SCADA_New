@@ -581,7 +581,7 @@ if (!modalBrowserFixtureSource.includes('await import("../src/app/main.js")') ||
     modalBrowserFixtureSource.includes('addEventListener("click"') ||
     !modalBrowserHtmlSource.includes('<div id="modal-root"></div>') ||
     !modalBrowserTestSource.includes('#app [data-collection-name="tags"] [data-action="edit-record"]') ||
-    !modalBrowserTestSource.includes('#modal-root input[name="address"]') ||
+    !modalBrowserTestSource.includes("#modal-root input[name='address']") ||
     !modalBrowserTestSource.includes('addressField.fill("40017")')) {
   throw new Error("Modal browser regression must open the real Edit Tag form through the actual main.js delegated click path and exercise the address field.");
 }
