@@ -63,11 +63,11 @@ function openModal(action, record = null) {
     const optional = (schema.optional || []).includes(name);
     return `<label class="field"><span>${escapeHtml(label)}</span><input name="${name}" type="${type}" value="${escapeHtml(value)}" ${type === "number" ? "step=any" : ""} ${optional ? "" : "required"} /></label>`;
   }).join("");
-  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(schema.title)}"><header class="modal-header"><h2>${escapeHtml(record ? "ویرایش " + schema.title : schema.title)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="record-form" data-collection="${schema.collection}" data-edit-id="${record?.id ?? ""}" data-schema="${action}"><div class="modal-fields">${fields}</div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ذخیره</button></footer></form></section></div>`;
+  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(schema.title)}"><header class="modal-header"><h2>${escapeHtml(record ? "ویرایش " + schema.title : schema.title)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="record-form" data-collection="${schema.collection}" data-edit-id="${record?.id ?? ""}" data-schema="${action}"><div class="modal-fields">${fields}</div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ذخیره</button></footer></form></section></div>`;
 }
 
 function openChangePasswordModal() {
-  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="تغییر رمز عبور"><header class="modal-header"><h2>تغییر رمز عبور</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="password-change-form"><div class="modal-fields"><label class="field"><span>رمز فعلی</span><input name="old_password" type="password" autocomplete="current-password" required></label><label class="field"><span>رمز جدید (حداقل ۸ نویسه)</span><input name="new_password" type="password" autocomplete="new-password" minlength="8" required></label><label class="field"><span>تکرار رمز جدید</span><input name="confirm_password" type="password" autocomplete="new-password" minlength="8" required></label></div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ثبت رمز جدید</button></footer></form></section></div>`;
+  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-label="تغییر رمز عبور"><header class="modal-header"><h2>تغییر رمز عبور</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="password-change-form"><div class="modal-fields"><label class="field"><span>رمز فعلی</span><input name="old_password" type="password" autocomplete="current-password" required></label><label class="field"><span>رمز جدید (حداقل ۸ نویسه)</span><input name="new_password" type="password" autocomplete="new-password" minlength="8" required></label><label class="field"><span>تکرار رمز جدید</span><input name="confirm_password" type="password" autocomplete="new-password" minlength="8" required></label></div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ثبت رمز جدید</button></footer></form></section></div>`;
 }
 
 function downloadCsv() {
@@ -109,7 +109,7 @@ function showRecord(collection, id) {
     const display = value && typeof value === "object" ? JSON.stringify(value, null, 2) : String(value ?? "—");
     return `<div class="storage-list"><div><span>${escapeHtml(key)}</span><b>${escapeHtml(display)}</b></div></div>`;
   }).join("");
-  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true"><header class="modal-header"><h2>جزئیات ${escapeHtml(collection)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><div class="modal-fields">${rows}</div><footer class="modal-footer"><button type="button" class="btn btn-primary" data-action="close-modal">بستن</button></footer></section></div>`;
+  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true"><header class="modal-header"><h2>جزئیات ${escapeHtml(collection)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><div class="modal-fields">${rows}</div><footer class="modal-footer"><button type="button" class="btn btn-primary" data-action="close-modal">بستن</button></footer></section></div>`;
 }
 
 function applyTableFilters(element) {
@@ -151,7 +151,7 @@ async function loadSelectedTrendHistory() {
 }
 
 function openActionInfo(title, message) {
-  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true"><header class="modal-header"><h2>${escapeHtml(title || "اطلاعات")}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><div class="modal-fields"><p>${escapeHtml(message)}</p></div><footer class="modal-footer"><button type="button" class="btn btn-primary" data-action="close-modal">متوجه شدم</button></footer></section></div>`;
+  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true"><header class="modal-header"><h2>${escapeHtml(title || "اطلاعات")}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><div class="modal-fields"><p>${escapeHtml(message)}</p></div><footer class="modal-footer"><button type="button" class="btn btn-primary" data-action="close-modal">متوجه شدم</button></footer></section></div>`;
 }
 
 
@@ -159,7 +159,7 @@ function openProductionQuantityModal(runId) {
   const run = store.list("productionRuns").find(item => item.id === runId);
   if (!run) { toast("اجرای تولید پیدا نشد.", "warning"); return; }
   if (run.status !== "در حال تولید") { toast("ثبت مقدار فقط برای اجرای فعال مجاز است.", "warning"); return; }
-  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="ثبت مقدار تولید"><header class="modal-header"><h2>ثبت مقدار تولید · ${escapeHtml(run.order || run.product)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="production-quantity-form" data-id="${escapeHtml(runId)}"><div class="modal-fields"><label class="field"><span>مقدار تولید این ثبت (${escapeHtml(run.unit || "واحد")})</span><input name="quantity" type="number" min="0.001" step="any" required></label><label class="field"><span>ضایعات این ثبت (${escapeHtml(run.unit || "واحد")})</span><input name="scrap_quantity" type="number" min="0" step="any" value="0" required></label><label class="field"><span>یادداشت</span><input name="note" maxlength="1000"></label></div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ثبت مقدار</button></footer></form></section></div>`;
+  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-label="ثبت مقدار تولید"><header class="modal-header"><h2>ثبت مقدار تولید · ${escapeHtml(run.order || run.product)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="production-quantity-form" data-id="${escapeHtml(runId)}"><div class="modal-fields"><label class="field"><span>مقدار تولید این ثبت (${escapeHtml(run.unit || "واحد")})</span><input name="quantity" type="number" min="0.001" step="any" required></label><label class="field"><span>ضایعات این ثبت (${escapeHtml(run.unit || "واحد")})</span><input name="scrap_quantity" type="number" min="0" step="any" value="0" required></label><label class="field"><span>یادداشت</span><input name="note" maxlength="1000"></label></div><footer class="modal-footer"><button type="button" class="btn btn-light" data-action="close-modal">انصراف</button><button type="submit" class="btn btn-primary">ثبت مقدار</button></footer></form></section></div>`;
 }
 
 function batchConfigFor(batch) {
@@ -187,7 +187,7 @@ function openBatchWeighmentsModal(batchId) {
     return;
   }
   document.getElementById("modal-root").innerHTML =
-    '<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="ثبت وزن هاپرها">' +
+    '<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-label="ثبت وزن هاپرها">' +
     '<header class="modal-header"><h2>ثبت وزن هاپرها · ' + escapeHtml(batch.code || batch.formula) + '</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header>' +
     '<form id="batch-weighments-form" data-id="' + escapeHtml(batchId) + '"><div class="modal-fields">' + fields +
     '<label class="field"><span>یادداشت</span><input name="note" maxlength="1000"></label></div>' +
@@ -206,7 +206,7 @@ function hopperEditorRow(index, bin, material, ratio, target) {
 function openQcReviewModal(qcId) {
   const row = store.list("qc").find(item => item.id === qcId);
   if (!row) { toast("رکورد کنترل کیفیت پیدا نشد.", "warning"); return; }
-  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="ثبت اندازه‌گیری کنترل کیفیت"><header class="modal-header"><h2>بررسی QC · ${escapeHtml(row.code || row.product || qcId)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="qc-measurement-form" data-id="${escapeHtml(qcId)}"><div class="modal-fields">
+  document.getElementById("modal-root").innerHTML = `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-label="ثبت اندازه‌گیری کنترل کیفیت"><header class="modal-header"><h2>بررسی QC · ${escapeHtml(row.code || row.product || qcId)}</h2><button class="icon-btn" data-action="close-modal" aria-label="بستن">×</button></header><form id="qc-measurement-form" data-id="${escapeHtml(qcId)}"><div class="modal-fields">
     <label class="field"><span>پارامتر اندازه‌گیری</span><input name="parameter" value="اندازه‌گیری دستی" required></label>
     <label class="field"><span>مقدار واقعی</span><input name="actual" type="number" step="any" required></label>
     <label class="field"><span>مقدار اسمی (اختیاری)</span><input name="nominal" type="number" step="any"></label>
