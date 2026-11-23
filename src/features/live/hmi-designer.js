@@ -1,7 +1,7 @@
 import { api } from "../../services/api-client.js";
 import { store } from "../../services/demo-store.js";
 import { escapeHtml } from "../../core/format.js";
-import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_CHART_LINE_WIDTH_MIN, HMI_CHART_LINE_WIDTH_MAX, HMI_CHART_LINE_WIDTH_DEFAULT, normalizeHmiChartLineWidth, HMI_CHART_COLOR_OPTIONS, HMI_CHART_SURFACE_OPTIONS, HMI_CHART_SMOOTHNESS_MIN, HMI_CHART_SMOOTHNESS_MAX, HMI_CHART_FILL_OPACITY_MIN, HMI_CHART_FILL_OPACITY_MAX, HMI_CHART_VALUE_COLOR_OPTIONS, HMI_CHART_GRID_OPACITY_MIN, HMI_CHART_GRID_OPACITY_MAX, HMI_CHART_GRID_LINES_MIN, HMI_CHART_GRID_LINES_MAX, HMI_CHART_SURFACE_INTENSITY_MIN, HMI_CHART_SURFACE_INTENSITY_MAX, HMI_CHART_LINE_GLOW_MIN, HMI_CHART_LINE_GLOW_MAX, HMI_CHART_VALUE_FONT_SIZE_MIN, HMI_CHART_VALUE_FONT_SIZE_MAX, HMI_CHART_VALUE_DECIMALS_MIN, HMI_CHART_VALUE_DECIMALS_MAX, normalizeHmiChartAppearance, HMI_FONT_OPTIONS, HMI_TEXT_FONT_SIZE_MIN, HMI_TEXT_FONT_SIZE_MAX, HMI_NUMBER_FONT_SIZE_MIN, HMI_NUMBER_FONT_SIZE_MAX, normalizeHmiWidgetTypography, HMI_WIDGET_LIBRARY, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_LAYOUT_CANVAS_WIDTH, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetFreeformFromPointer, hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, normalizeHmiWidgetFreeformGeometry, normalizeHmiPageTheme, normalizeHmiWidgetTheme, hmiChartLiveIntervalMs, appendHmiLiveChartSamples, getHmiLiveChartSamples, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
+import { HMI_BINDINGS, HMI_CHART_RANGES, HMI_CHART_LINE_WIDTH_MIN, HMI_CHART_LINE_WIDTH_MAX, HMI_CHART_LINE_WIDTH_DEFAULT, normalizeHmiChartLineWidth, HMI_CHART_COLOR_OPTIONS, HMI_CHART_SURFACE_OPTIONS, HMI_CHART_SMOOTHNESS_MIN, HMI_CHART_SMOOTHNESS_MAX, HMI_CHART_FILL_OPACITY_MIN, HMI_CHART_FILL_OPACITY_MAX, HMI_CHART_VALUE_COLOR_OPTIONS, normalizeHmiWidgetFrameOptions, HMI_CHART_GRID_OPACITY_MIN, HMI_CHART_GRID_OPACITY_MAX, HMI_CHART_GRID_LINES_MIN, HMI_CHART_GRID_LINES_MAX, HMI_CHART_SURFACE_INTENSITY_MIN, HMI_CHART_SURFACE_INTENSITY_MAX, HMI_CHART_LINE_GLOW_MIN, HMI_CHART_LINE_GLOW_MAX, HMI_CHART_VALUE_FONT_SIZE_MIN, HMI_CHART_VALUE_FONT_SIZE_MAX, HMI_CHART_VALUE_DECIMALS_MIN, HMI_CHART_VALUE_DECIMALS_MAX, normalizeHmiChartAppearance, HMI_FONT_OPTIONS, HMI_TEXT_FONT_SIZE_MIN, HMI_TEXT_FONT_SIZE_MAX, HMI_NUMBER_FONT_SIZE_MIN, HMI_NUMBER_FONT_SIZE_MAX, normalizeHmiWidgetTypography, HMI_WIDGET_LIBRARY, HMI_THEME_OPTIONS, HMI_COMPONENT_THEME_OPTIONS, HMI_LAYOUT_CANVAS_WIDTH, arrangeHmiWidgetsSingleColumn, createHmiWidget, hmiChartRefreshIntervalMs, hmiWidgetFreeformFromPointer, hmiWidgetFreeformStyle, hmiWidgetCanvasHeight, normalizeHmiWidgetFreeformGeometry, normalizeHmiPageTheme, normalizeHmiWidgetTheme, hmiChartLiveIntervalMs, appendHmiLiveChartSamples, getHmiLiveChartSamples, isBooleanTag, isNumericTag, renderHmiWidget } from "./hmi-widgets.js";
 
 let activePageKey = null;
 let draft = null;
@@ -139,8 +139,8 @@ function typographyPropertiesMarkup(component) {
 function chartPropertiesMarkup(component) {
   const appearance = normalizeHmiChartAppearance(component);
   return '<div class="hmi-chart-properties"><div class="hmi-layout-properties-group-title">ظاهر و خوانایی نمودار</div>' +
-    selectMarkup("رنگ خط نمودار", "chart_color", HMI_CHART_COLOR_OPTIONS, appearance.chart_color) +
-    selectMarkup("رنگ پس‌زمینه", "chart_surface", HMI_CHART_SURFACE_OPTIONS, appearance.chart_surface) +
+    fieldMarkup("رنگ دلخواه خط نمودار", "chart_color", appearance.chart_color, "color") +
+    fieldMarkup("رنگ دلخواه پس‌زمینه نمودار", "chart_background_color", appearance.chart_background_color, "color") +
     fieldMarkup("شدت رنگ پس‌زمینه (%)", "chart_surface_intensity", appearance.chart_surface_intensity, "number", {
       min: HMI_CHART_SURFACE_INTENSITY_MIN, max: HMI_CHART_SURFACE_INTENSITY_MAX, step: 5,
     }) +
@@ -179,6 +179,16 @@ function chartPropertiesMarkup(component) {
     '<small class="hmi-field-help">عدد آخر بدون باکس و کنار نقطه انتهایی خط نمایش داده می‌شود. پس‌زمینه، شبکه، درخشش، رنگ و اندازه عدد مستقل از پوسته صفحه قابل تنظیم هستند.</small></div>';
 }
 
+function cardFramePropertiesMarkup(component) {
+  const frame = normalizeHmiWidgetFrameOptions(component);
+  return '<div class="hmi-card-frame-properties"><div class="hmi-layout-properties-group-title">نمایش کادر و عنوان کارت</div>' +
+    '<label class="hmi-card-frame-toggle"><input type="checkbox" data-hmi-prop="show_border" ' +
+      (frame.show_border ? "checked" : "") + '><span>نمایش کادر کارت</span></label>' +
+    '<label class="hmi-card-frame-toggle"><input type="checkbox" data-hmi-prop="show_title" ' +
+      (frame.show_title ? "checked" : "") + '><span>نمایش عنوان کارت</span></label>' +
+    '</div>';
+}
+
 function propertiesMarkup() {
   const component = selectedWidget();
   if (!component) {
@@ -189,6 +199,7 @@ function propertiesMarkup() {
   let fields = fieldMarkup("عنوان نمایشی", "label", component.label || "");
   fields += selectMarkup("پوسته این باکس", "theme", HMI_COMPONENT_THEME_OPTIONS, normalizeHmiWidgetTheme(component.theme));
   fields += typographyPropertiesMarkup(component);
+  fields += cardFramePropertiesMarkup(component);
   fields += bindings.map(binding => bindingMarkup(binding, component)).join("");
   if (["gauge", "needle", "thermometer", "tank"].includes(component.type)) {
     fields += fieldMarkup("حداقل مقیاس", "min", component.min ?? 0, "number");
@@ -220,7 +231,7 @@ function canvasMarkup() {
     const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, seconds) : [];
     const historyState = component.type === "chart" ? chartHistoryState(component.tag_id, seconds) : null;
     const widget = renderHmiWidget(component, tags, { preview: true, history, historyState, mediaBase: api.base });
-    return '<article class="hmi-designer-item ' + (selected ? "is-selected" : "") +
+    return '<article class="hmi-designer-item ' + (component.show_border === false ? "hmi-designer-item--border-hidden " : "") + (selected ? "is-selected" : "") +
       '" data-action="hmi-select-widget" data-widget-id="' + escapeHtml(component.widget_id) +
       '" style="' + hmiWidgetFreeformStyle(component, index) + '">' +
       '<div class="hmi-designer-item-toolbar"><small>' + String(index + 1).toLocaleString("fa-IR") +
@@ -285,6 +296,7 @@ function updateLayoutCardContents() {
     if (content) content.innerHTML = renderHmiWidget(component, tags, { preview: true, history, historyState, mediaBase: api.base });
     card.style.cssText = hmiWidgetFreeformStyle(component, index);
     card.classList.toggle("is-selected", component.widget_id === selectedWidgetId);
+    card.classList.toggle("hmi-layout-card--border-hidden", component.show_border === false);
   }
 }
 
@@ -315,6 +327,7 @@ function layoutPropertiesMarkup() {
     escapeHtml(component.label || component.type) + '</small></div>' +
     selectMarkup("پوسته این باکس", "theme", HMI_COMPONENT_THEME_OPTIONS, normalizeHmiWidgetTheme(component.theme)) +
     typographyPropertiesMarkup(component) +
+    cardFramePropertiesMarkup(component) +
     (component.type === "chart" ? chartPropertiesMarkup(component) : "") +
     (component.type === "media" ? mediaPropertiesMarkup(component) : "") +
     '<div class="hmi-layout-properties-group-title">موقعیت آزاد روی بوم (پیکسل)</div><div class="hmi-layout-properties-fields">' +
@@ -332,7 +345,7 @@ function layoutPreviewCardMarkup(component, index) {
   const history = component.type === "chart" ? getHmiChartHistory(component.tag_id, seconds) : [];
   const historyState = component.type === "chart" ? chartHistoryState(component.tag_id, seconds) : null;
   const widget = renderHmiWidget(component, store.list("tags"), { preview: true, history, historyState, mediaBase: api.base });
-  return '<article class="hmi-layout-card ' + (component.widget_id === selectedWidgetId ? "is-selected" : "") +
+  return '<article class="hmi-layout-card ' + (component.show_border === false ? "hmi-layout-card--border-hidden " : "") + (component.widget_id === selectedWidgetId ? "is-selected" : "") +
     '" data-hmi-layout-card data-hmi-layout-gesture="move" data-action="hmi-select-layout-widget" data-widget-id="' + escapeHtml(component.widget_id) + '" style="' +
     hmiWidgetFreeformStyle(component, index) + '">' +
     '<header class="hmi-layout-card-toolbar" data-hmi-layout-gesture="move" title="برای جابه‌جایی، هر قسمت کارت را بکش"><span class="hmi-layout-move">↕ حرکت آزاد</span><span>' +
@@ -443,6 +456,7 @@ function validateDraftLayout() {
     }
     Object.assign(component, normalizeHmiWidgetFreeformGeometry(component, index));
     Object.assign(component, normalizeHmiWidgetTypography(component));
+    Object.assign(component, normalizeHmiWidgetFrameOptions(component));
     if (component.type === "chart") {
       if (!HMI_CHART_RANGES.some(range => range.value === chartHistorySeconds(component))) {
         throw new Error("بازه زمانی انتخاب‌شده برای نمودار معتبر نیست.");

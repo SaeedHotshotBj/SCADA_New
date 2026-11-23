@@ -93,13 +93,13 @@ function hmiWidgetTypographyStyle(component) {
     ";--hmi-text-scale:" + (typography.text_font_size / 12).toFixed(3) + ";";
   if (component.type === "chart") {
     const appearance = normalizeHmiChartAppearance(component);
-    const surface = HMI_CHART_SURFACE_RGB[appearance.chart_surface];
+    const backgroundRgb = hmiHexColorToRgb(appearance.chart_background_color);
     const valueColor = appearance.chart_value_color === "line"
-      ? HMI_CHART_COLORS[appearance.chart_color]
+      ? appearance.chart_color
       : HMI_CHART_VALUE_COLORS[appearance.chart_value_color];
     const surfaceOpacity = 0.58 + (appearance.chart_surface_intensity / 100) * 0.42;
-    style += "--hmi-chart-line:" + HMI_CHART_COLORS[appearance.chart_color] + ";" +
-      "--hmi-chart-glow:" + HMI_CHART_COLORS[appearance.chart_color] + ";" +
+    style += "--hmi-chart-line:" + appearance.chart_color + ";" +
+      "--hmi-chart-glow:" + appearance.chart_color + ";" +
       "--hmi-chart-fill-opacity:" + (appearance.chart_fill_opacity / 100).toFixed(2) + ";" +
       "--hmi-chart-smoothing:" + (appearance.chart_smoothing / 100).toFixed(2) + ";" +
       "--hmi-chart-value-color:" + valueColor + ";" +
@@ -107,9 +107,8 @@ function hmiWidgetTypographyStyle(component) {
       "--hmi-chart-grid-opacity:" + (appearance.chart_grid_opacity / 100).toFixed(2) + ";" +
       "--hmi-chart-line-glow:" + appearance.chart_line_glow + "px;" +
       "--hmi-chart-surface-opacity:" + surfaceOpacity.toFixed(2) + ";" +
-      "--hmi-chart-surface-top-rgb:" + surface.top + ";" +
-      "--hmi-chart-surface-bottom-rgb:" + surface.bottom + ";" +
-      "--hmi-chart-surface-accent-rgb:" + surface.accent + ";";
+      "--hmi-chart-background-color:" + appearance.chart_background_color + ";" +
+      "--hmi-chart-background-rgb:" + backgroundRgb + ";";
   }
   return style;
 }
@@ -168,6 +167,13 @@ const HMI_CHART_COLORS = {
   cyan: "#26c5d4",
   amber: "#f2a33a",
 };
+const HMI_CHART_BACKGROUND_COLORS = {
+  midnight: "#1a4537",
+  navy: "#1d466c",
+  graphite: "#404d5e",
+};
+export const HMI_CHART_DEFAULT_LINE_COLOR = "#168ce8";
+export const HMI_CHART_DEFAULT_BACKGROUND_COLOR = "#1a4537";
 const HMI_CHART_VALUE_COLORS = {
   white: "#f5fbff",
   amber: "#ffc66b",
@@ -181,7 +187,26 @@ const HMI_CHART_SURFACE_RGB = {
 };
 
 export function normalizeHmiChartColor(value) {
-  return Object.prototype.hasOwnProperty.call(HMI_CHART_COLORS, value) ? value : "blue";
+  if (typeof value !== "string") return HMI_CHART_DEFAULT_LINE_COLOR;
+  if (/^#[0-9a-f]{6}$/i.test(value)) return value.toLowerCase();
+  return HMI_CHART_COLORS[value] || HMI_CHART_DEFAULT_LINE_COLOR;
+}
+
+export function normalizeHmiChartBackgroundColor(value, legacySurface = "midnight") {
+  if (typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)) return value.toLowerCase();
+  return HMI_CHART_BACKGROUND_COLORS[legacySurface] || HMI_CHART_DEFAULT_BACKGROUND_COLOR;
+}
+
+function hmiHexColorToRgb(value) {
+  const hex = normalizeHmiChartBackgroundColor(value);
+  return [1, 3, 5].map(offset => Number.parseInt(hex.slice(offset, offset + 2), 16)).join(", ");
+}
+
+export function normalizeHmiWidgetFrameOptions(component = {}) {
+  return {
+    show_title: component.show_title !== false,
+    show_border: component.show_border !== false,
+  };
 }
 
 export function normalizeHmiChartSurface(value) {
@@ -202,6 +227,7 @@ function normalizeChartInteger(value, fallback, minimum, maximum) {
 export function normalizeHmiChartAppearance(component = {}) {
   return {
     chart_color: normalizeHmiChartColor(component.chart_color),
+    chart_background_color: normalizeHmiChartBackgroundColor(component.chart_background_color, normalizeHmiChartSurface(component.chart_surface)),
     chart_surface: normalizeHmiChartSurface(component.chart_surface),
     chart_smoothing: normalizeChartInteger(component.chart_smoothing, HMI_CHART_SMOOTHNESS_DEFAULT, HMI_CHART_SMOOTHNESS_MIN, HMI_CHART_SMOOTHNESS_MAX),
     chart_fill_opacity: normalizeChartInteger(component.chart_fill_opacity, HMI_CHART_FILL_OPACITY_DEFAULT, HMI_CHART_FILL_OPACITY_MIN, HMI_CHART_FILL_OPACITY_MAX),
@@ -306,6 +332,8 @@ export function createHmiWidget(type) {
     type,
     label: DEFAULT_LABELS[type] || definition.label,
     theme: "inherit",
+    show_title: true,
+    show_border: true,
   };
   if (["gauge", "needle", "thermometer", "tank"].includes(type)) {
     widget.min = 0;
@@ -572,10 +600,13 @@ function componentFrame(component, body, quality, preview, extraClass = "") {
   const tone = qualityTone(quality);
   const selectedClass = extraClass ? " " + extraClass : "";
   const theme = normalizeHmiWidgetTheme(component.theme);
+  const frameOptions = normalizeHmiWidgetFrameOptions(component);
+  const frameClass = (frameOptions.show_title ? "" : " hmi-widget--title-hidden") +
+    (frameOptions.show_border ? "" : " hmi-widget--border-hidden");
   const chartSurface = component.type === "chart"
     ? ' data-hmi-chart-surface="' + normalizeHmiChartSurface(component.chart_surface) + '"'
     : "";
-  return '<article class="hmi-widget hmi-widget--' + escapeHtml(component.type) + (preview ? " is-preview" : "") + selectedClass + '" data-hmi-theme="' + theme + '"' + chartSurface + ' style="' + escapeHtml(hmiWidgetTypographyStyle(component)) + '">' +
+  return '<article class="hmi-widget hmi-widget--' + escapeHtml(component.type) + frameClass + (preview ? " is-preview" : "") + selectedClass + '" data-hmi-theme="' + theme + '"' + chartSurface + ' style="' + escapeHtml(hmiWidgetTypographyStyle(component)) + '">' +
     '<header class="hmi-widget-header"><b>' + label + '</b><span class="hmi-quality hmi-quality--' + tone + '">' + escapeHtml(quality) + '</span></header>' +
     '<div class="hmi-widget-body">' + body + '</div></article>';
 }
@@ -879,7 +910,7 @@ function renderChart(component, tag, preview, history, historyState) {
           '</linearGradient></defs>' +
           '<path class="hmi-chart-area" d="' + areaPath + '" fill="url(#' + fillId + ')"/>' +
           '<path class="hmi-chart-line" d="' + linePath + '" data-point-count="' + points.length +
-            '" data-points="' + pointData + '" fill="none" stroke="var(--hmi-chart-line)" stroke-width="' + lineWidth +
+            '" data-points="' + pointData + '" fill="none" vector-effect="non-scaling-stroke" stroke="var(--hmi-chart-line)" stroke-width="' + lineWidth +
             '" stroke-linecap="round" stroke-linejoin="round"/>' +
           '<circle class="hmi-chart-dot-halo" cx="' + last.x.toFixed(2) + '" cy="' + last.y.toFixed(2) + '" r="9"/>' +
           '<circle class="hmi-chart-last-point" cx="' + last.x.toFixed(2) + '" cy="' + last.y.toFixed(2) + '" r="4"/>' +
@@ -887,7 +918,7 @@ function renderChart(component, tag, preview, history, historyState) {
       }
     }
 
-    visual = '<svg class="hmi-chart-svg" viewBox="0 0 360 180" preserveAspectRatio="none" role="img" aria-label="نمودار روند مقدار برحسب زمان">' +
+    visual = '<svg class="hmi-chart-svg" viewBox="0 0 360 180" preserveAspectRatio="xMidYMid meet" role="img" aria-label="نمودار روند مقدار برحسب زمان">' +
       '<g class="hmi-chart-grid">' + yAxisMarkup + '</g>' + dataMarkup + axisTitles + xAxisMarkup + '</svg>';
   } else {
     let message = "برای دریافت تاریخچه، پیش‌نمایش شناور را باز کن.";

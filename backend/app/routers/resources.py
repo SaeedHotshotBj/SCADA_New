@@ -34,6 +34,7 @@ HMI_WIDGET_FONT_SIZES = {
 }
 HMI_CHART_COLORS = {"blue", "purple", "green", "cyan", "amber"}
 HMI_CHART_SURFACES = {"midnight", "navy", "graphite"}
+HMI_HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 HMI_CHART_VALUE_COLORS = {"line", "white", "amber", "green", "cyan"}
 HMI_CHART_STYLE_NUMBERS = {
     "chart_smoothing": (0, 100, True),
@@ -440,6 +441,12 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                         status_code=422,
                         detail=f"عرض کارت در جزء شماره {number_in_layout} از محدوده‌ی صفحه خارج می‌شود.",
                     )
+                for visibility_field in ("show_title", "show_border"):
+                    if visibility_field in component and not isinstance(component[visibility_field], bool):
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"تنظیم {visibility_field} در جزء شماره {number_in_layout} باید بولی باشد.",
+                        )
                 freeform_fields = ("x", "y", "width", "height")
                 if any(field in component for field in freeform_fields):
                     if not all(field in component for field in freeform_fields):
@@ -480,9 +487,17 @@ def validate_references(collection: str, payload: dict[str, Any], db) -> None:
                 if component_type == "chart":
                     if component.get("chart_kind", "line") not in {"line", "bar"}:
                         raise HTTPException(status_code=422, detail=f"نوع نمودار جزء شماره {number_in_layout} معتبر نیست.")
-                    chart_color = component.get("chart_color", "blue")
-                    if not isinstance(chart_color, str) or chart_color not in HMI_CHART_COLORS:
+                    chart_color = component.get("chart_color", "#168ce8")
+                    if not isinstance(chart_color, str) or not (
+                        chart_color in HMI_CHART_COLORS or HMI_HEX_COLOR_PATTERN.fullmatch(chart_color)
+                    ):
                         raise HTTPException(status_code=422, detail=f"رنگ نمودار جزء شماره {number_in_layout} معتبر نیست.")
+                    chart_background_color = component.get("chart_background_color")
+                    if chart_background_color is not None and (
+                        not isinstance(chart_background_color, str) or
+                        not HMI_HEX_COLOR_PATTERN.fullmatch(chart_background_color)
+                    ):
+                        raise HTTPException(status_code=422, detail=f"رنگ پس‌زمینه نمودار جزء شماره {number_in_layout} معتبر نیست.")
                     chart_surface = component.get("chart_surface", "midnight")
                     if not isinstance(chart_surface, str) or chart_surface not in HMI_CHART_SURFACES:
                         raise HTTPException(status_code=422, detail=f"پس‌زمینه نمودار جزء شماره {number_in_layout} معتبر نیست.")
