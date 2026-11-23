@@ -656,6 +656,8 @@ try {
     throw new Error("HMI responsive-fit regression failed: " + JSON.stringify(fitReport.issues.slice(0, 20)));
   }
 
+  const hmiBrowserEvents = await page.evaluate(() => window.__hmiBrowserEvents.length);
+
   // Verify the shared application modal event path in real Chromium.
   await page.goto(`${baseUrl}/scripts/modal-browser-fixture.html`, { waitUntil: "networkidle" });
   await page.waitForFunction(() => window.__modalBrowserReady === true);
@@ -705,7 +707,7 @@ try {
     livePointCount, importedImage, runtimePageTheme, runtimeWidgetTheme,
     runtimeWidgetBackground, runtimePageBackground, runtimeBackgroundImage,
     designerBackgroundImage, runtimeImageSrc, runtimeRefresh, historyRequests,
-    browserEvents: await page.evaluate(() => window.__hmiBrowserEvents.length), fitReport,
+    browserEvents: hmiBrowserEvents, modalBrowserPassed: true, fitReport,
   }));
 } catch (error) {
   if (page) {
