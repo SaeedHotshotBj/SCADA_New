@@ -680,7 +680,7 @@ try {
     enclosingBackdropAction: input.closest(".modal-backdrop")?.dataset.action || null,
   }));
   if (initialAddress !== "40001" || !addressHitTest.insideDialog || !addressHitTest.enclosingFieldLabel ||
-      addressHitTest.enclosingBackdropAction !== "close-modal") {
+      addressHitTest.enclosingBackdropAction !== null) {
     throw new Error("The real tag edit dialog did not render the expected address field: " +
       JSON.stringify({ initialAddress, addressHitTest }));
   }
