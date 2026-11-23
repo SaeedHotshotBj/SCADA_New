@@ -13,11 +13,6 @@ export function resolveActionElementFromClick(target) {
     return control && modal.contains(control) ? control : null;
   }
 
-  // The backdrop closes only when it is the actual event target, not when a
-  // click bubbles from any child element within the backdrop.
-  const backdrop = target.closest(".modal-backdrop[data-action]");
-  if (backdrop) return target === backdrop ? backdrop : null;
-
   // Preserve the existing delegated action behavior outside dialogs.
   return target.closest("[data-action]");
 }
