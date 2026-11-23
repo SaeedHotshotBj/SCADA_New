@@ -1093,8 +1093,8 @@ def test_hmi_page_and_widget_theme_presets_are_validated_and_persisted():
             "description": "Page and widget theme persistence",
             "theme": "dark",
             "layout": [
-                {"type": "value", "tag_id": "t3", "theme": "blue", "font_family": "Verdana", "number_font_size": 32, "text_font_size": 14},
-                {"type": "chart", "tag_id": "t6", "theme": "inherit", "history_seconds": 3600, "font_family": "Tahoma", "number_font_size": 21, "text_font_size": 11, "chart_color": "purple", "chart_surface": "navy", "line_width": 3.5, "chart_smoothing": 72, "chart_fill_opacity": 35, "chart_show_axes": True, "chart_show_value": True, "chart_value_color": "white", "chart_value_font_size": 24, "chart_value_decimals": 2, "chart_surface_intensity": 90, "chart_line_glow": 12, "chart_grid_opacity": 30, "chart_grid_lines": 5},
+                {"type": "value", "tag_id": "t3", "theme": "blue", "font_family": "Verdana", "number_font_size": 32, "text_font_size": 14, "show_title": False, "show_border": False},
+                {"type": "chart", "tag_id": "t6", "theme": "inherit", "history_seconds": 3600, "font_family": "Tahoma", "number_font_size": 21, "text_font_size": 11, "chart_color": "#ff4c29", "chart_background_color": "#174ea6", "chart_surface": "navy", "line_width": 3.5, "chart_smoothing": 72, "chart_fill_opacity": 35, "chart_show_axes": True, "chart_show_value": True, "chart_value_color": "white", "chart_value_font_size": 24, "chart_value_decimals": 2, "chart_surface_intensity": 90, "chart_line_glow": 12, "chart_grid_opacity": 30, "chart_grid_lines": 5, "show_title": True, "show_border": False},
             ],
             "status": "فعال",
         })
@@ -1104,10 +1104,15 @@ def test_hmi_page_and_widget_theme_presets_are_validated_and_persisted():
         assert created.json()["layout"][0]["font_family"] == "Verdana"
         assert created.json()["layout"][0]["number_font_size"] == 32
         assert created.json()["layout"][0]["text_font_size"] == 14
+        assert created.json()["layout"][0]["show_title"] is False
+        assert created.json()["layout"][0]["show_border"] is False
         assert created.json()["layout"][1]["theme"] == "inherit"
         assert created.json()["layout"][1]["font_family"] == "Tahoma"
-        assert created.json()["layout"][1]["chart_color"] == "purple"
+        assert created.json()["layout"][1]["chart_color"] == "#ff4c29"
+        assert created.json()["layout"][1]["chart_background_color"] == "#174ea6"
         assert created.json()["layout"][1]["chart_surface"] == "navy"
+        assert created.json()["layout"][1]["show_title"] is True
+        assert created.json()["layout"][1]["show_border"] is False
         assert created.json()["layout"][1]["line_width"] == 3.5
         assert created.json()["layout"][1]["chart_smoothing"] == 72
         assert created.json()["layout"][1]["chart_fill_opacity"] == 35
@@ -1170,6 +1175,26 @@ def test_hmi_page_and_widget_theme_presets_are_validated_and_persisted():
             "status": "فعال",
         })
         assert invalid_chart_color.status_code == 422
+
+        invalid_chart_background = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid chart background",
+            "machine": "بانچر",
+            "description": "Reject unsafe chart background CSS",
+            "theme": "light",
+            "layout": [{"type": "chart", "tag_id": "t6", "chart_background_color": "url(javascript:alert(1))"}],
+            "status": "فعال",
+        })
+        assert invalid_chart_background.status_code == 422
+
+        invalid_visibility_option = client.post("/api/resources/hmiPages", json={
+            "name": "Invalid card visibility",
+            "machine": "بانچر",
+            "description": "Visibility options must be booleans",
+            "theme": "light",
+            "layout": [{"type": "value", "tag_id": "t3", "show_title": "no"}],
+            "status": "فعال",
+        })
+        assert invalid_visibility_option.status_code == 422
 
         invalid_chart_fill = client.post("/api/resources/hmiPages", json={
             "name": "Invalid chart fill",
