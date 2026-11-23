@@ -561,8 +561,10 @@ const modalUiActionSource = await readFile("src/app/actions.js", "utf8");
 const applicationMainSource = await readFile("src/app/main.js", "utf8");
 if (!applicationMainSource.includes("resolveActionElementFromClick(event.target)") ||
     !modalActionSource.includes('target.closest(".modal")') ||
-    !modalActionSource.includes('target.closest(".modal [data-action]")') ||
+    !modalActionSource.includes("input, select, textarea, option, label.field") ||
+    !modalActionSource.includes("button[data-action]") ||
+    !modalActionSource.includes("target === backdrop") ||
     modalUiActionSource.includes("stopPropagation()")) {
-  throw new Error("Modal close/cancel actions must reach the shared click handler without closing on ordinary form clicks.");
+  throw new Error("Modal form fields must not inherit wrapper actions, while explicit close/cancel controls and direct backdrop clicks remain supported.");
 }
-console.log("Shared modal close/cancel event routing passed.");
+console.log("Modal form-field isolation, explicit close/cancel controls and direct backdrop routing passed.");
