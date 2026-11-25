@@ -91,7 +91,7 @@ This repository is an application/backend integration project, **not a commissio
 - The browser tag-write endpoint changes only the SQLite demo record and returns execution_mode=SIMULATION.
 - Physical PLC protocol adapters exist for Modbus TCP/RTU and Siemens S7, but **no real-device hardware-in-the-loop test or plant/site commissioning has been completed**. Passing software tests is not proof of a live PLC connection.
 - Physical polling runs only for hardware PLC records explicitly enabled by an engineer. Confirm IP/port or COM settings, Unit ID, Rack/Slot, Siemens PUT/GET and DB access, tag addresses, byte/word order, types, scaling and observed values against the actual device before enabling polling.
-- Physical writes are OFF by default. They require a server environment switch, per-PLC permission and safety confirmation, a writable tag, explicit confirmation and read-back verification. Do not enable them on an operating machine without a documented risk assessment, interlocks, emergency-stop validation and safe-state procedure.
+- Physical writes are OFF by default. They require a server environment switch, per-PLC permission and safety confirmation, a writable tag, explicit confirmation and read-back verification. Do not enable this on an operating machine without a documented risk assessment, interlocks, emergency-stop validation and safe-state procedure.
 - Starting/stopping a production run or batch changes application workflow state only. It does not start a machine, operate a feeder or command a scale.
 - Production quantity/scrap entries and QC measurements are application records entered through the UI; they are not automatically derived from machine counters or laboratory instruments.
 - Per-hopper weighment rows are manual DEMO entries until a commissioned weighing adapter provides actual measurements.
@@ -140,3 +140,7 @@ python -m pip install pytest httpx
 set PYTHONPATH=.
 python -m pytest -q tests
 ~~~
+
+## مستندات فنی تفصیلی
+
+مستندات فارسی پروژه در پوشه‌ی [docs](./docs/README.md) قرار دارند. از آنجا می‌توانی به معماری، فرانت‌اند و HMI، بک‌اند و API، دیتابیس و Telemetry، PLC و Edge، ماژول‌های کسب‌وکار، نصب و امنیت، تست‌ها و نقشه‌ی راه مقیاس‌پذیری بروی.
