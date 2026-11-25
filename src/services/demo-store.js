@@ -1,3 +1,5 @@
+import { api } from "./api-client.js";
+
 import { uid } from "../core/format.js";
 
 const STORAGE_KEY = "scada-new-demo-state-v1";
@@ -63,47 +65,146 @@ const seed = {
     { id: "qc1", code: "QC-CB-001148", product: "سیم 1×10 افشان", machine: "اکسترودر عایق", decision: "قبول", status: "بررسی‌شده" }
   ],
   batches: [],
+  batchWeighments: [],
   productionRuns: []
 };
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 
-function load() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return saved ? { ...clone(seed), ...saved } : clone(seed);
-  } catch {
-    return clone(seed);
-  }
+let state = clone(seed);
+let serverConnected = false;
+let currentUser = null;
+let selectedWeekOffset = 0;
+let selectedTrendId = null;
+let selectedTrendHours = 24;
+let selectedAnalyticsDays = 7;
+
+function emit() {
+  window.dispatchEvent(new CustomEvent("scada:state-changed"));
 }
 
-let state = load();
-function persist() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* Private browsing may disable storage. */ }
-  window.dispatchEvent(new CustomEvent("scada:state-changed"));
+async function hydrate() {
+  const [snapshot, analytics, storage, audit, telemetry] = await Promise.all([
+    api.bootstrap(),
+    api.analyticsSummary(selectedAnalyticsDays),
+    api.analyticsStorage(),
+    api.auditHistory(50),
+    api.telemetryLatest(),
+  ]);
+  const telemetryByTag = new Map((telemetry.items || []).map(item => [item.tag_id, item]));
+  const tags = (snapshot.data.tags || []).map(tag => {
+    const sample = telemetryByTag.get(tag.id);
+    return sample ? {
+      ...tag,
+      value: sample.value,
+      quality: sample.quality,
+      source: sample.source,
+      sampled_at: sample.sampled_at,
+    } : { ...tag, quality: "UNSAMPLED", source: "seed" };
+  });
+  state = {
+    ...clone(seed),
+    ...snapshot.data,
+    tags,
+    analytics,
+    storage,
+    audit,
+    telemetryLatest: telemetry,
+  };
+  currentUser = snapshot.user;
+  serverConnected = true;
+  emit();
+  return { ...snapshot, analytics, storage, audit, telemetry };
 }
 
 export const store = {
   snapshot: () => state,
+  currentUser: () => currentUser,
+  isConnected: () => serverConnected,
+  weekOffset: () => selectedWeekOffset,
+  setWeekOffset: value => {
+    selectedWeekOffset = Number.isFinite(Number(value)) ? Number(value) : 0;
+    emit();
+  },
+  analyticsDays: () => selectedAnalyticsDays,
+  setAnalyticsDays: async value => {
+    const days = Number(value);
+    if (![1, 7, 30, 90, 365].includes(days)) throw new Error("بازه داشبورد معتبر نیست.");
+    const analytics = await api.analyticsSummary(days);
+    selectedAnalyticsDays = days;
+    state.analytics = analytics;
+    emit();
+  },
+  trendId: () => selectedTrendId,
+  setTrendId: value => {
+    selectedTrendId = value || null;
+  },
+  trendHours: () => selectedTrendHours,
+  setTrendHours: value => {
+    const hours = Number(value);
+    if ([1, 6, 24].includes(hours)) selectedTrendHours = hours;
+  },
+  initialize: async () => {
+    try {
+      await api.me();
+      await hydrate();
+      return true;
+    } catch (error) {
+      serverConnected = false;
+      currentUser = null;
+      throw error;
+    }
+  },
+  loadAfterLogin: hydrate,
+  refresh: hydrate,
+  async loadBatchWeighments(batchId) {
+    if (!serverConnected || !batchId) {
+      state.batchWeighments = [];
+      emit();
+      return [];
+    }
+    const result = await api.listBatchWeighments(batchId);
+    state.batchWeighments = Array.isArray(result.items) ? result.items : [];
+    emit();
+    return [...state.batchWeighments];
+  },
   list: name => Array.isArray(state[name]) ? [...state[name]] : [],
-  add(name, record) {
-    if (!Array.isArray(state[name])) throw new Error(`Unknown collection: ${name}`);
-    const saved = { id: uid(), ...record };
-    state[name].unshift(saved); persist(); return saved;
+  async add(name, record) {
+    if (!serverConnected) throw new Error("اتصال به Backend برقرار نیست؛ ابتدا سرور را اجرا کنید.");
+    const saved = await api.create(name, record);
+    if (!Array.isArray(state[name])) state[name] = [];
+    state[name].unshift(saved);
+    emit();
+    return saved;
   },
-  update(name, id, changes) {
-    if (!Array.isArray(state[name])) return null;
+  async update(name, id, changes) {
+    if (!serverConnected) throw new Error("اتصال به Backend برقرار نیست؛ ابتدا سرور را اجرا کنید.");
+    const saved = await api.update(name, id, changes);
+    if (!Array.isArray(state[name])) state[name] = [];
     const index = state[name].findIndex(row => row.id === id);
-    if (index < 0) return null;
-    state[name][index] = { ...state[name][index], ...changes };
-    persist(); return state[name][index];
+    if (index >= 0) state[name][index] = saved;
+    else state[name].unshift(saved);
+    emit();
+    return saved;
   },
-  remove(name, id) {
-    if (!Array.isArray(state[name])) return false;
-    const previous = state[name].length;
-    state[name] = state[name].filter(row => row.id !== id);
-    if (state[name].length !== previous) persist();
-    return state[name].length !== previous;
+  async remove(name, id) {
+    if (!serverConnected) throw new Error("اتصال به Backend برقرار نیست؛ ابتدا سرور را اجرا کنید.");
+    await api.remove(name, id);
+    state[name] = (state[name] || []).filter(row => row.id !== id);
+    emit();
+    return true;
   },
-  reset() { state = clone(seed); persist(); }
+  reset() {
+    throw new Error("بازنشانی داده‌های سرور از این صفحه مجاز نیست.");
+  },
+  clearSession() {
+    serverConnected = false;
+    currentUser = null;
+    state = clone(seed);
+    emit();
+  },
+  replaceCollection(name, rows) {
+    state[name] = Array.isArray(rows) ? rows : [];
+    emit();
+  },
 };

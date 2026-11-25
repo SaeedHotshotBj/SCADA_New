@@ -23,6 +23,7 @@ export const navigation = [
     id: "live", label: "نمایش زنده", icon: "⌁", children: [
       ["/live/data", "داده زنده", "⌁"],
       ["/live/hmi-pages", "صفحات HMI", "▦"],
+      ["/live/hmi-designer/new", "طراح شماتیک صنعتی", "▧"],
       ["/live/classic", "HMI کلاسیک", "♧"],
       ["/live/alarms", "آلارم‌ها", "◴"],
       ["/live/trends", "روند", "⌁"]

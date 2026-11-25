@@ -437,3 +437,1588 @@ tbody tr:last-child td { border-bottom: 0; }
   body { background: white; }
   .panel, .stat-card { box-shadow: none; break-inside: avoid; }
 }
+
+
+/* Data-bound HMI runtime widgets */
+.hmi-runtime-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0 18px;color:var(--muted);font-size:12px}
+.hmi-runtime-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:16px 0}
+.hmi-widget{min-width:0}
+.hmi-widget .panel-body{min-height:118px}
+.hmi-gauge-value{font-size:27px;font-weight:800;color:var(--navy);margin:8px 0 14px;overflow-wrap:anywhere}
+.hmi-gauge-value small{font-size:12px;font-weight:500;color:var(--muted)}
+.hmi-gauge-track{height:12px;border-radius:20px;background:#e9eff5;overflow:hidden}
+.hmi-gauge-track span{display:block;height:100%;border-radius:20px;background:linear-gradient(90deg,var(--cyan),var(--green))}
+.hmi-gauge-limits{display:flex;justify-content:space-between;margin-top:7px;color:var(--muted);font-size:11px}
+.hmi-status-value{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:20px;font-weight:700}
+.hmi-status-value small{font-size:12px;font-weight:400;color:var(--muted)}
+.hmi-widget .muted-note{margin:10px 0 0;font-size:11px;line-height:1.8}
+.hmi-preview .preview-info{display:flex;flex-direction:column;gap:5px;padding:10px;color:var(--navy);font-size:12px}
+.hmi-preview .preview-info small{color:var(--muted);font-size:10px}
+.hmi-card-footer>div{display:flex;gap:7px;flex-wrap:wrap}
+@media(max-width:640px){.hmi-runtime-grid{grid-template-columns:1fr}.hmi-runtime-toolbar{align-items:flex-start;flex-direction:column}}
+
+
+/* Industrial HMI Designer and reusable industrial widgets */
+.hmi-designer-page { min-width: 0; }
+.hmi-designer-settings, .hmi-designer-side-panel, .hmi-json-panel { background: var(--surface, #fff); border: 1px solid #e3ebf2; border-radius: 10px; box-shadow: var(--shadow); margin-bottom: 13px; min-width: 0; }
+.hmi-designer-settings { padding: 13px 15px; }
+.hmi-designer-settings-title, .hmi-designer-side-heading, .hmi-json-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hmi-designer-settings-title { margin-bottom: 11px; }
+.hmi-designer-settings-title b, .hmi-designer-side-heading b, .hmi-json-heading b { color: #31536d; font-size: 11px; }
+.hmi-designer-settings-title small, .hmi-designer-side-heading small, .hmi-json-heading small { color: #95a5b2; font-size: 9px; }
+.hmi-designer-settings-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.hmi-designer-description { grid-column: span 2; }
+.hmi-designer-workspace { display: grid; grid-template-columns: minmax(205px, 245px) minmax(300px, 1fr) minmax(235px, 285px); gap: 12px; align-items: start; }
+.hmi-designer-side-panel { overflow: hidden; }
+.hmi-designer-side-heading { min-height: 43px; padding: 10px 12px; border-bottom: 1px solid #edf1f5; }
+.hmi-library-panel { max-height: 780px; overflow: auto; }
+.hmi-library-category { padding: 10px; border-bottom: 1px solid #f0f3f6; }
+.hmi-library-category:last-child { border-bottom: 0; }
+.hmi-library-category h4 { margin: 0 0 8px; color: #75899a; font-size: 9px; }
+.hmi-library-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.hmi-library-item { display: flex; min-height: 70px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; padding: 7px 8px; border: 1px solid #e7edf2; border-radius: 7px; background: #fbfdfe; text-align: right; color: #4e6a80; transition: border-color .15s, background .15s, transform .15s; }
+.hmi-library-item:hover { border-color: #9bc9df; background: #f0f8fc; transform: translateY(-1px); }
+.hmi-library-item > span { display: grid; place-items: center; min-width: 25px; height: 25px; border-radius: 6px; background: #e9f4f8; color: #257a9c; font-size: 15px; font-weight: 800; }
+.hmi-library-item b { font-size: 9px; color: #3e5f78; }
+.hmi-library-item small { color: #8da0af; font-size: 8px; }
+.hmi-canvas-panel { min-height: 400px; }
+.hmi-designer-canvas { min-height: 350px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 10px; padding: 12px; background-color: #f4f7f9; background-image: linear-gradient(rgba(83,115,139,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(83,115,139,.045) 1px, transparent 1px); background-size: 18px 18px; }
+.hmi-designer-item { min-width: 0; border: 1px solid #dce6ed; border-radius: 9px; padding: 6px; background: rgba(255,255,255,.94); cursor: pointer; transition: border-color .14s, box-shadow .14s; }
+.hmi-designer-item.is-selected { border-color: #268ac0; box-shadow: 0 0 0 2px rgba(38,138,192,.13); }
+.hmi-designer-item-toolbar { height: 25px; display: flex; align-items: center; justify-content: space-between; gap: 7px; padding: 0 2px 5px; }
+.hmi-designer-item-toolbar small { color: #8da0af; font-size: 8px; }
+.hmi-designer-item-toolbar span { display: flex; gap: 3px; }
+.hmi-designer-item-toolbar button { width: 21px; height: 20px; padding: 0; border: 1px solid #e2eaf0; border-radius: 4px; background: #f8fafb; color: #5e7c91; font-size: 11px; }
+.hmi-designer-item-toolbar button:disabled { opacity: .35; cursor: not-allowed; }
+.hmi-designer-properties { display: flex; flex-direction: column; gap: 11px; padding: 12px; }
+.hmi-designer-properties .field { min-width: 0; }
+.hmi-field-help { color: #91a2af; font-size: 8px; }
+.hmi-required-mark { color: #d65a62; }
+.hmi-designer-empty { min-height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 18px; color: #94a4b1; text-align: center; font-size: 10px; }
+.hmi-designer-empty > span { font-size: 28px; color: #8bb8cb; }
+.hmi-designer-empty b { color: #58758b; font-size: 11px; }
+.hmi-designer-empty small { max-width: 230px; color: #9aabb7; font-size: 9px; }
+.hmi-designer-warning { padding: 9px 10px; border-radius: 6px; background: #fff7e8; color: #986d27; font-size: 9px; line-height: 1.7; }
+.hmi-json-panel { padding: 12px; }
+.hmi-json-heading { margin-bottom: 9px; }
+.hmi-json-heading > div { display: flex; flex-direction: column; gap: 3px; }
+.hmi-json-panel textarea { display: block; width: 100%; min-height: 235px; resize: vertical; direction: ltr; text-align: left; border: 1px solid #1c3d59; border-radius: 7px; background: #102b43; color: #c6f4e7; font: 11px/1.65 Consolas, "Courier New", monospace; tab-size: 2; }
+.hmi-json-status { padding: 4px 8px; border-radius: 999px; font-size: 8px; white-space: nowrap; }
+.hmi-json-status--success { color: #127653; background: #e7f7f0; }
+.hmi-json-status--error { color: #af3947; background: #fff0f1; }
+.hmi-runtime { min-width: 0; }
+.hmi-runtime-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 12px; color: #8598a8; font-size: 9px; }
+.hmi-runtime-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: 62px; gap: 10px; align-items: stretch; }
+.hmi-runtime-item { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
+.hmi-runtime-item > .hmi-widget { width: 100%; height: 100%; }
+.hmi-widget { min-width: 0; height: 100%; overflow: hidden; border: 1px solid #dfe8ee; border-radius: 9px; background: #fff; box-shadow: 0 3px 12px rgba(25,55,78,.055); }
+.hmi-widget-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; padding: 7px 10px; border-bottom: 1px solid #edf1f4; }
+.hmi-widget-header b { overflow: hidden; color: #3b5c75; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.hmi-quality { flex: 0 0 auto; padding: 3px 6px; border-radius: 99px; background: #f0f3f5; color: #81919e; font-size: 8px; }
+.hmi-quality--good { background: #e6f7f0; color: #12835f; }
+.hmi-quality--demo { background: #fff5e2; color: #a97825; }
+.hmi-quality--bad { background: #fff0f1; color: #bd4552; }
+.hmi-widget-body { min-height: 105px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 10px; }
+.hmi-value-number { max-width: 100%; overflow: hidden; color: #173e5a; font: 700 29px/1.1 "Segoe UI", Arial, sans-serif; letter-spacing: .4px; text-align: center; text-overflow: ellipsis; direction: ltr; }
+.hmi-value-meta { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; color: #7f95a5; font-size: 8px; }
+.hmi-value-meta small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hmi-widget-subtitle { color: #93a3af; font-size: 8px; text-align: center; }
+.hmi-status-display, .hmi-indicator-light { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 43px; }
+.hmi-status-display i, .hmi-indicator-light i { width: 15px; height: 15px; display: inline-block; flex: 0 0 15px; border-radius: 50%; background: #aeb9c1; box-shadow: inset 0 0 0 2px rgba(255,255,255,.4); }
+.hmi-status-display strong, .hmi-indicator-light b { color: #667e90; font: 800 12px/1.2 "Segoe UI", Arial, sans-serif; }
+.hmi-status-display--running i, .hmi-indicator-light--running i { background: #17b887; box-shadow: 0 0 0 4px rgba(23,184,135,.12), 0 0 12px rgba(23,184,135,.25); }
+.hmi-status-display--running strong, .hmi-indicator-light--running b { color: #13845f; }
+.hmi-status-display--fault i, .hmi-indicator-light--fault i { background: #dd4f5c; box-shadow: 0 0 0 4px rgba(221,79,92,.12); }
+.hmi-status-display--fault strong, .hmi-indicator-light--fault b { color: #c24652; }
+.hmi-gauge-visual { width: min(100%, 220px); }
+.hmi-dial-reading { display: flex; align-items: center; justify-content: center; min-height: 28px; margin-top: -3px; }
+.hmi-dial-reading strong { color: #214a67; font: 800 23px/1.1 "Segoe UI", Arial, sans-serif; direction: ltr; }
+.hmi-gauge-svg, .hmi-dial-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.hmi-gauge-svg text, .hmi-dial-svg text { fill: #8b9dab; font-size: 8px; }
+.hmi-gauge-svg .hmi-gauge-number { fill: #214d69; font-size: 21px; font-weight: 800; }
+.hmi-thermometer-layout { width: 100%; display: flex; align-items: center; justify-content: center; gap: 15px; min-height: 105px; }
+.hmi-thermometer { position: relative; width: 17px; height: 87px; display: flex; align-items: flex-end; overflow: hidden; border: 2px solid #83a0b3; border-radius: 99px; background: #edf3f6; }
+.hmi-thermometer i { display: block; width: 100%; min-height: 2px; border-radius: 99px; background: linear-gradient(0deg, #e58a55, #e6bf62); }
+.hmi-thermometer-reading { display: flex; flex-direction: column; gap: 3px; color: #8498a7; font-size: 9px; }
+.hmi-thermometer-reading strong { color: #214a67; font: 700 20px "Segoe UI", Arial, sans-serif; }
+.hmi-chart-svg { width: 100%; height: auto; min-height: 75px; display: block; }
+.hmi-chart-empty { width: 100%; padding: 15px 8px; color: #98a7b3; font-size: 9px; text-align: center; }
+.hmi-chart-empty--detail { display: flex; min-height: 78px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+.hmi-chart-latest { display: flex; align-items: baseline; justify-content: center; gap: 8px; flex-wrap: wrap; padding: 5px 9px; border: 1px solid #e6edf2; border-radius: 7px; background: #f8fbfc; }
+.hmi-chart-latest small { color: #8a9aa7; font-size: 8px; }
+.hmi-chart-latest strong { color: #214a67; font: 800 16px/1.2 "Segoe UI", Arial, sans-serif; direction: ltr; }
+.hmi-chart-single-point { stroke: white; stroke-width: 2; }
+.hmi-machine-graphic { width: 100%; display: flex; justify-content: center; padding: 1px 0; }
+.hmi-machine-svg { width: min(100%, 180px); height: 94px; display: block; }
+.hmi-machine-graphic--running .hmi-machine-rotor { transform-box: fill-box; transform-origin: center; animation: hmi-rotate 1.5s linear infinite; }
+.hmi-machine-graphic--running .hmi-conveyor-belt { animation: hmi-conveyor 1.2s linear infinite; }
+.hmi-machine-graphic--fault .hmi-machine-svg { filter: drop-shadow(0 0 3px rgba(210,65,78,.24)); }
+.hmi-machine-footer { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #8296a5; font-size: 8px; }
+.hmi-machine-footer b { overflow: hidden; color: #648094; font-size: 8px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.hmi-machine-state { padding: 4px 8px; border-radius: 99px; background: #edf1f4; color: #738796; font: 800 8px "Segoe UI", Arial, sans-serif; }
+.hmi-machine-state--running { background: #e5f7ef; color: #12825d; }
+.hmi-machine-state--fault { background: #fff0f1; color: #c34452; }
+.hmi-machine-state--stopped { background: #eef1f3; color: #758592; }
+.hmi-tank-layout { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; }
+.hmi-tank-svg { width: 88px; height: 105px; }
+.hmi-tank-layout > div { display: flex; flex-direction: column; gap: 3px; color: #899ba9; font-size: 9px; }
+.hmi-tank-layout strong { color: #23516d; font: 700 20px "Segoe UI", Arial, sans-serif; }
+.hmi-tank-layout small { color: #2194ad; font-weight: 800; }
+.hmi-valve-graphic { width: 100%; display: flex; justify-content: center; }
+.hmi-valve-graphic svg { width: min(100%, 175px); height: 92px; }
+.hmi-valve-graphic--running svg { filter: drop-shadow(0 0 3px rgba(20,166,126,.3)); }
+.hmi-valve-graphic--fault svg { filter: drop-shadow(0 0 4px rgba(209,62,75,.35)); }
+.hmi-designer-page .hmi-widget { pointer-events: none; }
+
+/* Floating HMI layout preview */
+#hmi-layout-preview-root[hidden] { display: none !important; }
+.hmi-layout-preview-backdrop { position: fixed; inset: 0; z-index: 10050; display: flex; align-items: center; justify-content: center; padding: 14px; background: rgba(9, 28, 45, .58); }
+.hmi-layout-preview-window { display: flex; width: min(1540px, calc(100vw - 28px)); max-height: calc(100vh - 28px); min-height: min(650px, calc(100vh - 28px)); flex-direction: column; overflow: hidden; border: 1px solid #d7e2ea; border-radius: 13px; background: #f8fafc; box-shadow: 0 22px 70px rgba(5, 24, 40, .32); }
+.hmi-layout-preview-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 16px; border-bottom: 1px solid #e4ebf0; background: #fff; }
+.hmi-layout-preview-header-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
+.hmi-layout-preview-header > div { display: flex; flex-direction: column; gap: 3px; }
+.hmi-layout-preview-header b { color: #274a65; font-size: 13px; }
+.hmi-layout-preview-header small { color: #8b9ba8; font-size: 9px; }
+.hmi-layout-preview-body { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 12px; min-height: 0; flex: 1; padding: 12px; overflow: hidden; }
+.hmi-layout-preview-main { display: flex; min-width: 0; min-height: 0; flex-direction: column; gap: 7px; }
+.hmi-layout-stage-scroll { min-width: 0; min-height: 0; flex: 1; overflow: auto; border: 1px solid #dce5ec; border-radius: 8px; background: #edf2f5; }
+.hmi-layout-preview-canvas { display: grid; min-width: 860px; min-height: 640px; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: 64px; align-content: start; gap: 8px; padding: 12px; background-color: #f4f7f9; background-image: linear-gradient(rgba(83,115,139,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(83,115,139,.07) 1px, transparent 1px); background-size: 18px 18px; }
+.hmi-layout-card { position: relative; display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; padding: 4px; border: 1px solid #d4e0e8; border-radius: 8px; background: rgba(255,255,255,.97); box-shadow: 0 2px 7px rgba(26,54,74,.07); }
+.hmi-layout-card.is-selected { border: 2px solid #268ac0; box-shadow: 0 0 0 2px rgba(38,138,192,.13); }
+.hmi-layout-card-toolbar { display: flex; min-height: 28px; flex: 0 0 28px; align-items: center; justify-content: space-between; gap: 6px; padding: 0 3px 3px; }
+.hmi-layout-card-toolbar[data-hmi-layout-gesture="move"] { position: relative; z-index: 3; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.hmi-layout-card-toolbar[data-hmi-layout-gesture="move"]:active { cursor: grabbing; }
+.hmi-layout-card-toolbar span { overflow: hidden; color: #73899a; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.hmi-layout-move { min-height: 21px; padding: 2px 7px; border: 1px solid #dbe5ec; border-radius: 5px; background: #f5f9fb; color: #55748b; cursor: inherit; font-size: 8px; touch-action: none; user-select: none; }
+.hmi-layout-card-content { display: flex; min-width: 0; min-height: 0; flex: 1; overflow: hidden; pointer-events: none; user-select: none; }
+.hmi-layout-card-content > .hmi-widget { width: 100%; height: 100%; border: 0; border-radius: 5px; box-shadow: none; }
+.hmi-layout-card-content .hmi-widget-body { min-height: 0; flex: 1; overflow: hidden; }
+.hmi-layout-resize { position: absolute; right: 1px; bottom: 1px; z-index: 2; display: grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 1px solid #bdd3e1; border-radius: 7px 0 7px 0; background: #eaf4f9; color: #286f95; cursor: nwse-resize; font-size: 17px; line-height: 1; touch-action: none; user-select: none; }
+.hmi-layout-dragging, .hmi-layout-dragging * { user-select: none !important; }
+.hmi-layout-preview-hint { margin: 0; color: #8999a6; font-size: 9px; }
+#hmi-layout-preview-properties { min-width: 0; overflow: auto; }
+.hmi-layout-properties { padding: 12px; border: 1px solid #e1e9ef; border-radius: 8px; background: white; }
+.hmi-layout-properties-title { display: flex; flex-direction: column; gap: 3px; margin-bottom: 12px; }
+.hmi-layout-properties-title b, .hmi-layout-properties > b { color: #31536d; font-size: 11px; }
+.hmi-layout-properties-title small, .hmi-layout-properties p { color: #8b9ba8; font-size: 9px; line-height: 1.8; }
+.hmi-layout-properties-group-title { margin: 9px 0 6px; color: #55758d; font-size: 9px; font-weight: 700; }
+.hmi-layout-properties-fields { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 10px; }
+.hmi-layout-properties-fields .field { gap: 4px; }
+.hmi-layout-properties-fields input { min-height: 31px; }
+.hmi-layout-preview-empty { display: flex; min-height: 180px; grid-column: 1 / -1; align-items: center; justify-content: center; color: #8b9ba8; font-size: 11px; }
+
+@keyframes hmi-rotate { to { transform: rotate(360deg); } }
+@keyframes hmi-conveyor { to { stroke-dashoffset: -26; } }
+
+@media (max-width: 1200px) {
+  .hmi-designer-workspace { grid-template-columns: minmax(190px, 230px) minmax(0, 1fr); }
+  .hmi-designer-workspace > #hmi-designer-properties { grid-column: 1 / -1; }
+  .hmi-designer-properties { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; }
+  .hmi-designer-side-panel.hmi-library-panel { max-height: 720px; }
+}
+@media (max-width: 760px) {
+  .hmi-designer-workspace { grid-template-columns: 1fr; }
+  .hmi-designer-workspace > #hmi-designer-properties { grid-column: auto; }
+  .hmi-designer-settings-grid { grid-template-columns: 1fr; }
+  .hmi-designer-description { grid-column: auto; }
+  .hmi-designer-properties { display: flex; }
+  .hmi-designer-canvas { grid-template-columns: 1fr; }
+  .hmi-runtime-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .hmi-runtime-item { grid-column: 1 / -1 !important; grid-row: auto !important; min-height: 160px; }
+  .hmi-layout-preview-body { grid-template-columns: 1fr; overflow: auto; }
+  .hmi-layout-preview-window { min-height: 0; }
+  .hmi-layout-preview-main { min-height: 380px; }
+  #hmi-layout-preview-properties { overflow: visible; }
+  .hmi-json-heading { align-items: flex-start; flex-direction: column; }
+}
+@media (max-width: 480px) {
+  .hmi-runtime-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+}
+
+/* Freeform HMI canvas: fixed logical pixel surface shared by designer and runtime. */
+.hmi-layout-preview-canvas {
+  position: relative;
+  display: block;
+  width: 1200px;
+  min-width: 1200px;
+  min-height: 800px;
+  grid-template-columns: none;
+  grid-auto-rows: auto;
+  align-content: initial;
+  padding: 0;
+  background-size: 20px 20px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hmi-layout-card {
+  position: absolute;
+  box-sizing: border-box;
+  cursor: move;
+  pointer-events: auto !important;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hmi-layout-card-toolbar {
+  pointer-events: auto !important;
+}
+.hmi-layout-card .hmi-layout-resize {
+  pointer-events: auto !important;
+}
+.hmi-layout-card.is-selected {
+  z-index: 20;
+}
+.hmi-layout-card[data-hmi-layout-gesture="move"] {
+  cursor: move;
+}
+.hmi-layout-card-toolbar {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hmi-layout-card-content,
+.hmi-layout-card-content * {
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+.hmi-layout-card .hmi-layout-resize {
+  z-index: 30;
+  cursor: nwse-resize !important;
+  touch-action: none;
+  user-select: none;
+}
+.hmi-layout-dragging,
+.hmi-layout-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  touch-action: none !important;
+}
+.hmi-layout-dragging .hmi-layout-resize {
+  cursor: nwse-resize !important;
+}
+.hmi-layout-preview-empty {
+  position: absolute;
+  inset: 0;
+}
+.hmi-runtime-stage-scroll {
+  max-width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #dce5ec;
+  border-radius: 8px;
+  background: #f4f7f9;
+}
+.hmi-runtime-grid {
+  position: relative !important;
+  display: block !important;
+  width: 1200px;
+  min-height: 800px;
+  margin: 0;
+}
+.hmi-runtime-grid > .hmi-runtime-item {
+  position: absolute !important;
+  display: block;
+  min-width: 0;
+  min-height: 0 !important;
+  height: auto;
+  grid-column: auto !important;
+  grid-row: auto !important;
+  overflow: hidden;
+}
+
+
+/* HMI page and per-widget themes. A widget set to "inherit" uses its page tokens. */
+[data-hmi-page-theme="light"], [data-hmi-theme="light"] {
+  --hmi-page-bg: #f4f7f9;
+  --hmi-card-bg: #ffffff;
+  --hmi-text: #25364a;
+  --hmi-heading: #294d68;
+  --hmi-muted: #8295a5;
+  --hmi-border: #e1e9ef;
+  --hmi-soft-bg: #f7fafc;
+  --hmi-grid-line: rgba(83,115,139,.10);
+  --hmi-chart-line: #218fbd;
+  --hmi-chart-bar: #2b9dba;
+  --hmi-chart-grid: #e5edf2;
+}
+[data-hmi-page-theme="dark"], [data-hmi-theme="dark"] {
+  --hmi-page-bg: #18232e;
+  --hmi-card-bg: #202e3a;
+  --hmi-text: #e3edf4;
+  --hmi-heading: #f1f6fa;
+  --hmi-muted: #a6b8c7;
+  --hmi-border: #405260;
+  --hmi-soft-bg: #293b49;
+  --hmi-grid-line: rgba(183,205,220,.12);
+  --hmi-chart-line: #60c5e8;
+  --hmi-chart-bar: #48aeca;
+  --hmi-chart-grid: #405260;
+}
+[data-hmi-page-theme="blue"], [data-hmi-theme="blue"] {
+  --hmi-page-bg: #eaf2fb;
+  --hmi-card-bg: #f8fbff;
+  --hmi-text: #25415e;
+  --hmi-heading: #174e7d;
+  --hmi-muted: #69849e;
+  --hmi-border: #c8d9e9;
+  --hmi-soft-bg: #edf5fd;
+  --hmi-grid-line: rgba(41,105,157,.12);
+  --hmi-chart-line: #267fc3;
+  --hmi-chart-bar: #399bc1;
+  --hmi-chart-grid: #d6e4f0;
+}
+[data-hmi-page-theme="industrial"], [data-hmi-theme="industrial"] {
+  --hmi-page-bg: #202b2c;
+  --hmi-card-bg: #2b3939;
+  --hmi-text: #e1e8df;
+  --hmi-heading: #f0f4e9;
+  --hmi-muted: #b1c0b5;
+  --hmi-border: #4a5c57;
+  --hmi-soft-bg: #354642;
+  --hmi-grid-line: rgba(207,221,204,.12);
+  --hmi-chart-line: #a2c98b;
+  --hmi-chart-bar: #75b5a0;
+  --hmi-chart-grid: #50645d;
+}
+.hmi-designer-canvas[data-hmi-page-theme],
+.hmi-layout-preview-canvas[data-hmi-page-theme],
+.hmi-runtime-grid[data-hmi-page-theme] {
+  background-color: var(--hmi-page-bg, #f4f7f9);
+  background-image: linear-gradient(var(--hmi-grid-line, rgba(83,115,139,.10)) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hmi-grid-line, rgba(83,115,139,.10)) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.hmi-layout-card {
+  background: var(--hmi-card-bg, #fff);
+  border-color: var(--hmi-border, #d4e0e8);
+}
+.hmi-designer-item {
+  background: var(--hmi-card-bg, rgba(255,255,255,.94));
+  border-color: var(--hmi-border, #dce6ed);
+}
+.hmi-widget {
+  background: var(--hmi-card-bg, #fff);
+  border-color: var(--hmi-border, #dfe8ee);
+  color: var(--hmi-text, #25364a);
+}
+.hmi-widget-header {
+  border-bottom-color: var(--hmi-border, #edf1f4);
+}
+.hmi-widget-header b,
+.hmi-value-number,
+.hmi-gauge-svg .hmi-gauge-number,
+.hmi-dial-reading strong,
+.hmi-thermometer-reading strong,
+.hmi-tank-layout strong,
+.hmi-chart-latest strong {
+  color: var(--hmi-heading, #294d68);
+}
+.hmi-value-meta,
+.hmi-widget-subtitle,
+.hmi-machine-footer,
+.hmi-thermometer-reading,
+.hmi-tank-layout > div,
+.hmi-gauge-svg text,
+.hmi-dial-svg text,
+.hmi-chart-empty {
+  color: var(--hmi-muted, #8295a5);
+}
+.hmi-chart-latest {
+  border-color: var(--hmi-border, #e6edf2);
+  background: var(--hmi-soft-bg, #f8fbfc);
+}
+.hmi-chart-latest small { color: var(--hmi-muted, #8a9aa7); }
+.hmi-chart-single-point { fill: var(--hmi-chart-line, #218fbd); }
+
+/* HMI runtime is a clean operator surface; the design grid stays in the editor only. */
+.hmi-runtime-grid[data-hmi-page-theme] {
+  background-image: none !important;
+  background-size: auto;
+}
+.hmi-widget--media .hmi-widget-body {
+  min-height: 0;
+  flex: 1;
+  padding: 0;
+  overflow: hidden;
+}
+.hmi-media-frame {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--hmi-soft-bg, transparent);
+}
+.hmi-media-element {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: transparent;
+}
+.hmi-media-fit-contain { object-fit: contain; }
+.hmi-media-fit-cover { object-fit: cover; }
+.hmi-media-fit-fill { object-fit: fill; }
+.hmi-media-empty {
+  display: flex;
+  width: 100%;
+  min-height: 110px;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  color: var(--hmi-muted, #8295a5);
+  font-size: 10px;
+  text-align: center;
+}
+.hmi-media-properties { display: grid; gap: 8px; padding: 8px 0; }
+.hmi-media-properties .field { margin: 0; }
+.hmi-media-current-file { color: var(--hmi-muted, #8295a5); font-size: 9px; overflow-wrap: anywhere; }
+.hmi-media-toggle { display: flex; align-items: center; gap: 8px; color: var(--hmi-text, #25364a); font-size: 10px; }
+.hmi-chart-live-label {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--hmi-chart-line, #218fbd);
+  font-size: 9px;
+}
+.hmi-chart-live-label span { font-weight: 800; letter-spacing: .4px; }
+.hmi-chart-live-label small { color: var(--hmi-muted, #8295a5); font-size: 8px; }
+
+
+/* Responsive HMI fitting: every widget and schematic scales into its assigned card. */
+.hmi-layout-card {
+  container-type: size;
+  box-sizing: border-box;
+}
+.hmi-layout-card-toolbar {
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  min-height: clamp(12px, 13cqb, 28px);
+  padding: clamp(1px, 1.2cqb, 3px) clamp(2px, 1.2cqi, 6px);
+  line-height: 1.1;
+}
+.hmi-layout-card-toolbar span {
+  min-width: 0;
+  font-size: clamp(5px, 3cqb, 8px);
+  line-height: 1.1;
+}
+.hmi-layout-card-content {
+  container-type: size;
+  display: flex;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.hmi-layout-card-content > .hmi-widget,
+.hmi-runtime-item > .hmi-widget {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.hmi-runtime-item {
+  container-type: size;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+}
+.hmi-widget-header {
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: clamp(12px, 15cqb, 34px);
+  max-height: 35%;
+  gap: clamp(2px, 1.8cqi, 8px);
+  padding: clamp(2px, 2cqb, 7px) clamp(3px, 2.3cqi, 10px);
+}
+.hmi-widget-header b {
+  min-width: 0;
+  font-size: clamp(6px, 4.5cqb, 10px);
+  line-height: 1.1;
+}
+.hmi-quality {
+  padding: clamp(1px, 1.3cqb, 3px) clamp(2px, 1.5cqi, 6px);
+  font-size: clamp(5px, 3.5cqb, 8px);
+  line-height: 1.1;
+}
+.hmi-widget-body {
+  display: flex;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  gap: clamp(1px, 2cqb, 7px);
+  padding: clamp(2px, 2.3cqb, 10px);
+}
+.hmi-widget-body > * {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  flex-shrink: 1;
+}
+.hmi-value-number {
+  max-height: 100%;
+  font-size: clamp(9px, 14cqb, 29px);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+.hmi-value-meta {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 28%;
+  flex-wrap: wrap;
+  gap: clamp(1px, 1.5cqi, 8px);
+  font-size: clamp(5px, 3.5cqb, 8px);
+  line-height: 1.1;
+}
+.hmi-value-meta small {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.hmi-status-display,
+.hmi-indicator-light {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  gap: clamp(3px, 2.5cqi, 9px);
+}
+.hmi-status-display i,
+.hmi-indicator-light i {
+  width: clamp(6px, 4cqi, 15px);
+  height: clamp(6px, 4cqi, 15px);
+  flex-basis: clamp(6px, 4cqi, 15px);
+}
+.hmi-status-display strong,
+.hmi-indicator-light b {
+  min-width: 0;
+  font-size: clamp(7px, 5.5cqb, 12px);
+  line-height: 1.1;
+}
+.hmi-gauge-visual {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+}
+.hmi-gauge-svg,
+.hmi-dial-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.hmi-dial-reading {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 28%;
+  margin-top: 0;
+}
+.hmi-dial-reading strong {
+  font-size: clamp(8px, 10.5cqb, 23px);
+  line-height: 1.05;
+}
+.hmi-thermometer-layout {
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  gap: clamp(5px, 4cqi, 15px);
+}
+.hmi-thermometer {
+  width: clamp(6px, 4.8cqi, 17px);
+  height: 100%;
+  max-height: 87px;
+  min-height: 0;
+  flex: 0 1 auto;
+  aspect-ratio: 17 / 87;
+}
+.hmi-thermometer-reading {
+  min-width: 0;
+  min-height: 0;
+  max-width: 65%;
+  font-size: clamp(6px, 4cqb, 9px);
+  line-height: 1.1;
+}
+.hmi-thermometer-reading strong {
+  max-width: 100%;
+  font-size: clamp(8px, 9cqb, 20px);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+.hmi-chart-svg {
+  display: block;
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.hmi-chart-empty {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  padding: clamp(2px, 2cqb, 15px) clamp(2px, 1.8cqi, 8px);
+  font-size: clamp(6px, 3.6cqb, 9px);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.hmi-chart-empty--detail {
+  min-height: 0;
+  gap: clamp(2px, 1.8cqb, 8px);
+}
+.hmi-chart-latest {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  gap: clamp(2px, 1.8cqi, 8px);
+  padding: clamp(2px, 1.5cqb, 5px) clamp(3px, 2cqi, 9px);
+}
+.hmi-chart-latest small {
+  font-size: clamp(5px, 3.2cqb, 8px);
+}
+.hmi-chart-latest strong {
+  min-width: 0;
+  font-size: clamp(8px, 8cqb, 16px);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+.hmi-chart-live-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-height: 25%;
+  flex-wrap: wrap;
+  gap: clamp(1px, 1.5cqi, 8px);
+  font-size: clamp(5px, 3.6cqb, 9px);
+  line-height: 1.1;
+}
+.hmi-chart-live-label small {
+  min-width: 0;
+  font-size: clamp(5px, 3.2cqb, 8px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.hmi-machine-graphic {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+.hmi-machine-svg {
+  width: 100%;
+  height: 100%;
+  max-width: 180px;
+  max-height: 94px;
+  min-width: 0;
+  min-height: 0;
+  object-fit: contain;
+}
+.hmi-machine-footer {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: 30%;
+  flex-wrap: wrap;
+  gap: clamp(2px, 1.8cqi, 8px);
+  font-size: clamp(5px, 3.5cqb, 8px);
+  line-height: 1.1;
+}
+.hmi-machine-footer b {
+  min-width: 0;
+  max-width: 100%;
+  font-size: clamp(5px, 3.5cqb, 8px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.hmi-machine-state {
+  padding: clamp(1px, 1cqb, 4px) clamp(2px, 1.8cqi, 8px);
+  font-size: clamp(5px, 3.5cqb, 8px);
+}
+.hmi-tank-layout {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  gap: clamp(4px, 3cqi, 12px);
+  overflow: hidden;
+}
+.hmi-tank-svg {
+  width: auto;
+  height: 100%;
+  max-width: 50%;
+  max-height: 105px;
+  min-width: 0;
+  min-height: 0;
+  flex: 0 1 auto;
+  object-fit: contain;
+}
+.hmi-tank-layout > div {
+  min-width: 0;
+  min-height: 0;
+  max-width: 60%;
+  font-size: clamp(6px, 4cqb, 9px);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.hmi-tank-layout strong {
+  font-size: clamp(8px, 9cqb, 20px);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+.hmi-valve-graphic {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+.hmi-valve-graphic svg {
+  width: 100%;
+  height: 100%;
+  max-width: 175px;
+  max-height: 92px;
+  min-width: 0;
+  min-height: 0;
+  object-fit: contain;
+}
+.hmi-media-empty {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(2px, 2.3cqb, 16px);
+  font-size: clamp(6px, 3.7cqb, 10px);
+  overflow-wrap: anywhere;
+}
+.hmi-widget-body > button {
+  flex: 0 1 auto;
+  min-height: clamp(14px, 8cqb, 30px);
+  max-width: 100%;
+  padding: clamp(1px, 1.2cqb, 5px) clamp(3px, 2cqi, 9px);
+  font-size: clamp(6px, 3.8cqb, 12px);
+  line-height: 1.1;
+}
+.hmi-layout-card .hmi-layout-resize {
+  width: clamp(16px, 16cqi, 32px);
+  height: clamp(16px, 16cqi, 32px);
+  font-size: clamp(8px, 7cqi, 17px);
+}
+
+
+/* Trend chart: time/value axes, a dedicated live-value tile and adaptive plot sizing. */
+.hmi-widget--chart .hmi-widget-body {
+  align-items: stretch;
+  justify-content: flex-start;
+}
+.hmi-chart-layout {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  gap: clamp(1px, 1.2cqb, 5px);
+}
+.hmi-chart-value-box {
+  display: grid;
+  flex: 0 1 auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  width: 100%;
+  min-width: 0;
+  max-height: 28%;
+  overflow: hidden;
+  box-sizing: border-box;
+  align-items: center;
+  gap: clamp(2px, 1.8cqi, 8px);
+  padding: clamp(2px, 1.5cqb, 6px) clamp(4px, 2.2cqi, 10px);
+  border: 1px solid var(--hmi-border, #dce7ed);
+  border-radius: 6px;
+  background: var(--hmi-soft-bg, #f5f9fb);
+  text-align: start;
+}
+.hmi-chart-value-box span {
+  min-width: 0;
+  color: var(--hmi-muted, #8295a5);
+  font-size: clamp(5px, 3.8cqb, 9px);
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hmi-chart-value-box strong {
+  min-width: 0;
+  color: var(--hmi-heading, #294d68);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: clamp(8px, 8.5cqb, 18px);
+  font-weight: 800;
+  line-height: 1.05;
+  direction: ltr;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hmi-chart-value-box small {
+  min-width: 0;
+  color: var(--hmi-muted, #8295a5);
+  font-size: clamp(5px, 3.6cqb, 8px);
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hmi-chart-plot {
+  display: flex;
+  flex: 1 1 0;
+  align-items: stretch;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.hmi-chart-plot > .hmi-chart-svg {
+  display: block;
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+}
+.hmi-chart-svg .hmi-chart-grid-line {
+  fill: none;
+  stroke: var(--hmi-chart-grid, #e5edf2);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.hmi-chart-svg .hmi-chart-axis-line {
+  fill: none;
+  stroke: var(--hmi-muted, #8295a5);
+  stroke-width: 1;
+}
+.hmi-chart-svg .hmi-chart-axis-tick {
+  fill: none;
+  stroke: var(--hmi-muted, #8295a5);
+  stroke-width: 1;
+}
+.hmi-chart-svg .hmi-chart-y-tick,
+.hmi-chart-svg .hmi-chart-x-tick {
+  fill: var(--hmi-muted, #8295a5);
+  font-size: 11px;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+.hmi-chart-svg .hmi-chart-axis-title {
+  fill: var(--hmi-heading, #294d68);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+.hmi-chart-plot .hmi-chart-empty {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  padding: clamp(2px, 2cqb, 10px);
+  font-size: clamp(6px, 3.7cqb, 9px);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.hmi-chart-layout .hmi-chart-live-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-height: 18%;
+  flex-wrap: wrap;
+  gap: clamp(1px, 1cqi, 5px);
+  font-size: clamp(5px, 3.3cqb, 8px);
+  line-height: 1.1;
+}
+.hmi-chart-layout .hmi-chart-live-label small {
+  min-width: 0;
+  font-size: clamp(5px, 3cqb, 7px);
+  overflow-wrap: anywhere;
+}
+.hmi-chart-meta {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: 18%;
+  flex-wrap: wrap;
+  font-size: clamp(5px, 3.2cqb, 8px);
+  line-height: 1.1;
+}
+.hmi-chart-meta small {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+
+
+/* HMI: proportional SVG charts and saved freeform layout in the edit canvas. */
+.hmi-canvas-panel { min-width: 0; overflow: hidden; }
+.hmi-designer-canvas-scroll {
+  width: 100%; max-width: 100%; min-width: 0; overflow: auto;
+  overscroll-behavior: contain; border-radius: 0 0 9px 9px; background: #f4f7f9;
+}
+.hmi-designer-canvas.hmi-designer-canvas-stage {
+  position: relative; display: block; min-width: 1200px; min-height: 800px;
+  padding: 0; background-size: 20px 20px;
+}
+.hmi-designer-item {
+  position: absolute; display: flex; box-sizing: border-box; min-width: 120px;
+  min-height: 80px; flex-direction: column; overflow: hidden; padding: 4px;
+}
+.hmi-designer-item-toolbar { flex: 0 0 25px; min-width: 0; }
+.hmi-designer-item-content {
+  display: flex; flex: 1 1 0; min-width: 0; min-height: 0;
+  overflow: hidden; pointer-events: none; user-select: none;
+}
+.hmi-designer-item-content > .hmi-widget {
+  width: 100%; height: 100%; min-width: 0; min-height: 0;
+}
+.hmi-designer-item-content .hmi-widget-body { min-height: 0; flex: 1 1 0; overflow: hidden; }
+.hmi-designer-canvas-empty { position: absolute; inset: 0; pointer-events: none; }
+.hmi-media-upload-field {
+  display: flex; min-width: 0; flex-direction: column; gap: 5px;
+  color: var(--hmi-text, #334f65); font-size: 10px;
+}
+.hmi-media-file-input {
+  display: block; box-sizing: border-box; width: 100%; max-width: 100%;
+  min-height: 36px; padding: 5px; border: 1px solid #d9e3ea;
+  border-radius: 6px; background: #fbfdfe; color: #47647a;
+  font: 10px/1.4 Tahoma, Arial, sans-serif;
+}
+.hmi-media-properties [data-action="hmi-media-choose"] { width: 100%; }
+.hmi-chart-plot > .hmi-chart-svg {
+  width: 100%; height: 100%; min-width: 0; min-height: 0;
+  max-width: 100%; max-height: 100%; aspect-ratio: 360 / 190; object-fit: contain;
+}
+.hmi-chart-svg .hmi-chart-y-tick,
+.hmi-chart-svg .hmi-chart-x-tick {
+  font-size: 9px; font-family: var(--hmi-font-family, "Tahoma", Arial, sans-serif);
+}
+.hmi-chart-svg .hmi-chart-axis-title {
+  font-size: 10px; font-family: var(--hmi-font-family, "Tahoma", Arial, sans-serif);
+}
+.hmi-widget { font-family: var(--hmi-font-family, "Tahoma", "Segoe UI", Arial, sans-serif); }
+.hmi-widget-header b {
+  font-family: var(--hmi-font-family, "Tahoma", Arial, sans-serif);
+  font-size: calc(clamp(6px, 4.5cqb, 10px) * var(--hmi-text-scale, 1));
+}
+.hmi-quality {
+  font-family: var(--hmi-font-family, "Tahoma", Arial, sans-serif);
+  font-size: calc(clamp(5px, 3.5cqb, 8px) * var(--hmi-text-scale, 1));
+}
+.hmi-value-number,
+.hmi-dial-reading strong,
+.hmi-thermometer-reading strong,
+.hmi-tank-layout strong,
+.hmi-chart-value-box strong {
+  font-family: var(--hmi-font-family, "Tahoma", Arial, sans-serif);
+  font-size: calc(clamp(8px, 14cqb, 29px) * var(--hmi-number-scale, 1));
+}
+.hmi-value-meta,
+.hmi-widget-subtitle,
+.hmi-status-display strong,
+.hmi-indicator-light b,
+.hmi-thermometer-reading,
+.hmi-tank-layout > div,
+.hmi-machine-footer,
+.hmi-machine-footer b,
+.hmi-machine-state,
+.hmi-chart-empty,
+.hmi-chart-value-box span,
+.hmi-chart-value-box small,
+.hmi-chart-live-label,
+.hmi-chart-live-label small,
+.hmi-chart-meta {
+  font-family: var(--hmi-font-family, "Tahoma", Arial, sans-serif);
+  font-size: calc(clamp(5px, 3.8cqb, 12px) * var(--hmi-text-scale, 1));
+}
+.hmi-chart-svg .hmi-chart-y-tick,
+.hmi-chart-svg .hmi-chart-x-tick,
+.hmi-chart-svg .hmi-chart-axis-title {
+  font-family: var(--hmi-font-family, "Tahoma", Arial, sans-serif);
+  font-size: calc(9px * var(--hmi-text-scale, 1));
+}
+.hmi-gauge-svg text,
+.hmi-dial-svg text { font-family: var(--hmi-font-family, "Tahoma", Arial, sans-serif); }
+.hmi-gauge-svg .hmi-gauge-number { font-size: calc(21px * var(--hmi-number-scale, 1)); }
+
+
+/* Reference-matched HMI trend panel: dark glass surface, smooth curve and quiet grid. */
+.hmi-widget--chart {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--hmi-chart-surface-border, #253a32);
+  border-radius: 14px;
+  background: linear-gradient(160deg, var(--hmi-chart-surface-top, #0b1a16), var(--hmi-chart-surface-bottom, #111b19)) !important;
+  color: #edf6f2;
+  box-shadow: 0 12px 26px rgba(3, 10, 9, .26), inset 0 1px 0 rgba(255, 255, 255, .035);
+}
+.hmi-widget--chart[data-hmi-chart-surface="midnight"] {
+  --hmi-chart-surface-top: #0a1814;
+  --hmi-chart-surface-bottom: #111c19;
+  --hmi-chart-surface-border: #263b32;
+  --hmi-chart-grid-color: rgba(185, 222, 207, .075);
+}
+.hmi-widget--chart[data-hmi-chart-surface="navy"] {
+  --hmi-chart-surface-top: #07182a;
+  --hmi-chart-surface-bottom: #10243b;
+  --hmi-chart-surface-border: #263f5b;
+  --hmi-chart-grid-color: rgba(170, 204, 239, .09);
+}
+.hmi-widget--chart[data-hmi-chart-surface="graphite"] {
+  --hmi-chart-surface-top: #15191f;
+  --hmi-chart-surface-bottom: #222831;
+  --hmi-chart-surface-border: #3a424c;
+  --hmi-chart-grid-color: rgba(210, 219, 230, .09);
+}
+.hmi-widget--chart .hmi-widget-header {
+  display: none !important;
+}
+.hmi-widget--chart .hmi-widget-body {
+  display: flex;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow: hidden;
+  padding: clamp(7px, 2cqi, 13px);
+  background: transparent;
+}
+.hmi-chart-layout {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  gap: clamp(3px, 1.2cqb, 8px);
+}
+.hmi-chart-topbar {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: clamp(25px, 22cqb, 43px);
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.hmi-chart-heading {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+}
+.hmi-chart-title {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: #e8f4ef;
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: calc(clamp(8px, 5.3cqb, 13px) * var(--hmi-text-scale, 1));
+  font-weight: 700;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hmi-chart-subtitle {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(191, 215, 204, .58);
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: calc(clamp(6px, 3.5cqb, 9px) * var(--hmi-text-scale, 1));
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hmi-chart-status-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.hmi-chart-quality,
+.hmi-chart-live-label,
+.hmi-chart-range-label {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  color: rgba(204, 225, 214, .62);
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: clamp(6px, 3.1cqb, 8px);
+  line-height: 1;
+}
+.hmi-chart-quality i,
+.hmi-chart-live-label i {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: #46c78b;
+}
+.hmi-chart-quality--bad i { background: #f06d72; }
+.hmi-chart-quality--demo i { background: #e8b65a; }
+.hmi-chart-live-label { color: #48d998; font-weight: 800; letter-spacing: .2px; }
+.hmi-chart-live-label i { box-shadow: 0 0 7px rgba(72, 217, 152, .52); }
+.hmi-chart-reading {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 48%;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 5px;
+  border: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  text-align: end;
+}
+.hmi-chart-reading strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hmi-chart-line, #168ce8);
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: calc(clamp(14px, 11cqb, 30px) * var(--hmi-number-scale, 1));
+  font-weight: 800;
+  line-height: 1;
+  direction: ltr;
+  text-align: end;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 0 13px var(--hmi-chart-glow, #168ce8);
+}
+.hmi-chart-reading small {
+  flex: 0 0 auto;
+  color: rgba(210, 226, 218, .72);
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: calc(clamp(6px, 3.6cqb, 9px) * var(--hmi-text-scale, 1));
+  white-space: nowrap;
+}
+.hmi-chart-plot {
+  display: flex;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  align-items: stretch;
+  overflow: hidden;
+}
+.hmi-chart-plot > .hmi-chart-svg {
+  display: block;
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+}
+.hmi-chart-svg .hmi-chart-grid-line {
+  fill: none;
+  stroke: var(--hmi-chart-grid-color, rgba(185, 222, 207, .075));
+  stroke-width: 1;
+  stroke-dasharray: none;
+}
+.hmi-chart-svg .hmi-chart-y-tick,
+.hmi-chart-svg .hmi-chart-x-tick {
+  fill: rgba(211, 229, 220, .56);
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: calc(8px * var(--hmi-text-scale, 1));
+}
+.hmi-chart-svg .hmi-chart-axis-title {
+  fill: rgba(211, 229, 220, .62);
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: calc(8px * var(--hmi-text-scale, 1));
+}
+.hmi-chart-svg .hmi-chart-area {
+  opacity: 1;
+}
+.hmi-chart-svg .hmi-chart-line {
+  filter: drop-shadow(0 0 4px var(--hmi-chart-glow, #168ce8));
+}
+.hmi-chart-svg .hmi-chart-last-point {
+  fill: var(--hmi-chart-line, #168ce8);
+  stroke: rgba(235, 247, 241, .78);
+  stroke-width: 1;
+}
+.hmi-chart-svg .hmi-chart-dot-halo {
+  fill: var(--hmi-chart-line, #168ce8);
+  opacity: .17;
+}
+.hmi-chart-svg .hmi-chart-single-point {
+  fill: var(--hmi-chart-line, #168ce8);
+  stroke: rgba(235, 247, 241, .78);
+  stroke-width: 1;
+}
+.hmi-chart-svg .hmi-chart-bar {
+  fill: var(--hmi-chart-line, #168ce8);
+  opacity: .78;
+}
+.hmi-chart-empty {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  color: rgba(202, 221, 211, .64);
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: calc(clamp(7px, 4cqb, 10px) * var(--hmi-text-scale, 1));
+  line-height: 1.6;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.hmi-chart-axes-toggle {
+  display: flex;
+  min-height: 29px;
+  align-items: center;
+  gap: 7px;
+  margin: 5px 0 8px;
+  padding: 6px 8px;
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
+  color: #536e82;
+  background: #f8fafb;
+  font-size: 9px;
+}
+.hmi-chart-axes-toggle input {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  margin: 0;
+}
+@media (max-width: 520px) {
+  .hmi-chart-reading { max-width: 44%; }
+}
+
+
+/* HMI trend refinement: visibly tinted surfaces and an inline endpoint reading. */
+.hmi-widget.hmi-widget--chart {
+  /* The card's custom color must drive the visible gradient, not only a hidden base color.
+     This selector intentionally matches the specificity of the chart theme overrides. */
+  background-color: var(--hmi-chart-background-color, #1a4537) !important;
+  background-image:
+    radial-gradient(135% 125% at 0% 0%,
+      rgba(var(--hmi-chart-background-rgb, 26, 69, 55), .38), transparent 68%),
+    linear-gradient(150deg,
+      rgba(var(--hmi-chart-background-rgb, 26, 69, 55), var(--hmi-chart-surface-opacity, 1)),
+      rgba(var(--hmi-chart-background-rgb, 26, 69, 55), .82)) !important;
+  border-color: color-mix(in srgb, var(--hmi-chart-background-color, #1a4537) 65%, white) !important;
+  box-shadow: 0 12px 26px rgba(3, 10, 9, .3), inset 0 1px 0 rgba(232, 250, 239, .09);
+}
+.hmi-widget.hmi-widget--chart[data-hmi-chart-surface="midnight"] {
+  --hmi-chart-surface-top-rgb: 13, 43, 35;
+  --hmi-chart-surface-bottom-rgb: 26, 68, 53;
+  --hmi-chart-surface-accent-rgb: 48, 128, 91;
+  --hmi-chart-grid-rgb: 173, 218, 194;
+  --hmi-chart-surface-border: #3e705a;
+}
+.hmi-widget.hmi-widget--chart[data-hmi-chart-surface="navy"] {
+  --hmi-chart-surface-top-rgb: 13, 43, 75;
+  --hmi-chart-surface-bottom-rgb: 29, 70, 108;
+  --hmi-chart-surface-accent-rgb: 46, 116, 171;
+  --hmi-chart-grid-rgb: 172, 207, 239;
+  --hmi-chart-surface-border: #426b91;
+}
+.hmi-widget.hmi-widget--chart[data-hmi-chart-surface="graphite"] {
+  --hmi-chart-surface-top-rgb: 37, 46, 58;
+  --hmi-chart-surface-bottom-rgb: 64, 77, 94;
+  --hmi-chart-surface-accent-rgb: 103, 121, 143;
+  --hmi-chart-grid-rgb: 205, 216, 230;
+  --hmi-chart-surface-border: #667587;
+}
+.hmi-widget.hmi-widget--chart .hmi-widget-header { display: none !important; }
+.hmi-widget.hmi-widget--chart .hmi-widget-body { background: transparent !important; }
+.hmi-widget--chart .hmi-chart-topbar { justify-content: flex-start; }
+.hmi-widget--chart .hmi-chart-heading { width: 100%; }
+.hmi-widget--chart .hmi-chart-reading,
+.hmi-widget--chart .hmi-chart-value-box { display: none !important; }
+.hmi-widget--chart .hmi-chart-plot { position: relative; }
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-grid-line {
+  stroke: rgba(var(--hmi-chart-grid-rgb, 173, 218, 194), var(--hmi-chart-grid-opacity, .22));
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-line {
+  filter: drop-shadow(0 0 var(--hmi-chart-line-glow, 8px) var(--hmi-chart-glow, #168ce8));
+}
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-dot-halo { opacity: .26; }
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-last-point,
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-single-point {
+  stroke: rgba(248, 253, 255, .96);
+  stroke-width: 1.6;
+}
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-endpoint-label {
+  fill: var(--hmi-chart-value-color, var(--hmi-chart-line, #168ce8));
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: var(--hmi-chart-value-size, 18px);
+  font-weight: 800;
+  letter-spacing: .1px;
+  paint-order: stroke fill;
+  stroke: rgba(6, 17, 18, .94);
+  stroke-width: 3.2px;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .55));
+}
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-endpoint-unit {
+  fill: rgba(238, 247, 242, .88);
+  font-size: .62em;
+  font-weight: 600;
+}
+.hmi-widget--chart .hmi-chart-empty-reading {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--hmi-chart-value-color, var(--hmi-chart-line, #168ce8));
+  direction: ltr;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .85), 0 0 12px var(--hmi-chart-glow, #168ce8);
+}
+.hmi-widget--chart .hmi-chart-empty-reading strong {
+  font-family: var(--hmi-font-family, Tahoma, Arial, sans-serif);
+  font-size: var(--hmi-chart-value-size, 18px);
+  font-weight: 800;
+  line-height: 1;
+}
+.hmi-widget--chart .hmi-chart-empty-reading small {
+  color: rgba(238, 247, 242, .88);
+  font-size: .68em;
+  font-weight: 600;
+}
+.hmi-widget--chart .hmi-chart-empty {
+  position: relative;
+  min-height: 0;
+  flex: 1 1 0;
+  color: rgba(222, 239, 230, .82);
+}
+
+
+
+/* HMI fixed typography and aspect-safe rendering: card resizing changes the canvas,
+   not the configured glyph sizes or the proportions of a chart. */
+.hmi-widget .hmi-widget-header { min-height: 34px; max-height: none; padding: 7px 10px; gap: 8px; }
+.hmi-widget .hmi-widget-header b { font-size: calc(10px * var(--hmi-text-scale, 1)) !important; }
+.hmi-widget .hmi-quality { padding: 3px 6px; font-size: calc(8px * var(--hmi-text-scale, 1)) !important; }
+.hmi-widget .hmi-widget-body { gap: 7px; padding: 10px; }
+.hmi-widget .hmi-value-number { font-size: calc(29px * var(--hmi-number-scale, 1)) !important; }
+.hmi-widget .hmi-value-meta { gap: 8px; font-size: calc(8px * var(--hmi-text-scale, 1)) !important; }
+.hmi-widget .hmi-status-display,
+.hmi-widget .hmi-indicator-light { gap: 9px; }
+.hmi-widget .hmi-status-display i,
+.hmi-widget .hmi-indicator-light i { width: 15px; height: 15px; flex-basis: 15px; }
+.hmi-widget .hmi-status-display strong,
+.hmi-widget .hmi-indicator-light b { font-size: calc(12px * var(--hmi-text-scale, 1)) !important; }
+.hmi-widget .hmi-dial-reading strong { font-size: calc(23px * var(--hmi-number-scale, 1)) !important; }
+.hmi-widget .hmi-thermometer-reading { font-size: calc(9px * var(--hmi-text-scale, 1)) !important; }
+.hmi-widget .hmi-thermometer-reading strong { font-size: calc(20px * var(--hmi-number-scale, 1)) !important; }
+.hmi-widget .hmi-chart-title { font-size: calc(13px * var(--hmi-text-scale, 1)) !important; }
+.hmi-widget .hmi-chart-subtitle { font-size: calc(9px * var(--hmi-text-scale, 1)) !important; }
+.hmi-widget .hmi-chart-quality,
+.hmi-widget .hmi-chart-live-label,
+.hmi-widget .hmi-chart-range-label { font-size: calc(8px * var(--hmi-text-scale, 1)) !important; }
+.hmi-widget .hmi-chart-empty { font-size: calc(9px * var(--hmi-text-scale, 1)) !important; }
+.hmi-widget .hmi-machine-footer,
+.hmi-widget .hmi-machine-footer b,
+.hmi-widget .hmi-machine-state { font-size: calc(8px * var(--hmi-text-scale, 1)) !important; }
+.hmi-widget .hmi-machine-state { padding: 4px 8px; }
+.hmi-widget .hmi-tank-layout > div { font-size: calc(9px * var(--hmi-text-scale, 1)) !important; }
+.hmi-widget .hmi-tank-layout strong { font-size: calc(20px * var(--hmi-number-scale, 1)) !important; }
+.hmi-widget .hmi-media-empty { padding: 12px; font-size: calc(10px * var(--hmi-text-scale, 1)) !important; }
+.hmi-widget .hmi-widget-body > button { min-height: 30px; padding: 5px 9px; font-size: calc(12px * var(--hmi-text-scale, 1)) !important; }
+.hmi-widget--chart .hmi-chart-topbar { min-height: 34px; gap: 8px; }
+.hmi-widget--chart .hmi-chart-layout { gap: 6px; }
+.hmi-widget--chart .hmi-chart-plot { justify-content: center; align-items: center; }
+.hmi-widget--chart .hmi-chart-svg {
+  display: block;
+  flex: 0 1 auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 2 / 1;
+  object-fit: contain;
+}
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-grid-line,
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-line {
+  vector-effect: non-scaling-stroke;
+}
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-y-tick,
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-x-tick { font-size: 9px; }
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-axis-title { font-size: 10px; }
+.hmi-widget--chart .hmi-chart-svg .hmi-chart-endpoint-label { font-size: var(--hmi-chart-value-size, 18px); }
+.hmi-widget--border-hidden { border-color: transparent !important; box-shadow: none !important; }
+.hmi-widget--title-hidden .hmi-widget-header { display: none !important; }
+.hmi-widget--title-hidden .hmi-chart-title { display: none !important; }
+.hmi-layout-card--border-hidden:not(.is-selected),
+.hmi-designer-item--border-hidden:not(.is-selected) {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.hmi-card-frame-properties { display: flex; flex-direction: column; gap: 7px; padding: 8px 9px; border: 1px solid #e0e8ee; border-radius: 7px; background: #f8fafc; }
+.hmi-card-frame-toggle { display: flex; align-items: center; gap: 7px; min-height: 25px; color: #536e82; font-size: 9px; }
+.hmi-card-frame-toggle input { width: 14px; height: 14px; flex: 0 0 14px; margin: 0; }
+.hmi-chart-properties input[type="color"] {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  padding: 3px;
+  border: 1px solid #d7e2ea;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+/* HMI edit canvas: the real widget occupies the complete saved card rectangle.
+   Selection and reorder controls float above it without changing runtime geometry. */
+.hmi-designer-item {
+  display: block !important;
+  box-sizing: border-box;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible;
+  container-type: size;
+}
+.hmi-designer-item.is-selected {
+  outline: 2px solid #268ac0;
+  outline-offset: 2px;
+  border: 0 !important;
+  box-shadow: none !important;
+  z-index: 2;
+}
+.hmi-designer-item-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+  container-type: size;
+}
+.hmi-designer-item-content > .hmi-widget {
+  display: flex;
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+.hmi-designer-item-content .hmi-widget-body {
+  min-height: 0;
+  flex: 1 1 0;
+  overflow: hidden;
+}
+.hmi-designer-item-toolbar {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  z-index: 4;
+  display: flex;
+  flex: none;
+  height: 25px;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: rgba(13, 31, 45, .82);
+  color: #fff;
+  opacity: 0;
+  pointer-events: auto;
+  transition: opacity .12s ease;
+}
+.hmi-designer-item:hover .hmi-designer-item-toolbar,
+.hmi-designer-item:focus-within .hmi-designer-item-toolbar {
+  opacity: 1;
+}
+.hmi-designer-item-toolbar small {
+  color: rgba(255,255,255,.88);
+  font-size: 8px;
+}
+.hmi-designer-item-toolbar button {
+  pointer-events: auto;
+}
+
